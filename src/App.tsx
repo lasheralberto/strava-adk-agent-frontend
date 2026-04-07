@@ -6,6 +6,7 @@ import {
  
 } from 'lucide-react'
 import RuixenPromptBox from '@/components/ui/ruixen-prompt-box'
+import { BouncingDots } from '@/components/ui/bouncing-dots'
 import './styles/chat.css'
 
 type ChatRole = 'assistant' | 'user'
@@ -17,6 +18,8 @@ type ChatMessage = {
   content: string
   tag: string
 }
+
+type RequestStatus = 'idle' | 'requesting' | 'streaming'
 
 const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
 const llmProvider = (import.meta.env.VITE_LLM_PROVIDER ?? '').trim()
@@ -117,7 +120,8 @@ function parseSseEventBlock(block: string): { event: string; data: string } | nu
 
 function App() {
   const [messages, setMessages] = useState(initialMessages)
-  const [isSending, setIsSending] = useState(false)
+  const [requestStatus, setRequestStatus] = useState<RequestStatus>('idle')
+  const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<number | null>(null)
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined') return false
     const stored = localStorage.getItem('theme')
@@ -137,6 +141,7 @@ function App() {
   }, [isDark])
 
   const handleSend = async ({ message, transform }: { message: string; transform: string | null }) => {
+    const isSending = requestStatus !== 'idle'
     const trimmedMessage = message.trim()
     if ((!trimmedMessage && !transform) || isSending) {
       return
@@ -167,10 +172,11 @@ function App() {
       return
     }
 
-    setIsSending(true)
+    const assistantMessageId = Date.now() + 1
+    setRequestStatus('requesting')
+    setActiveAssistantMessageId(assistantMessageId)
 
     try {
-      const assistantMessageId = Date.now() + 1
       let streamedResponse = ''
 
       setMessages((currentMessages) =>
@@ -190,14 +196,24 @@ function App() {
       })
 
       if (!response.ok) {
-        const data = (await response.json()) as { error?: string }
-        throw new Error(data.error || 'No se pudo obtener respuesta del backend.')
+        let backendError = 'No se pudo obtener respuesta del backend.'
+        try {
+          const data = (await response.json()) as { error?: string }
+          if (data.error) {
+            backendError = data.error
+          }
+        } catch {
+          // Keep default error when backend payload is not JSON.
+        }
+        throw new Error(backendError)
       }
 
       const reader = response.body?.getReader()
       if (!reader) {
         throw new Error('El navegador no pudo abrir el stream de respuesta.')
       }
+
+      setRequestStatus('streaming')
 
       const decoder = new TextDecoder()
       let buffer = ''
@@ -257,12 +273,12 @@ function App() {
       )
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error inesperado al contactar el backend.'
-      setMessages((currentMessages) => [
-        ...currentMessages,
-        buildAssistantMessage(message, 'Error'),
-      ])
+      setMessages((currentMessages) =>
+        updateAssistantMessage(currentMessages, assistantMessageId, message, 'Error'),
+      )
     } finally {
-      setIsSending(false)
+      setRequestStatus('idle')
+      setActiveAssistantMessageId(null)
     }
   }
 
@@ -309,7 +325,11 @@ function App() {
                         {message.tag}
                       </span>
                     </div>
-                    <p className="text-xs leading-5">{message.content}</p>
+                    {message.id === activeAssistantMessageId && requestStatus !== 'idle' ? (
+                      <BouncingDots dots={3} className="w-2 h-2 bg-foreground" />
+                    ) : (
+                      <p className="text-xs leading-5">{message.content}</p>
+                    )}
                   </div>
                 </article>
               )
@@ -320,7 +340,8 @@ function App() {
             <RuixenPromptBox
               onSend={handleSend}
               placeholder="Preguntame por carga, ritmo, intervalos, recuperacion o segmentos"
-              disabled={isSending}
+              disabled={requestStatus !== 'idle'}
+              loading={requestStatus !== 'idle'}
             />
           </footer>
         </section>

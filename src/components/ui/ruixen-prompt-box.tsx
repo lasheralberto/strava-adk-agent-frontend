@@ -5,6 +5,7 @@ import { Sparkles, BadgeCheck, SendHorizontal } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useAutoResizeTextarea } from "@/hooks/use-auto-resize-textarea";
 import { cn } from "@/lib/utils";
+import { BouncingDots } from "@/components/ui/bouncing-dots";
 
 const TRANSFORM_OPTIONS = [
   {
@@ -31,12 +32,14 @@ type RuixenPromptBoxProps = {
   onSend?: (payload: { message: string; transform: string | null }) => void;
   placeholder?: string;
   disabled?: boolean;
+  loading?: boolean;
 };
 
 export default function RuixenPromptBox({
   onSend,
   placeholder = "Refine your message...",
   disabled = false,
+  loading = false,
 }: RuixenPromptBoxProps) {
   const [input, setInput] = useState("");
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -118,7 +121,11 @@ export default function RuixenPromptBox({
               disabled={disabled || (!input && !selectedOption)}
               type="button"
             >
-              <SendHorizontal className="h-4 w-4" />
+              {loading ? (
+                <BouncingDots dots={3} className="w-1.5 h-1.5 bg-primary-foreground" />
+              ) : (
+                <SendHorizontal className="h-4 w-4" />
+              )}
             </button>
           </div>
         </div>
