@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState } from 'react'
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import {
   CircleCheck,
   LogIn,
@@ -364,6 +364,39 @@ function isTokenExpired(expiresAt: number): boolean {
   return expiresAt <= now + 60
 }
 
+function isAuthorizationFailure(status: number, errorMessage: string): boolean {
+  if (status === 401 || status === 403) {
+    return true
+  }
+
+  const normalized = errorMessage.toLowerCase()
+  return (
+    normalized.includes('unauthorized') ||
+    normalized.includes('authorization') ||
+    normalized.includes('access token') ||
+    normalized.includes('invalid token') ||
+    normalized.includes('expired token') ||
+    normalized.includes('token expired') ||
+    normalized.includes('401')
+  )
+}
+
+async function readBackendErrorMessage(response: Response): Promise<string> {
+  let backendError = 'No se pudo obtener respuesta del backend.'
+  try {
+    const data = (await response.json()) as {
+      error?: string
+      details?: string
+      message?: string
+    }
+    backendError = data.error ?? data.details ?? data.message ?? backendError
+  } catch {
+    // Keep default error when backend payload is not JSON.
+  }
+
+  return backendError
+}
+
 function readStoredSession(): StravaAuthSession | null {
   if (typeof window === 'undefined') {
     return null
@@ -405,12 +438,64 @@ function App() {
   const [authSession, setAuthSession] = useState<StravaAuthSession | null>(() => readStoredSession())
   const [authPending, setAuthPending] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
+  const authSessionRef = useRef<StravaAuthSession | null>(authSession)
+  const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined') return false
     const stored = localStorage.getItem('theme')
     if (stored) return stored === 'dark'
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
+
+  useEffect(() => {
+    authSessionRef.current = authSession
+  }, [authSession])
+
+  const clearAuthSession = useCallback((message?: string) => {
+    authSessionRef.current = null
+    setAuthSession(null)
+    writeStoredSession(null)
+    if (message) {
+      setAuthError(message)
+    }
+  }, [])
+
+  const refreshStravaSession = useCallback(
+    async (currentSession: StravaAuthSession): Promise<StravaAuthSession> => {
+      const response = await fetch(`${apiBaseUrl}/auth/strava/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          refresh_token: currentSession.refresh_token,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorPayload = (await response.json().catch(() => ({}))) as {
+          error?: string
+          details?: string
+        }
+        throw new Error(
+          errorPayload.error ??
+            errorPayload.details ??
+            'Tu sesion de Strava expiro. Inicia sesion de nuevo.',
+        )
+      }
+
+      const refreshed = (await response.json()) as StravaAuthSession
+      if (!refreshed.access_token || !refreshed.refresh_token || !refreshed.expires_at) {
+        throw new Error('Respuesta de refresh invalida desde backend.')
+      }
+
+      authSessionRef.current = refreshed
+      setAuthSession(refreshed)
+      writeStoredSession(refreshed)
+      return refreshed
+    },
+    [],
+  )
 
   useEffect(() => {
     const root = document.documentElement
@@ -497,37 +582,41 @@ function App() {
     runOAuthCallbackExchange()
   }, [])
 
-  const ensureValidStravaSession = async (): Promise<StravaAuthSession | null> => {
-    if (!authSession) {
+  const ensureValidStravaSession = useCallback(async (): Promise<StravaAuthSession | null> => {
+    const currentSession = authSessionRef.current
+    if (!currentSession) {
       return null
     }
 
-    if (!isTokenExpired(authSession.expires_at)) {
-      return authSession
+    if (!isTokenExpired(currentSession.expires_at)) {
+      return currentSession
     }
 
-    const response = await fetch(`${apiBaseUrl}/auth/strava/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        refresh_token: authSession.refresh_token,
-      }),
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current
+    }
+
+    const refreshPromise = (async () => {
+      try {
+        return await refreshStravaSession(currentSession)
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Tu sesion de Strava expiro. Inicia sesion de nuevo.'
+        clearAuthSession(message)
+        throw new Error(message)
+      }
+    })()
+
+    refreshInFlightRef.current = refreshPromise
+
+    return refreshPromise.finally(() => {
+      if (refreshInFlightRef.current === refreshPromise) {
+        refreshInFlightRef.current = null
+      }
     })
-
-    if (!response.ok) {
-      writeStoredSession(null)
-      setAuthSession(null)
-      const errorPayload = (await response.json().catch(() => ({}))) as { error?: string; details?: string }
-      throw new Error(errorPayload.error ?? errorPayload.details ?? 'Tu sesion de Strava expiro. Inicia sesion de nuevo.')
-    }
-
-    const refreshed = (await response.json()) as StravaAuthSession
-    setAuthSession(refreshed)
-    writeStoredSession(refreshed)
-    return refreshed
-  }
+  }, [clearAuthSession, refreshStravaSession])
 
   const handleStartStravaLogin = async () => {
     if (!apiBaseUrl || authPending) {
@@ -564,9 +653,8 @@ function App() {
   }
 
   const handleLogout = () => {
-    setAuthSession(null)
     setAuthError(null)
-    writeStoredSession(null)
+    clearAuthSession()
   }
 
   const handleSend = async ({ message, transform }: { message: string; transform: string | null }) => {
@@ -617,7 +705,7 @@ function App() {
     setActiveAssistantMessageId(assistantMessageId)
 
     try {
-      const session = await ensureValidStravaSession()
+      let session = await ensureValidStravaSession()
       if (!session) {
         throw new Error('No hay sesion Strava activa. Inicia sesion para continuar.')
       }
@@ -628,33 +716,54 @@ function App() {
         updateAssistantMessage(currentMessages, assistantMessageId, '', transform ?? 'Streaming'),
       )
 
-      const response = await fetch(`${apiBaseUrl}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: requestMessage,
-          llm_provider: llmProvider,
-          stream: true,
-          response_format: 'plan_react_v1',
-          planner_mode: 'full_only',
-          strava_access_token: session.access_token,
-          strava_athlete_id: session.athlete?.id,
-        }),
-      })
+      const sendChatRequest = (activeSession: StravaAuthSession): Promise<Response> => {
+        return fetch(`${apiBaseUrl}/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: requestMessage,
+            llm_provider: llmProvider,
+            stream: true,
+            response_format: 'plan_react_v1',
+            planner_mode: 'full_only',
+            strava_access_token: activeSession.access_token,
+            strava_athlete_id: activeSession.athlete?.id,
+          }),
+        })
+      }
+
+      let response = await sendChatRequest(session)
 
       if (!response.ok) {
-        let backendError = 'No se pudo obtener respuesta del backend.'
-        try {
-          const data = (await response.json()) as { error?: string }
-          if (data.error) {
-            backendError = data.error
+        let backendError = await readBackendErrorMessage(response)
+        if (isAuthorizationFailure(response.status, backendError)) {
+          try {
+            session = await refreshStravaSession(session)
+            setAuthError(null)
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : 'Tu sesion de Strava expiro. Inicia sesion de nuevo.'
+            clearAuthSession(message)
+            throw new Error(message)
           }
-        } catch {
-          // Keep default error when backend payload is not JSON.
+
+          response = await sendChatRequest(session)
+          if (!response.ok) {
+            backendError = await readBackendErrorMessage(response)
+            if (isAuthorizationFailure(response.status, backendError)) {
+              const message = 'La sesion de Strava no pudo renovarse. Autoriza de nuevo.'
+              clearAuthSession(message)
+              throw new Error(message)
+            }
+            throw new Error(backendError)
+          }
+        } else {
+          throw new Error(backendError)
         }
-        throw new Error(backendError)
       }
 
       const contentType = response.headers.get('content-type') ?? ''
