@@ -8,6 +8,13 @@ import {
 } from 'lucide-react'
 import RuixenPromptBox from '@/components/ui/ruixen-prompt-box'
 import { BouncingDots } from '@/components/ui/bouncing-dots'
+import { PlanReactMessage } from '@/components/ui/plan-react-message'
+import {
+  planReactSectionOrder,
+  type PlanReactBlock,
+  type PlanReactSection,
+  type StructuredChatContent,
+} from '@/types/plan-react'
 import './styles/chat.css'
 
 type ChatRole = 'assistant' | 'user'
@@ -18,13 +25,28 @@ type ChatMessage = {
   title: string
   content: string
   tag: string
+  structured?: StructuredChatContent
 }
 
 type RequestStatus = 'idle' | 'requesting' | 'streaming'
 
+type StructuredApiPayload = {
+  format?: string
+  section?: string
+  text?: string
+  index?: number
+  blocks?: Array<{
+    section?: string
+    text?: string
+    index?: number
+  }>
+  sections?: Record<string, string[]>
+}
+
 type ChatApiPayload = {
   response?: string
   tool_calls?: Array<Record<string, unknown>>
+  structured?: StructuredApiPayload
 }
 
 type StravaAthlete = {
@@ -46,6 +68,15 @@ const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/
 const llmProvider = (import.meta.env.VITE_LLM_PROVIDER ?? '').trim()
 const stravaScope = (import.meta.env.VITE_STRAVA_SCOPE ?? 'read,activity:read_all,profile:read_all').trim()
 const localStorageAuthKey = 'strava_oauth_session_v1'
+const planReactPhaseEvents = new Set<PlanReactSection>(planReactSectionOrder)
+
+const planReactOrderIndex = planReactSectionOrder.reduce(
+  (accumulator, section, index) => {
+    accumulator[section] = index
+    return accumulator
+  },
+  {} as Record<PlanReactSection, number>,
+)
 
 const initialMessages: ChatMessage[] = [
   {
@@ -107,6 +138,180 @@ function updateAssistantMessage(
       title: 'Toontracks',
       content,
       tag,
+    },
+  ]
+}
+
+function toPlanReactSection(value: string | undefined | null): PlanReactSection | null {
+  if (!value) {
+    return null
+  }
+
+  const normalized = value.trim().toLowerCase() as PlanReactSection
+  return planReactPhaseEvents.has(normalized) ? normalized : null
+}
+
+function mergeStructuredBlocks(
+  existingBlocks: PlanReactBlock[],
+  incomingBlocks: PlanReactBlock[],
+): PlanReactBlock[] {
+  if (incomingBlocks.length === 0) {
+    return existingBlocks
+  }
+
+  const nextBlocks = [...existingBlocks]
+
+  for (const block of incomingBlocks) {
+    const sameIndexedBlock =
+      typeof block.index === 'number'
+        ? nextBlocks.findIndex(
+            (candidate) => candidate.section === block.section && candidate.index === block.index,
+          )
+        : -1
+
+    if (sameIndexedBlock !== -1) {
+      nextBlocks[sameIndexedBlock] = block
+      continue
+    }
+
+    const alreadyPresent = nextBlocks.some(
+      (candidate) =>
+        candidate.section === block.section &&
+        candidate.text.trim() === block.text.trim() &&
+        candidate.index === block.index,
+    )
+
+    if (!alreadyPresent) {
+      nextBlocks.push(block)
+    }
+  }
+
+  return nextBlocks.sort((left, right) => {
+    const leftOrder = planReactOrderIndex[left.section] ?? 999
+    const rightOrder = planReactOrderIndex[right.section] ?? 999
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder
+    }
+
+    const leftIndex = typeof left.index === 'number' ? left.index : Number.MAX_SAFE_INTEGER
+    const rightIndex = typeof right.index === 'number' ? right.index : Number.MAX_SAFE_INTEGER
+    return leftIndex - rightIndex
+  })
+}
+
+function parseStructuredBlocks(payload: ChatApiPayload, eventName?: string): PlanReactBlock[] {
+  const structured = payload.structured
+  if (!structured) {
+    return []
+  }
+
+  const blocks: PlanReactBlock[] = []
+
+  if (Array.isArray(structured.blocks)) {
+    for (const block of structured.blocks) {
+      const section = toPlanReactSection(block.section)
+      const text = typeof block.text === 'string' ? block.text.trim() : ''
+      if (!section || !text) {
+        continue
+      }
+      blocks.push({
+        section,
+        text,
+        index: typeof block.index === 'number' ? block.index : undefined,
+      })
+    }
+  }
+
+  if (structured.sections && typeof structured.sections === 'object') {
+    for (const [sectionKey, values] of Object.entries(structured.sections)) {
+      const section = toPlanReactSection(sectionKey)
+      if (!section || !Array.isArray(values)) {
+        continue
+      }
+
+      values.forEach((value, valueIndex) => {
+        const text = typeof value === 'string' ? value.trim() : ''
+        if (!text) {
+          return
+        }
+        blocks.push({
+          section,
+          text,
+          index: valueIndex,
+        })
+      })
+    }
+  }
+
+  const singleSection = toPlanReactSection(structured.section)
+  const singleText = typeof structured.text === 'string' ? structured.text.trim() : ''
+  if (singleSection && singleText) {
+    blocks.push({
+      section: singleSection,
+      text: singleText,
+      index: typeof structured.index === 'number' ? structured.index : undefined,
+    })
+  }
+
+  if (blocks.length === 0) {
+    const eventSection = toPlanReactSection(eventName)
+    const fallbackText = typeof payload.response === 'string' ? payload.response.trim() : ''
+    if (eventSection && fallbackText) {
+      blocks.push({
+        section: eventSection,
+        text: fallbackText,
+      })
+    }
+  }
+
+  return mergeStructuredBlocks([], blocks)
+}
+
+function updateAssistantStructuredBlocks(
+  currentMessages: ChatMessage[],
+  messageId: number,
+  blocks: PlanReactBlock[],
+  tag: string,
+): ChatMessage[] {
+  if (blocks.length === 0) {
+    return currentMessages
+  }
+
+  const nextMessages = currentMessages.map((message) => {
+    if (message.id !== messageId) {
+      return message
+    }
+
+    const currentBlocks = message.structured?.blocks ?? []
+    const mergedBlocks = mergeStructuredBlocks(currentBlocks, blocks)
+
+    return {
+      ...message,
+      tag,
+      structured: {
+        format: message.structured?.format ?? 'plan_react_v1',
+        blocks: mergedBlocks,
+      },
+    }
+  })
+
+  const hasMessage = nextMessages.some((message) => message.id === messageId)
+  if (hasMessage) {
+    return nextMessages
+  }
+
+  return [
+    ...currentMessages,
+    {
+      id: messageId,
+      role: 'assistant',
+      title: 'Toontracks',
+      content: '',
+      tag,
+      structured: {
+        format: 'plan_react_v1',
+        blocks,
+      },
     },
   ]
 }
@@ -432,6 +637,8 @@ function App() {
           message: requestMessage,
           llm_provider: llmProvider,
           stream: true,
+          response_format: 'plan_react_v1',
+          planner_mode: 'full_only',
           strava_access_token: session.access_token,
           strava_athlete_id: session.athlete?.id,
         }),
@@ -455,10 +662,27 @@ function App() {
 
       if (!isEventStream) {
         const payload = (await response.json()) as ChatApiPayload
+        const structuredBlocks = parseStructuredBlocks(payload)
         const finalText = (payload.response ?? '').trim() || 'El backend respondio sin contenido.'
-        setMessages((currentMessages) =>
-          updateAssistantMessage(currentMessages, assistantMessageId, finalText, transform ?? 'Respuesta'),
-        )
+        setMessages((currentMessages) => {
+          let nextMessages = updateAssistantMessage(
+            currentMessages,
+            assistantMessageId,
+            finalText,
+            transform ?? 'Respuesta',
+          )
+
+          if (structuredBlocks.length > 0) {
+            nextMessages = updateAssistantStructuredBlocks(
+              nextMessages,
+              assistantMessageId,
+              structuredBlocks,
+              transform ?? 'Respuesta',
+            )
+          }
+
+          return nextMessages
+        })
         return
       }
 
@@ -500,8 +724,40 @@ function App() {
               continue
             }
 
+            const structuredBlocks = parseStructuredBlocks(payload, parsedEvent.event)
+            if (structuredBlocks.length > 0) {
+              setMessages((currentMessages) =>
+                updateAssistantStructuredBlocks(
+                  currentMessages,
+                  assistantMessageId,
+                  structuredBlocks,
+                  transform ?? 'Streaming',
+                ),
+              )
+
+              const finalAnswerBlocks = structuredBlocks.filter(
+                (structuredBlock) => structuredBlock.section === 'final_answer',
+              )
+              const latestFinalAnswer = finalAnswerBlocks[finalAnswerBlocks.length - 1]
+              if (latestFinalAnswer?.text) {
+                streamedResponse = latestFinalAnswer.text
+                setMessages((currentMessages) =>
+                  updateAssistantMessage(
+                    currentMessages,
+                    assistantMessageId,
+                    streamedResponse,
+                    transform ?? 'Streaming',
+                  ),
+                )
+              }
+            }
+
             if (payload.response) {
-              streamedResponse += payload.response
+              if (parsedEvent.event === 'final_answer') {
+                streamedResponse = payload.response
+              } else {
+                streamedResponse += payload.response
+              }
               setMessages((currentMessages) =>
                 updateAssistantMessage(
                   currentMessages,
@@ -592,6 +848,11 @@ function App() {
           <div className="message-stream flex-1 space-y-2 overflow-y-auto px-5 py-4 lg:px-7">
             {messages.map((message) => {
               const isUser = message.role === 'user'
+              const isActiveAssistantMessage =
+                message.id === activeAssistantMessageId && requestStatus !== 'idle'
+              const hasStructuredBlocks = Boolean(message.structured?.blocks.length)
+              const hasTextContent = Boolean(message.content.trim())
+              const showSpinnerOnly = isActiveAssistantMessage && !hasStructuredBlocks && !hasTextContent
 
               return (
                 <article
@@ -605,10 +866,25 @@ function App() {
                         : 'message-bubble-assistant'
                     }`}
                   >
-                    {message.id === activeAssistantMessageId && requestStatus !== 'idle' ? (
+                    {showSpinnerOnly ? (
                       <BouncingDots dots={3} className="w-2 h-2 bg-foreground" />
                     ) : (
-                      <p className="text-xs leading-5">{message.content}</p>
+                      <div className="space-y-2">
+                        {!isUser && hasStructuredBlocks ? (
+                          <PlanReactMessage
+                            blocks={message.structured?.blocks ?? []}
+                            fallbackText={message.content}
+                          />
+                        ) : (
+                          <p className="text-xs leading-5">{message.content}</p>
+                        )}
+
+                        {isActiveAssistantMessage ? (
+                          <div className="plan-react-loading-inline">
+                            <BouncingDots dots={3} className="w-1.5 h-1.5 bg-foreground/80" />
+                          </div>
+                        ) : null}
+                      </div>
                     )}
                   </div>
                 </article>
