@@ -9,22 +9,22 @@ import { BouncingDots } from "@/components/ui/bouncing-dots";
 
 const TRANSFORM_OPTIONS = [
   {
-    label: "Summarize",
+    label: "Resumen",
     icon: Sparkles,
-    color: "text-yellow-500",
-    bg: "bg-yellow-100",
+    color: "text-fuchsia-700",
+    bg: "bg-fuchsia-100",
   },
   {
-    label: "Correct Grammar",
+    label: "Corregir",
     icon: BadgeCheck,
-    color: "text-green-600",
-    bg: "bg-green-100",
+    color: "text-emerald-700",
+    bg: "bg-emerald-100",
   },
   {
-    label: "Compress",
+    label: "Compactar",
     icon: SendHorizontal,
-    color: "text-indigo-500",
-    bg: "bg-indigo-100",
+    color: "text-sky-700",
+    bg: "bg-sky-100",
   },
 ] as const;
 
@@ -37,7 +37,7 @@ type RuixenPromptBoxProps = {
 
 export default function RuixenPromptBox({
   onSend,
-  placeholder = "Refine your message...",
+  placeholder = "Describe lo que necesitas...",
   disabled = false,
   loading = false,
 }: RuixenPromptBoxProps) {
@@ -142,8 +142,8 @@ export default function RuixenPromptBox({
                 className={cn(
                   "flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all",
                   isSelected
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-transparent text-muted-foreground hover:bg-muted/10",
+                      ? "border-primary bg-primary/15 text-primary"
+                      : "border-border bg-white/50 text-muted-foreground hover:bg-muted/20 dark:bg-white/5",
                 )}
               >
                 <Icon className={cn("h-4 w-4", color)} />

@@ -1,13 +1,27 @@
 .chat-shell {
   background:
-    radial-gradient(circle at top left, rgba(249, 115, 22, 0.18), transparent 24%),
-    radial-gradient(circle at top right, rgba(16, 185, 129, 0.12), transparent 22%),
-    linear-gradient(180deg, rgba(255, 248, 240, 1) 0%, rgba(244, 247, 251, 1) 50%, rgba(236, 242, 247, 1) 100%);
+    radial-gradient(circle at 12% 10%, rgba(255, 208, 230, 0.55), transparent 34%),
+    radial-gradient(circle at 88% 14%, rgba(182, 231, 255, 0.55), transparent 34%),
+    radial-gradient(circle at 24% 92%, rgba(211, 246, 214, 0.58), transparent 30%),
+    linear-gradient(180deg, rgba(255, 251, 242, 1) 0%, rgba(247, 249, 255, 1) 52%, rgba(241, 255, 246, 1) 100%);
+}
+
+.chat-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  background-image:
+    radial-gradient(rgba(88, 80, 173, 0.24) 1px, transparent 1px),
+    radial-gradient(rgba(248, 163, 104, 0.22) 1px, transparent 1px);
+  background-position: 0 0, 10px 10px;
+  background-size: 20px 20px;
 }
 
 .glass-panel {
-  background: rgba(255, 255, 255, 0.76);
-  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 18px 56px rgba(37, 58, 94, 0.16);
   backdrop-filter: blur(24px);
 }
 
@@ -60,6 +74,22 @@
 
 .message-bubble {
   animation: message-rise 280ms ease-out;
+  border-width: 1px;
+  border-style: solid;
+}
+
+.message-bubble-user {
+  border-color: rgba(109, 181, 248, 0.7);
+  background: linear-gradient(120deg, rgba(121, 198, 252, 0.95), rgba(91, 174, 246, 0.96));
+  color: #f7fbff;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.1);
+}
+
+.message-bubble-assistant {
+  border-color: rgba(255, 186, 130, 0.6);
+  background: linear-gradient(120deg, rgba(255, 248, 236, 0.9), rgba(255, 234, 206, 0.9));
+  color: hsl(var(--foreground));
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.14), 0 2px 6px rgba(15, 23, 42, 0.08);
 }
 
 @keyframes message-rise {
@@ -77,18 +107,40 @@
 
 .dark .chat-shell {
   background:
-    radial-gradient(circle at top left, rgba(249, 115, 22, 0.16), transparent 24%),
-    radial-gradient(circle at top right, rgba(16, 185, 129, 0.12), transparent 22%),
-    linear-gradient(180deg, rgba(10, 15, 24, 1) 0%, rgba(12, 19, 31, 1) 55%, rgba(16, 24, 36, 1) 100%);
+    radial-gradient(circle at 12% 10%, rgba(209, 109, 161, 0.38), transparent 34%),
+    radial-gradient(circle at 88% 14%, rgba(77, 160, 214, 0.4), transparent 34%),
+    radial-gradient(circle at 24% 92%, rgba(88, 187, 125, 0.35), transparent 30%),
+    linear-gradient(180deg, rgba(28, 34, 59, 1) 0%, rgba(26, 33, 58, 1) 52%, rgba(24, 42, 57, 1) 100%);
+}
+
+.dark .chat-shell::before {
+  opacity: 0.14;
+  background-image:
+    radial-gradient(rgba(254, 229, 190, 0.32) 1px, transparent 1px),
+    radial-gradient(rgba(141, 206, 255, 0.25) 1px, transparent 1px);
 }
 
 .dark .glass-panel {
-  background: rgba(15, 23, 42, 0.74);
-  box-shadow: 0 26px 90px rgba(2, 6, 23, 0.45);
+  background: rgba(27, 32, 52, 0.78);
+  box-shadow: 0 24px 68px rgba(11, 16, 35, 0.52);
 }
 
 .dark .metric-card {
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.92) 0%, rgba(17, 24, 39, 0.84) 100%);
+}
+
+.dark .message-bubble-user {
+  border-color: rgba(121, 198, 252, 0.74);
+  background: linear-gradient(120deg, rgba(94, 176, 247, 0.96), rgba(70, 151, 223, 0.95));
+  color: #f5fbff;
+  box-shadow: 0 12px 26px rgba(2, 6, 23, 0.42), 0 2px 8px rgba(2, 6, 23, 0.28);
+}
+
+.dark .message-bubble-assistant {
+  border-color: rgba(246, 186, 123, 0.48);
+  background: linear-gradient(120deg, rgba(54, 57, 78, 0.9), rgba(46, 50, 74, 0.86));
+  color: hsl(var(--foreground));
+  box-shadow: 0 12px 26px rgba(2, 6, 23, 0.38), 0 2px 8px rgba(2, 6, 23, 0.24);
 }
 
 @media (max-width: 1024px) {

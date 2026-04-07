@@ -28,18 +28,18 @@ const initialMessages: ChatMessage[] = [
   {
     id: 1,
     role: 'assistant',
-    title: 'Strava Agent',
+    title: 'Toontracks',
     content:
-      'Tengo sincronizadas tus ultimas actividades. Puedo resumir carga, revisar segmentos y traducir metricas en recomendaciones claras.',
-    tag: 'Lectura inicial',
+      'Ya conecte tus actividades. Te ayudo a leer carga, ritmo y recuperacion con recomendaciones faciles y accionables.',
+    tag: 'Inicio',
   },
   {
     id: 2,
     role: 'assistant',
-    title: 'Sugerencia',
+    title: 'Tip rapido',
     content:
-      'Hoy veo dos senales: volumen estable y pulso algo alto en ritmos medios. Si quieres, arranco con un resumen semanal o con una propuesta de sesion.',
-    tag: 'Insight',
+      'Si quieres, empezamos con resumen semanal, zonas de esfuerzo o un plan express para tu proximo entreno.',
+    tag: 'Sugerencia',
   },
 ]
 
@@ -55,7 +55,7 @@ function buildAssistantMessage(content: string, tag = 'Respuesta'): ChatMessage 
   return {
     id: Date.now() + Math.floor(Math.random() * 1000),
     role: 'assistant',
-    title: 'Strava Agent',
+    title: 'Toontracks',
     content,
     tag,
   }
@@ -81,7 +81,7 @@ function updateAssistantMessage(
     {
       id: messageId,
       role: 'assistant',
-      title: 'Strava Agent',
+      title: 'Toontracks',
       content,
       tag,
     },
@@ -289,7 +289,7 @@ function App() {
           <header className="flex items-center justify-between border-b border-border/70 px-5 py-3 lg:px-7">
             <div className="flex items-center gap-3">
               
-              <h2 className="text-sm font-semibold tracking-tight text-foreground">ChatSTRVAI</h2>
+              <h2 className="text-sm font-semibold tracking-tight text-foreground">Toontracks</h2>
             </div>
             <div className="flex items-center gap-2">
               
@@ -315,16 +315,10 @@ function App() {
                   <div
                     className={`message-bubble max-w-[min(80%,48rem)] rounded-2xl px-3 py-2 ${
                       isUser
-                        ? 'border border-orange-400/70 bg-primary text-primary-foreground shadow-[0_2px_12px_rgba(249,115,22,0.35)]'
-                        : 'border border-orange-300/40 bg-background/80 text-foreground shadow-[0_2px_10px_rgba(249,115,22,0.12)]'
+                        ? 'message-bubble-user'
+                        : 'message-bubble-assistant'
                     }`}
                   >
-                    <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-current/50">
-                      <span>{message.title}</span>
-                      <span className="rounded-full bg-black/8 px-1.5 py-0.5 text-current/60">
-                        {message.tag}
-                      </span>
-                    </div>
                     {message.id === activeAssistantMessageId && requestStatus !== 'idle' ? (
                       <BouncingDots dots={3} className="w-2 h-2 bg-foreground" />
                     ) : (
@@ -339,7 +333,7 @@ function App() {
           <footer className="border-t border-border/70 px-3 py-3 sm:px-5 sm:py-4 lg:px-6">
             <RuixenPromptBox
               onSend={handleSend}
-              placeholder="Preguntame por carga, ritmo, intervalos, recuperacion o segmentos"
+              placeholder="Preguntame por ritmo, carga, series, recuperacion o segmentos"
               disabled={requestStatus !== 'idle'}
               loading={requestStatus !== 'idle'}
             />
