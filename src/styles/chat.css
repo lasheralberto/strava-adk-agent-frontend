@@ -1,0 +1,98 @@
+.chat-shell {
+  background:
+    radial-gradient(circle at top left, rgba(249, 115, 22, 0.18), transparent 24%),
+    radial-gradient(circle at top right, rgba(16, 185, 129, 0.12), transparent 22%),
+    linear-gradient(180deg, rgba(255, 248, 240, 1) 0%, rgba(244, 247, 251, 1) 50%, rgba(236, 242, 247, 1) 100%);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(24px);
+}
+
+.section-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+.metric-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 1.5rem;
+  border: 1px solid hsl(var(--border) / 0.8);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.85) 100%);
+}
+
+.metric-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 1rem;
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.12);
+}
+
+.status-pill {
+  display: inline-flex;
+  max-width: min(100%, 22rem);
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border) / 0.8);
+  background: hsl(var(--background) / 0.72);
+  padding: 0.7rem 0.9rem;
+  line-height: 1.2;
+}
+
+.message-stream {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+.message-bubble {
+  animation: message-rise 280ms ease-out;
+}
+
+@keyframes message-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+.dark .chat-shell {
+  background:
+    radial-gradient(circle at top left, rgba(249, 115, 22, 0.16), transparent 24%),
+    radial-gradient(circle at top right, rgba(16, 185, 129, 0.12), transparent 22%),
+    linear-gradient(180deg, rgba(10, 15, 24, 1) 0%, rgba(12, 19, 31, 1) 55%, rgba(16, 24, 36, 1) 100%);
+}
+
+.dark .glass-panel {
+  background: rgba(15, 23, 42, 0.74);
+  box-shadow: 0 26px 90px rgba(2, 6, 23, 0.45);
+}
+
+.dark .metric-card {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92) 0%, rgba(17, 24, 39, 0.84) 100%);
+}
+
+@media (max-width: 1024px) {
+  .status-pill {
+    max-width: 100%;
+  }
+}
