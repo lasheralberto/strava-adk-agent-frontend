@@ -9,12 +9,14 @@ import {
 import RuixenPromptBox from '@/components/ui/ruixen-prompt-box'
 import { BouncingDots } from '@/components/ui/bouncing-dots'
 import { PlanReactMessage } from '@/components/ui/plan-react-message'
+import { WeeklyKpiDashboard } from '@/components/ui/weekly-kpi-dashboard'
 import {
   planReactSectionOrder,
   type PlanReactBlock,
   type PlanReactSection,
   type StructuredChatContent,
 } from '@/types/plan-react'
+import type { WeeklySummaryResponse } from '@/types/weekly-kpis'
 import './styles/chat.css'
 
 type ChatRole = 'assistant' | 'user'
@@ -78,24 +80,7 @@ const planReactOrderIndex = planReactSectionOrder.reduce(
   {} as Record<PlanReactSection, number>,
 )
 
-const initialMessages: ChatMessage[] = [
-  {
-    id: 1,
-    role: 'assistant',
-    title: 'Toontracks',
-    content:
-      'Ya conecte tus actividades. Te ayudo a leer carga, ritmo y recuperacion con recomendaciones faciles y accionables.',
-    tag: 'Inicio',
-  },
-  {
-    id: 2,
-    role: 'assistant',
-    title: 'Tip rapido',
-    content:
-      'Si quieres, empezamos con resumen semanal, zonas de esfuerzo o un plan express para tu proximo entreno.',
-    tag: 'Sugerencia',
-  },
-]
+const initialMessages: ChatMessage[] = []
 
 function buildRequestMessage(message: string, transform: string | null): string {
   if (!transform) {
@@ -436,10 +421,14 @@ function App() {
   const [requestStatus, setRequestStatus] = useState<RequestStatus>('idle')
   const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<number | null>(null)
   const [authSession, setAuthSession] = useState<StravaAuthSession | null>(() => readStoredSession())
+  const [weeklySummary, setWeeklySummary] = useState<WeeklySummaryResponse | null>(null)
+  const [weeklySummaryLoading, setWeeklySummaryLoading] = useState(false)
+  const [weeklySummaryError, setWeeklySummaryError] = useState<string | null>(null)
   const [authPending, setAuthPending] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
+  const messageStreamRef = useRef<HTMLDivElement | null>(null)
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined') return false
     const stored = localStorage.getItem('theme')
@@ -455,6 +444,9 @@ function App() {
     authSessionRef.current = null
     setAuthSession(null)
     writeStoredSession(null)
+    setWeeklySummary(null)
+    setWeeklySummaryError(null)
+    setWeeklySummaryLoading(false)
     if (message) {
       setAuthError(message)
     }
@@ -617,6 +609,111 @@ function App() {
       }
     })
   }, [clearAuthSession, refreshStravaSession])
+
+  const loadWeeklySummary = useCallback(async () => {
+    if (!apiBaseUrl) {
+      setWeeklySummaryError('No hay URL configurada para el backend.')
+      return
+    }
+
+    const currentSession = authSessionRef.current
+    if (!currentSession) {
+      setWeeklySummary(null)
+      return
+    }
+
+    setWeeklySummaryLoading(true)
+    setWeeklySummaryError(null)
+
+    try {
+      let session = await ensureValidStravaSession()
+      if (!session) {
+        throw new Error('No hay sesion Strava activa.')
+      }
+
+      const fetchWeeklySummary = (activeSession: StravaAuthSession): Promise<Response> => {
+        return fetch(`${apiBaseUrl}/strava/weekly-summary`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${activeSession.access_token}`,
+          },
+          body: JSON.stringify({
+            days: 7,
+            include_activity_zones: true,
+            zone_sample_limit: 8,
+            strava_athlete_id: activeSession.athlete?.id,
+          }),
+        })
+      }
+
+      let response = await fetchWeeklySummary(session)
+
+      if (!response.ok) {
+        let backendError = await readBackendErrorMessage(response)
+        if (isAuthorizationFailure(response.status, backendError)) {
+          try {
+            session = await refreshStravaSession(session)
+            setAuthError(null)
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : 'Tu sesion de Strava expiro. Inicia sesion de nuevo.'
+            clearAuthSession(message)
+            throw new Error(message)
+          }
+
+          response = await fetchWeeklySummary(session)
+          if (!response.ok) {
+            backendError = await readBackendErrorMessage(response)
+            if (isAuthorizationFailure(response.status, backendError)) {
+              const message = 'La sesion de Strava no pudo renovarse. Autoriza de nuevo.'
+              clearAuthSession(message)
+              throw new Error(message)
+            }
+            throw new Error(backendError)
+          }
+        } else {
+          throw new Error(backendError)
+        }
+      }
+
+      const payload = (await response.json()) as WeeklySummaryResponse
+      setWeeklySummary(payload)
+      setWeeklySummaryError(null)
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'No se pudo cargar el resumen semanal de Strava.'
+      setWeeklySummary(null)
+      setWeeklySummaryError(message)
+    } finally {
+      setWeeklySummaryLoading(false)
+    }
+  }, [clearAuthSession, ensureValidStravaSession, refreshStravaSession])
+
+  useEffect(() => {
+    if (!authSession || messages.length > 0) {
+      return
+    }
+
+    void loadWeeklySummary()
+  }, [authSession, loadWeeklySummary, messages.length])
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      return
+    }
+
+    const container = messageStreamRef.current
+    if (!container) {
+      return
+    }
+
+    container.scrollTop = container.scrollHeight
+  }, [messages, requestStatus])
 
   const handleStartStravaLogin = async () => {
     if (!apiBaseUrl || authPending) {
@@ -954,51 +1051,60 @@ function App() {
             </div>
           ) : null}
 
-          <div className="message-stream flex-1 space-y-2 overflow-y-auto px-5 py-4 lg:px-7">
-            {messages.map((message) => {
-              const isUser = message.role === 'user'
-              const isActiveAssistantMessage =
-                message.id === activeAssistantMessageId && requestStatus !== 'idle'
-              const hasStructuredBlocks = Boolean(message.structured?.blocks.length)
-              const hasTextContent = Boolean(message.content.trim())
-              const showSpinnerOnly = isActiveAssistantMessage && !hasStructuredBlocks && !hasTextContent
+          <div ref={messageStreamRef} className="message-stream flex-1 space-y-2 overflow-y-auto px-5 py-4 lg:px-7">
+            {messages.length === 0 ? (
+              <WeeklyKpiDashboard
+                data={weeklySummary}
+                loading={weeklySummaryLoading}
+                error={weeklySummaryError}
+                isAuthenticated={Boolean(authSession)}
+              />
+            ) : (
+              messages.map((message) => {
+                const isUser = message.role === 'user'
+                const isActiveAssistantMessage =
+                  message.id === activeAssistantMessageId && requestStatus !== 'idle'
+                const hasStructuredBlocks = Boolean(message.structured?.blocks.length)
+                const hasTextContent = Boolean(message.content.trim())
+                const showSpinnerOnly = isActiveAssistantMessage && !hasStructuredBlocks && !hasTextContent
 
-              return (
-                <article
-                  key={message.id}
-                  className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`message-bubble max-w-[min(80%,48rem)] rounded-2xl px-3 py-2 ${
-                      isUser
-                        ? 'message-bubble-user'
-                        : 'message-bubble-assistant'
-                    }`}
+                return (
+                  <article
+                    key={message.id}
+                    className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
                   >
-                    {showSpinnerOnly ? (
-                      <BouncingDots dots={3} className="w-2 h-2 bg-foreground" />
-                    ) : (
-                      <div className="space-y-2">
-                        {!isUser && hasStructuredBlocks ? (
-                          <PlanReactMessage
-                            blocks={message.structured?.blocks ?? []}
-                            fallbackText={message.content}
-                          />
-                        ) : (
-                          <p className="text-xs leading-5">{message.content}</p>
-                        )}
+                    <div
+                      className={`message-bubble max-w-[min(80%,48rem)] rounded-2xl px-3 py-2 ${
+                        isUser
+                          ? 'message-bubble-user'
+                          : 'message-bubble-assistant'
+                      }`}
+                    >
+                      {showSpinnerOnly ? (
+                        <BouncingDots dots={3} className="w-2 h-2 bg-foreground" />
+                      ) : (
+                        <div className="space-y-2">
+                          {!isUser && hasStructuredBlocks ? (
+                            <PlanReactMessage
+                              blocks={message.structured?.blocks ?? []}
+                              fallbackText={message.content}
+                            />
+                          ) : (
+                            <p className="text-xs leading-5">{message.content}</p>
+                          )}
 
-                        {isActiveAssistantMessage ? (
-                          <div className="plan-react-loading-inline">
-                            <BouncingDots dots={3} className="w-1.5 h-1.5 bg-foreground/80" />
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
-                  </div>
-                </article>
-              )
-            })}
+                          {isActiveAssistantMessage ? (
+                            <div className="plan-react-loading-inline">
+                              <BouncingDots dots={3} className="w-1.5 h-1.5 bg-foreground/80" />
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                )
+              })
+            )}
           </div>
 
           <footer className="border-t border-border/70 px-3 py-3 sm:px-5 sm:py-4 lg:px-6">
