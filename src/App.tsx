@@ -1,9 +1,10 @@
 import { startTransition, useEffect, useState } from 'react'
 import {
- 
+  CircleCheck,
+  LogIn,
   Moon,
+  ShieldAlert,
   Sun,
- 
 } from 'lucide-react'
 import RuixenPromptBox from '@/components/ui/ruixen-prompt-box'
 import { BouncingDots } from '@/components/ui/bouncing-dots'
@@ -26,8 +27,25 @@ type ChatApiPayload = {
   tool_calls?: Array<Record<string, unknown>>
 }
 
+type StravaAthlete = {
+  id?: number
+  firstname?: string
+  lastname?: string
+  username?: string
+}
+
+type StravaAuthSession = {
+  access_token: string
+  refresh_token: string
+  expires_at: number
+  token_type?: string
+  athlete?: StravaAthlete
+}
+
 const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
 const llmProvider = (import.meta.env.VITE_LLM_PROVIDER ?? '').trim()
+const stravaScope = (import.meta.env.VITE_STRAVA_SCOPE ?? 'read,activity:read_all,profile:read_all').trim()
+const localStorageAuthKey = 'strava_oauth_session_v1'
 
 const initialMessages: ChatMessage[] = [
   {
@@ -123,10 +141,65 @@ function parseSseEventBlock(block: string): { event: string; data: string } | nu
   }
 }
 
+function getDefaultRedirectUri(): string {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+
+  const configured = (import.meta.env.VITE_STRAVA_REDIRECT_URI ?? '').trim()
+  if (configured) {
+    return configured
+  }
+
+  return `${window.location.origin}/`
+}
+
+function isTokenExpired(expiresAt: number): boolean {
+  const now = Math.floor(Date.now() / 1000)
+  return expiresAt <= now + 60
+}
+
+function readStoredSession(): StravaAuthSession | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const raw = localStorage.getItem(localStorageAuthKey)
+  if (!raw) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as StravaAuthSession
+    if (!parsed.access_token || !parsed.refresh_token || !parsed.expires_at) {
+      return null
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeStoredSession(session: StravaAuthSession | null): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  if (!session) {
+    localStorage.removeItem(localStorageAuthKey)
+    return
+  }
+
+  localStorage.setItem(localStorageAuthKey, JSON.stringify(session))
+}
+
 function App() {
   const [messages, setMessages] = useState(initialMessages)
   const [requestStatus, setRequestStatus] = useState<RequestStatus>('idle')
   const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<number | null>(null)
+  const [authSession, setAuthSession] = useState<StravaAuthSession | null>(() => readStoredSession())
+  const [authPending, setAuthPending] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined') return false
     const stored = localStorage.getItem('theme')
@@ -144,6 +217,152 @@ function App() {
       localStorage.setItem('theme', 'light')
     }
   }, [isDark])
+
+  useEffect(() => {
+    const runOAuthCallbackExchange = async () => {
+      if (!apiBaseUrl || typeof window === 'undefined') {
+        return
+      }
+
+      const url = new URL(window.location.href)
+      const code = url.searchParams.get('code')?.trim()
+      const state = url.searchParams.get('state')?.trim()
+      const oauthError = url.searchParams.get('error')?.trim()
+
+      if (!code && !state && !oauthError) {
+        return
+      }
+
+      if (oauthError) {
+        setAuthError(`Strava devolvio error en autorizacion: ${oauthError}`)
+        url.search = ''
+        window.history.replaceState({}, document.title, url.toString())
+        return
+      }
+
+      if (!code || !state) {
+        setAuthError('Callback incompleto de Strava: faltan code o state.')
+        url.search = ''
+        window.history.replaceState({}, document.title, url.toString())
+        return
+      }
+
+      setAuthPending(true)
+      setAuthError(null)
+
+      try {
+        const redirectUri = getDefaultRedirectUri()
+        const response = await fetch(`${apiBaseUrl}/auth/strava/exchange`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            code,
+            state,
+            redirect_uri: redirectUri,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorPayload = (await response.json().catch(() => ({}))) as {
+            error?: string
+            details?: string
+          }
+          throw new Error(errorPayload.error ?? errorPayload.details ?? 'Fallo el intercambio de token con Strava.')
+        }
+
+        const tokenPayload = (await response.json()) as StravaAuthSession
+        if (!tokenPayload.access_token || !tokenPayload.refresh_token || !tokenPayload.expires_at) {
+          throw new Error('Respuesta de token invalida desde backend.')
+        }
+
+        setAuthSession(tokenPayload)
+        writeStoredSession(tokenPayload)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Error inesperado completando OAuth.'
+        setAuthError(message)
+      } finally {
+        setAuthPending(false)
+        url.search = ''
+        window.history.replaceState({}, document.title, url.toString())
+      }
+    }
+
+    runOAuthCallbackExchange()
+  }, [])
+
+  const ensureValidStravaSession = async (): Promise<StravaAuthSession | null> => {
+    if (!authSession) {
+      return null
+    }
+
+    if (!isTokenExpired(authSession.expires_at)) {
+      return authSession
+    }
+
+    const response = await fetch(`${apiBaseUrl}/auth/strava/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        refresh_token: authSession.refresh_token,
+      }),
+    })
+
+    if (!response.ok) {
+      writeStoredSession(null)
+      setAuthSession(null)
+      const errorPayload = (await response.json().catch(() => ({}))) as { error?: string; details?: string }
+      throw new Error(errorPayload.error ?? errorPayload.details ?? 'Tu sesion de Strava expiro. Inicia sesion de nuevo.')
+    }
+
+    const refreshed = (await response.json()) as StravaAuthSession
+    setAuthSession(refreshed)
+    writeStoredSession(refreshed)
+    return refreshed
+  }
+
+  const handleStartStravaLogin = async () => {
+    if (!apiBaseUrl || authPending) {
+      return
+    }
+
+    setAuthPending(true)
+    setAuthError(null)
+
+    try {
+      const redirectUri = getDefaultRedirectUri()
+      const query = new URLSearchParams({
+        redirect_uri: redirectUri,
+        scope: stravaScope,
+      })
+      const response = await fetch(`${apiBaseUrl}/auth/strava/start?${query.toString()}`)
+
+      if (!response.ok) {
+        const errorPayload = (await response.json().catch(() => ({}))) as { error?: string }
+        throw new Error(errorPayload.error ?? 'No se pudo iniciar OAuth de Strava.')
+      }
+
+      const payload = (await response.json()) as { auth_url?: string }
+      if (!payload.auth_url) {
+        throw new Error('Backend no devolvio auth_url.')
+      }
+
+      window.location.href = payload.auth_url
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error inesperado iniciando login con Strava.'
+      setAuthError(message)
+      setAuthPending(false)
+    }
+  }
+
+  const handleLogout = () => {
+    setAuthSession(null)
+    setAuthError(null)
+    writeStoredSession(null)
+  }
 
   const handleSend = async ({ message, transform }: { message: string; transform: string | null }) => {
     const isSending = requestStatus !== 'idle'
@@ -166,6 +385,17 @@ function App() {
       setMessages((currentMessages) => [...currentMessages, userMessage])
     })
 
+    if (!authSession) {
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        buildAssistantMessage(
+          'Primero inicia sesion con Strava para habilitar el chat y acceder a tus actividades.',
+          'Autenticacion requerida',
+        ),
+      ])
+      return
+    }
+
     if (!apiBaseUrl) {
       setMessages((currentMessages) => [
         ...currentMessages,
@@ -182,6 +412,11 @@ function App() {
     setActiveAssistantMessageId(assistantMessageId)
 
     try {
+      const session = await ensureValidStravaSession()
+      if (!session) {
+        throw new Error('No hay sesion Strava activa. Inicia sesion para continuar.')
+      }
+
       let streamedResponse = ''
 
       setMessages((currentMessages) =>
@@ -197,6 +432,8 @@ function App() {
           message: requestMessage,
           llm_provider: llmProvider,
           stream: true,
+          strava_access_token: session.access_token,
+          strava_athlete_id: session.athlete?.id,
         }),
       })
 
@@ -305,11 +542,37 @@ function App() {
         <section className="glass-panel flex h-full w-full flex-col rounded-[28px] border border-border/80 overflow-hidden">
           <header className="flex items-center justify-between border-b border-border/70 px-5 py-3 lg:px-7">
             <div className="flex items-center gap-3">
-              
               <h2 className="text-sm font-semibold tracking-tight text-foreground">Toontracks</h2>
+              {authSession ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-500">
+                  <CircleCheck className="h-3 w-3" />
+                  Strava conectado
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-500">
+                  <ShieldAlert className="h-3 w-3" />
+                  Requiere login
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
-              
+              {authSession ? (
+                <button
+                  onClick={handleLogout}
+                  className="inline-flex h-8 items-center justify-center rounded-xl border border-border/60 bg-background/60 px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  Salir
+                </button>
+              ) : (
+                <button
+                  onClick={handleStartStravaLogin}
+                  disabled={authPending}
+                  className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-border/60 bg-background/60 px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
+                >
+                  <LogIn className="h-3.5 w-3.5" />
+                  {authPending ? 'Conectando...' : 'Login con Strava'}
+                </button>
+              )}
               <button
                 onClick={() => setIsDark((d) => !d)}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border/60 bg-background/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -319,6 +582,12 @@ function App() {
               </button>
             </div>
           </header>
+
+          {authError ? (
+            <div className="border-b border-destructive/30 bg-destructive/10 px-5 py-2 text-xs text-destructive lg:px-7">
+              {authError}
+            </div>
+          ) : null}
 
           <div className="message-stream flex-1 space-y-2 overflow-y-auto px-5 py-4 lg:px-7">
             {messages.map((message) => {
@@ -350,8 +619,12 @@ function App() {
           <footer className="border-t border-border/70 px-3 py-3 sm:px-5 sm:py-4 lg:px-6">
             <RuixenPromptBox
               onSend={handleSend}
-              placeholder="Preguntame por ritmo, carga, series, recuperacion o segmentos"
-              disabled={requestStatus !== 'idle'}
+              placeholder={
+                authSession
+                  ? 'Preguntame por ritmo, carga, series, recuperacion o segmentos'
+                  : 'Inicia sesion con Strava para habilitar el chat'
+              }
+              disabled={requestStatus !== 'idle' || !authSession || authPending}
               loading={requestStatus !== 'idle'}
             />
           </footer>
