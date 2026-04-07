@@ -1,9 +1,9 @@
 import { startTransition, useEffect, useState } from 'react'
 import {
-  Bike,
+ 
   Moon,
   Sun,
-  TimerReset,
+ 
 } from 'lucide-react'
 import RuixenPromptBox from '@/components/ui/ruixen-prompt-box'
 import './styles/chat.css'
@@ -20,12 +20,6 @@ type ChatMessage = {
 
 const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
 const llmProvider = (import.meta.env.VITE_LLM_PROVIDER ?? '').trim()
-
-const quickPrompts = [
-  'Resume mi semana de running y detecta fatiga acumulada.',
-  'Compara mi ultimo rodaje con el del martes y sugiere ajustes de ritmo.',
-  'Prepara una sesion de 45 minutos para mejorar mi umbral.',
-]
 
 const initialMessages: ChatMessage[] = [
   {
@@ -123,7 +117,6 @@ function parseSseEventBlock(block: string): { event: string; data: string } | nu
 
 function App() {
   const [messages, setMessages] = useState(initialMessages)
-  const [activePrompt, setActivePrompt] = useState(quickPrompts[0])
   const [isSending, setIsSending] = useState(false)
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -160,7 +153,6 @@ function App() {
     }
 
     startTransition(() => {
-      setActivePrompt(composedMessage)
       setMessages((currentMessages) => [...currentMessages, userMessage])
     })
 
