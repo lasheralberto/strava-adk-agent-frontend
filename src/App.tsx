@@ -21,6 +21,11 @@ type ChatMessage = {
 
 type RequestStatus = 'idle' | 'requesting' | 'streaming'
 
+type ChatApiPayload = {
+  response?: string
+  tool_calls?: Array<Record<string, unknown>>
+}
+
 const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
 const llmProvider = (import.meta.env.VITE_LLM_PROVIDER ?? '').trim()
 
@@ -208,6 +213,18 @@ function App() {
         throw new Error(backendError)
       }
 
+      const contentType = response.headers.get('content-type') ?? ''
+      const isEventStream = contentType.includes('text/event-stream')
+
+      if (!isEventStream) {
+        const payload = (await response.json()) as ChatApiPayload
+        const finalText = (payload.response ?? '').trim() || 'El backend respondio sin contenido.'
+        setMessages((currentMessages) =>
+          updateAssistantMessage(currentMessages, assistantMessageId, finalText, transform ?? 'Respuesta'),
+        )
+        return
+      }
+
       const reader = response.body?.getReader()
       if (!reader) {
         throw new Error('El navegador no pudo abrir el stream de respuesta.')
@@ -230,7 +247,7 @@ function App() {
 
           const parsedEvent = parseSseEventBlock(block)
           if (parsedEvent) {
-            const payload = JSON.parse(parsedEvent.data) as { response?: string }
+            const payload = JSON.parse(parsedEvent.data) as ChatApiPayload
 
             if (parsedEvent.event === 'error') {
               throw new Error(payload.response || 'El backend devolvio un error en streaming.')
