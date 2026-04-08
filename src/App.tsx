@@ -67,7 +67,7 @@ type StravaAuthSession = {
 const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
 const llmProvider = (import.meta.env.VITE_LLM_PROVIDER ?? '').trim() || 'openai/gpt-4o-mini'
 const stravaScope = (import.meta.env.VITE_STRAVA_SCOPE ?? 'read,activity:read_all,profile:read_all').trim()
-const localStorageAuthKey = 'strava_oauth_session_v1'
+const sessionStorageAuthKey = 'strava_oauth_session_v1'
 const planReactPhaseEvents = new Set<PlanReactSection>(planReactSectionOrder)
 
 const planReactOrderIndex = planReactSectionOrder.reduce(
@@ -385,7 +385,7 @@ function readStoredSession(): StravaAuthSession | null {
     return null
   }
 
-  const raw = localStorage.getItem(localStorageAuthKey)
+  const raw = sessionStorage.getItem(sessionStorageAuthKey)
   if (!raw) {
     return null
   }
@@ -407,11 +407,11 @@ function writeStoredSession(session: StravaAuthSession | null): void {
   }
 
   if (!session) {
-    localStorage.removeItem(localStorageAuthKey)
+    sessionStorage.removeItem(sessionStorageAuthKey)
     return
   }
 
-  localStorage.setItem(localStorageAuthKey, JSON.stringify(session))
+  sessionStorage.setItem(sessionStorageAuthKey, JSON.stringify(session))
 }
 
 function App() {
@@ -453,6 +453,7 @@ function App() {
         },
         body: JSON.stringify({
           refresh_token: currentSession.refresh_token,
+          strava_athlete_id: currentSession.athlete?.id,
         }),
       })
 
@@ -473,10 +474,16 @@ function App() {
         throw new Error('Respuesta de refresh invalida desde backend.')
       }
 
-      authSessionRef.current = refreshed
-      setAuthSession(refreshed)
-      writeStoredSession(refreshed)
-      return refreshed
+      // Strava does not return athlete in refresh responses, so preserve it from the current session.
+      const mergedSession: StravaAuthSession = {
+        ...refreshed,
+        athlete: refreshed.athlete?.id ? refreshed.athlete : currentSession.athlete,
+      }
+
+      authSessionRef.current = mergedSession
+      setAuthSession(mergedSession)
+      writeStoredSession(mergedSession)
+      return mergedSession
     },
     [],
   )
@@ -501,6 +508,7 @@ function App() {
       const url = new URL(window.location.href)
       const code = url.searchParams.get('code')?.trim()
       const state = url.searchParams.get('state')?.trim()
+      const callbackScope = url.searchParams.get('scope')?.trim()
       const oauthError = url.searchParams.get('error')?.trim()
 
       if (!code && !state && !oauthError) {
@@ -534,6 +542,7 @@ function App() {
           body: JSON.stringify({
             code,
             state,
+            scope: callbackScope,
             redirect_uri: redirectUri,
           }),
         })
