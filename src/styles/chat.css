@@ -10,7 +10,6 @@
 
 /* ── Message bubbles ─────────────────────────────────────────────────── */
 .message-bubble {
-  animation: message-rise 220ms ease-out;
   border-width: 0;
   border-style: solid;
 }
@@ -210,11 +209,6 @@
   scrollbar-color: hsl(var(--border)) transparent;
 }
 
-/* ── Animation ───────────────────────────────────────────────────────── */
-@keyframes message-rise {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
 
 /* ── Dark mode ───────────────────────────────────────────────────────── */
 .dark .chat-shell {
@@ -254,10 +248,27 @@
 /* ── Responsive ──────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .message-bubble {
-    max-width: 92%;
+    max-width: 88%;
+    font-size: 0.8125rem;
   }
 
   .plan-react-block {
     padding: 0.4rem 0.55rem;
+  }
+
+  .thinking-panel {
+    border-radius: 0.6rem;
+  }
+
+  .thinking-header {
+    padding: 0.45rem 0.65rem;
+  }
+
+  .thinking-block {
+    padding: 0.35rem 0.65rem 0.4rem;
+  }
+
+  .thinking-block-text {
+    font-size: 0.75rem;
   }
 }

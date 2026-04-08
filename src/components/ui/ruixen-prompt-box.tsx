@@ -2,10 +2,15 @@
 
 import { useState } from "react";
 import { SendHorizontal } from "lucide-react";
+import { motion } from "motion/react";
 import { Textarea } from "@/components/ui/textarea";
 import { useAutoResizeTextarea } from "@/hooks/use-auto-resize-textarea";
 import { cn } from "@/lib/utils";
 import { BouncingDots } from "@/components/ui/bouncing-dots";
+
+const SEND_HOVER_SCALE = 1.1;
+const SEND_TAP_SCALE = 0.88;
+const SEND_SPRING = { type: "spring" as const, stiffness: 500, damping: 22 };
 
 type RuixenPromptBoxProps = {
   onSend?: (payload: { message: string; transform: string | null }) => void;
@@ -37,7 +42,7 @@ export default function RuixenPromptBox({
   };
 
   return (
-    <div className="w-full px-2 py-2 sm:px-4 sm:py-3">
+    <div className="w-full">
       <div className="mx-auto max-w-3xl">
         <div className="relative rounded-2xl border border-border bg-background shadow-sm">
           <Textarea
@@ -56,14 +61,17 @@ export default function RuixenPromptBox({
               }
             }}
             className={cn(
-              "min-h-[52px] max-h-[200px] w-full resize-none border-none bg-transparent py-3 pl-4 pr-12 text-sm text-foreground",
+              "min-h-[44px] sm:min-h-[52px] max-h-[160px] sm:max-h-[200px] w-full resize-none border-none bg-transparent py-2.5 sm:py-3 pl-3.5 sm:pl-4 pr-11 text-sm text-foreground",
               "placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0",
             )}
           />
 
           <div className="absolute bottom-2.5 right-3">
-            <button
+            <motion.button
               onClick={handleSend}
+              whileHover={!disabled && input.trim() ? { scale: SEND_HOVER_SCALE } : undefined}
+              whileTap={!disabled && input.trim() ? { scale: SEND_TAP_SCALE } : undefined}
+              transition={SEND_SPRING}
               className={cn(
                 "rounded-lg p-1.5 transition-colors duration-150",
                 input.trim()
@@ -79,7 +87,7 @@ export default function RuixenPromptBox({
               ) : (
                 <SendHorizontal className="h-4 w-4" />
               )}
-            </button>
+            </motion.button>
           </div>
         </div>
       </div>

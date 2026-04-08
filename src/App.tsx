@@ -7,6 +7,7 @@ import {
   ShieldAlert,
   Sun,
 } from 'lucide-react'
+import { AnimatePresence, MotionConfig, motion, type Variants } from 'motion/react'
 import RuixenPromptBox from '@/components/ui/ruixen-prompt-box'
 import { BouncingDots } from '@/components/ui/bouncing-dots'
 import { PlanReactMessage } from '@/components/ui/plan-react-message'
@@ -17,6 +18,27 @@ import {
   type StructuredChatContent,
 } from '@/types/plan-react'
 import './styles/chat.css'
+
+// ── Animation constants ───────────────────────────────────────────────────────
+const MSG_SLIDE_Y_PX = 10
+const MSG_SLIDE_X_USER_PX = 8
+const MSG_SPRING = { type: 'spring' as const, stiffness: 360, damping: 28, mass: 0.8 }
+const MSG_EXIT_DURATION_S = 0.12
+const BADGE_DURATION_S = 0.18
+const BANNER_DURATION_S = 0.2
+const EMPTY_STATE_DURATION_S = 0.35
+
+const userMsgVariants: Variants = {
+  hidden: { opacity: 0, y: MSG_SLIDE_Y_PX, x: MSG_SLIDE_X_USER_PX, scale: 0.96 },
+  visible: { opacity: 1, y: 0, x: 0, scale: 1, transition: MSG_SPRING },
+  exit: { opacity: 0, y: -4, transition: { duration: MSG_EXIT_DURATION_S, ease: 'easeIn' } },
+}
+
+const assistantMsgVariants: Variants = {
+  hidden: { opacity: 0, y: MSG_SLIDE_Y_PX, scale: 0.97 },
+  visible: { opacity: 1, y: 0, scale: 1, transition: MSG_SPRING },
+  exit: { opacity: 0, y: -4, transition: { duration: MSG_EXIT_DURATION_S, ease: 'easeIn' } },
+}
 
 type ChatRole = 'assistant' | 'user'
 
@@ -936,38 +958,58 @@ function App() {
   }
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="chat-shell h-screen overflow-hidden bg-background text-foreground">
       <main className="flex h-full w-full p-2">
         <section className="glass-panel flex h-full w-full flex-col rounded-[28px] border border-border/80 overflow-hidden">
-          <header className="flex items-center justify-between border-b border-border/70 px-5 py-3 lg:px-7">
-            <div className="flex items-center gap-3">
-              <h2 className="text-sm font-semibold tracking-tight text-foreground">Toontracks</h2>
-              {authSession ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-500">
-                  <CircleCheck className="h-3 w-3" />
-                  Strava conectado
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-500">
-                  <ShieldAlert className="h-3 w-3" />
-                  Requiere login
-                </span>
-              )}
-            </div>
+          <header className="flex items-center justify-between border-b border-border/70 px-3 py-2.5 sm:px-5 sm:py-3 lg:px-7">
             <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold tracking-tight text-foreground">Toontracks</h2>
+              <AnimatePresence mode="wait">
+                {authSession ? (
+                  <motion.span
+                    key="connected"
+                    initial={{ opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.85 }}
+                    transition={{ duration: BADGE_DURATION_S, ease: 'easeOut' }}
+                    className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-500"
+                  >
+                    <CircleCheck className="h-3 w-3" />
+                    <span className="hidden sm:inline">Conectado</span>
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="disconnected"
+                    initial={{ opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.85 }}
+                    transition={{ duration: BADGE_DURATION_S, ease: 'easeOut' }}
+                    className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-500"
+                  >
+                    <ShieldAlert className="h-3 w-3" />
+                    <span className="hidden sm:inline">Sin login</span>
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </div>
+            <div className="flex items-center gap-1.5">
               {authSession ? (
                 <>
                   <button
                     onClick={handleRunDailyPipeline}
                     disabled={pipelineStatus === 'running'}
-                    className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-border/60 bg-background/60 px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
+                    title={pipelineStatus === 'running' ? 'Sincronizando...' : pipelineStatus === 'success' ? 'Listo' : 'Sync pipeline'}
+                    className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-border/60 bg-background/60 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
                   >
                     <RefreshCw className={`h-3.5 w-3.5 ${pipelineStatus === 'running' ? 'animate-spin' : ''}`} />
-                    {pipelineStatus === 'running' ? 'Sincronizando...' : pipelineStatus === 'success' ? 'Listo' : 'Sync pipeline'}
+                    <span className="hidden sm:inline">
+                      {pipelineStatus === 'running' ? 'Sync...' : pipelineStatus === 'success' ? 'Listo' : 'Sync'}
+                    </span>
                   </button>
                   <button
                     onClick={handleLogout}
-                    className="inline-flex h-8 items-center justify-center rounded-xl border border-border/60 bg-background/60 px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="inline-flex h-8 items-center justify-center rounded-xl border border-border/60 bg-background/60 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
                     Salir
                   </button>
@@ -976,10 +1018,10 @@ function App() {
                 <button
                   onClick={handleStartStravaLogin}
                   disabled={authPending}
-                  className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-border/60 bg-background/60 px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
+                  className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-border/60 bg-background/60 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
                 >
                   <LogIn className="h-3.5 w-3.5" />
-                  {authPending ? 'Conectando...' : 'Login con Strava'}
+                  <span className="hidden xs:inline sm:inline">{authPending ? 'Conectando...' : 'Strava'}</span>
                 </button>
               )}
               <button
@@ -992,71 +1034,95 @@ function App() {
             </div>
           </header>
 
-          {authError ? (
-            <div className="border-b border-destructive/30 bg-destructive/10 px-5 py-2 text-xs text-destructive lg:px-7">
-              {authError}
-            </div>
-          ) : null}
+          <AnimatePresence>
+            {authError ? (
+              <motion.div
+                key="auth-error"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: BANNER_DURATION_S, ease: 'easeOut' }}
+                className="border-b border-destructive/30 bg-destructive/10 px-5 py-2 text-xs text-destructive lg:px-7"
+              >
+                {authError}
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
 
-          <div ref={messageStreamRef} className="message-stream flex-1 space-y-2 overflow-y-auto px-5 py-4 lg:px-7">
-            {messages.length === 0 ? (
-              <div className="flex h-full items-center justify-center">
-                <p className="text-sm text-muted-foreground">
-                  {authSession
-                    ? `Hola${authSession.athlete?.firstname ? `, ${authSession.athlete.firstname}` : ''}. ¿En qué puedo ayudarte?`
-                    : 'Conecta tu cuenta de Strava para comenzar.'}
-                </p>
-              </div>
-            ) : (
-              messages.map((message) => {
-                const isUser = message.role === 'user'
-                const isActiveAssistantMessage =
-                  message.id === activeAssistantMessageId && requestStatus !== 'idle'
-                const hasStructuredBlocks = Boolean(message.structured?.blocks.length)
-                const hasTextContent = Boolean(message.content.trim())
-                const showSpinnerOnly = isActiveAssistantMessage && !hasStructuredBlocks && !hasTextContent
+          <div ref={messageStreamRef} className="message-stream flex-1 space-y-2 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4 lg:px-7">
+            <AnimatePresence mode="wait">
+              {messages.length === 0 ? (
+                <motion.div
+                  key="empty"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: EMPTY_STATE_DURATION_S, ease: 'easeOut' }}
+                  className="flex h-full items-center justify-center"
+                >
+                  <p className="text-sm text-muted-foreground">
+                    {authSession
+                      ? `Hola${authSession.athlete?.firstname ? `, ${authSession.athlete.firstname}` : ''}. ¿En qué puedo ayudarte?`
+                      : 'Conecta tu cuenta de Strava para comenzar.'}
+                  </p>
+                </motion.div>
+              ) : (
+                <motion.div key="messages" className="contents">
+                  <AnimatePresence initial={false}>
+                    {messages.map((message) => {
+                      const isUser = message.role === 'user'
+                      const isActiveAssistantMessage =
+                        message.id === activeAssistantMessageId && requestStatus !== 'idle'
+                      const hasStructuredBlocks = Boolean(message.structured?.blocks.length)
+                      const hasTextContent = Boolean(message.content.trim())
+                      const showSpinnerOnly = isActiveAssistantMessage && !hasStructuredBlocks && !hasTextContent
 
-                return (
-                  <article
-                    key={message.id}
-                    className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`message-bubble max-w-[min(80%,48rem)] rounded-2xl px-3 py-2 ${
-                        isUser
-                          ? 'message-bubble-user'
-                          : 'message-bubble-assistant'
-                      }`}
-                    >
-                      {showSpinnerOnly ? (
-                        <BouncingDots dots={3} className="w-2 h-2 bg-foreground" />
-                      ) : (
-                        <div className="space-y-2">
-                          {!isUser && hasStructuredBlocks ? (
-                            <PlanReactMessage
-                              blocks={message.structured?.blocks ?? []}
-                              fallbackText={message.content}
-                              isActive={isActiveAssistantMessage}
-                            />
-                          ) : (
-                            <p className="text-sm leading-6">{message.content}</p>
-                          )}
+                      return (
+                        <motion.article
+                          key={message.id}
+                          variants={isUser ? userMsgVariants : assistantMsgVariants}
+                          initial="hidden"
+                          animate="visible"
+                          exit="exit"
+                          className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`message-bubble max-w-[min(80%,48rem)] rounded-2xl px-3 py-2 ${
+                              isUser ? 'message-bubble-user' : 'message-bubble-assistant'
+                            }`}
+                          >
+                            {showSpinnerOnly ? (
+                              <BouncingDots dots={3} className="w-2 h-2 bg-foreground" />
+                            ) : (
+                              <div className="space-y-2">
+                                {!isUser && hasStructuredBlocks ? (
+                                  <PlanReactMessage
+                                    blocks={message.structured?.blocks ?? []}
+                                    fallbackText={message.content}
+                                    isActive={isActiveAssistantMessage}
+                                  />
+                                ) : (
+                                  <p className="text-sm leading-6">{message.content}</p>
+                                )}
 
-                          {isActiveAssistantMessage ? (
-                            <div className="plan-react-loading-inline">
-                              <BouncingDots dots={3} className="w-1.5 h-1.5 bg-foreground/80" />
-                            </div>
-                          ) : null}
-                        </div>
-                      )}
-                    </div>
-                  </article>
-                )
-              })
-            )}
+                                {isActiveAssistantMessage ? (
+                                  <div className="plan-react-loading-inline">
+                                    <BouncingDots dots={3} className="w-1.5 h-1.5 bg-foreground/80" />
+                                  </div>
+                                ) : null}
+                              </div>
+                            )}
+                          </div>
+                        </motion.article>
+                      )
+                    })}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          <footer className="border-t border-border/70 px-3 py-3 sm:px-5 sm:py-4 lg:px-6">
+          <footer className="border-t border-border/70 px-2 py-2 sm:px-4 sm:py-3 lg:px-6">
             <RuixenPromptBox
               onSend={handleSend}
               placeholder={
@@ -1071,6 +1137,7 @@ function App() {
         </section>
       </main>
     </div>
+    </MotionConfig>
   )
 }
 
