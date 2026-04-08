@@ -688,8 +688,8 @@ function App() {
       setMessages((currentMessages) => [
         ...currentMessages,
         buildAssistantMessage(
-          'Primero inicia sesion con Strava para habilitar el chat y acceder a tus actividades.',
-          'Autenticacion requerida',
+          'Inicia sesión con Strava para comenzar.',
+          'Autenticación requerida',
         ),
       ])
       return
@@ -699,8 +699,8 @@ function App() {
       setMessages((currentMessages) => [
         ...currentMessages,
         buildAssistantMessage(
-          'No hay URL configurada para el backend. Define VITE_GCLOUD_ENDPOINT en el archivo .env del front.',
-          'Error de configuracion',
+          'El servicio no está disponible en este momento. Inténtalo de nuevo más tarde.',
+          'Error',
         ),
       ])
       return
@@ -962,23 +962,13 @@ function App() {
 
           <div ref={messageStreamRef} className="message-stream flex-1 space-y-2 overflow-y-auto px-5 py-4 lg:px-7">
             {messages.length === 0 ? (
-              <section className="space-y-3 rounded-2xl border border-border/70 bg-background/50 p-4">
-                <p className="text-sm font-medium text-foreground">Arquitectura v2 activa</p>
-                <p className="text-xs leading-5 text-muted-foreground">
-                  Este frontend ya consume el flujo nuevo basado en Query Layer y pipeline diario.
-                  Si acabas de autenticarte, escribe una pregunta para consultar tu contexto indexado.
+              <div className="flex h-full items-center justify-center">
+                <p className="text-sm text-muted-foreground">
+                  {authSession
+                    ? `Hola${authSession.athlete?.firstname ? `, ${authSession.athlete.firstname}` : ''}. ¿En qué puedo ayudarte?`
+                    : 'Conecta tu cuenta de Strava para comenzar.'}
                 </p>
-                {authSession ? (
-                  <p className="text-xs text-muted-foreground">
-                    Atleta conectado: {authSession.athlete?.firstname ?? 'Usuario'} {authSession.athlete?.lastname ?? ''}
-                    {authSession.athlete?.id ? ` · ID ${authSession.athlete.id}` : ''}
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Inicia sesion con Strava para habilitar el chat y la recuperacion multi-atleta.
-                  </p>
-                )}
-              </section>
+              </div>
             ) : (
               messages.map((message) => {
                 const isUser = message.role === 'user'
@@ -1010,7 +1000,7 @@ function App() {
                               fallbackText={message.content}
                             />
                           ) : (
-                            <p className="text-xs leading-5">{message.content}</p>
+                            <p className="text-sm leading-6">{message.content}</p>
                           )}
 
                           {isActiveAssistantMessage ? (
