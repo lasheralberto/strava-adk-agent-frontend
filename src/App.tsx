@@ -3,6 +3,7 @@ import {
   CircleCheck,
   LogIn,
   Moon,
+  RefreshCw,
   ShieldAlert,
   Sun,
 } from 'lucide-react'
@@ -65,6 +66,7 @@ type StravaAuthSession = {
 }
 
 const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
+const internalPipelineToken = (import.meta.env.VITE_INTERNAL_PIPELINE_TOKEN ?? '').trim()
 const llmProvider = (import.meta.env.VITE_LLM_PROVIDER ?? '').trim() || 'openai/gpt-4o-mini'
 const stravaScope = (import.meta.env.VITE_STRAVA_SCOPE ?? 'read,activity:read_all,profile:read_all').trim()
 const sessionStorageAuthKey = 'strava_oauth_session_v1'
@@ -421,6 +423,7 @@ function App() {
   const [authSession, setAuthSession] = useState<StravaAuthSession | null>(() => readStoredSession())
   const [authPending, setAuthPending] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [pipelineStatus, setPipelineStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
@@ -661,6 +664,31 @@ function App() {
   const handleLogout = () => {
     setAuthError(null)
     clearAuthSession()
+  }
+
+  const handleRunDailyPipeline = async () => {
+    if (!authSession?.athlete?.id || pipelineStatus === 'running') return
+    setPipelineStatus('running')
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (internalPipelineToken) headers['X-Internal-Token'] = internalPipelineToken
+      const response = await fetch(`${apiBaseUrl}/pipeline/daily`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ athlete_id: authSession.athlete.id }),
+      })
+      if (!response.ok) {
+        const err = await readBackendErrorMessage(response)
+        throw new Error(err)
+      }
+      setPipelineStatus('success')
+      setTimeout(() => setPipelineStatus('idle'), 3000)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error ejecutando pipeline.'
+      setAuthError(message)
+      setPipelineStatus('error')
+      setTimeout(() => setPipelineStatus('idle'), 3000)
+    }
   }
 
   const handleSend = async ({ message, transform }: { message: string; transform: string | null }) => {
@@ -928,12 +956,22 @@ function App() {
             </div>
             <div className="flex items-center gap-2">
               {authSession ? (
-                <button
-                  onClick={handleLogout}
-                  className="inline-flex h-8 items-center justify-center rounded-xl border border-border/60 bg-background/60 px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  Salir
-                </button>
+                <>
+                  <button
+                    onClick={handleRunDailyPipeline}
+                    disabled={pipelineStatus === 'running'}
+                    className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-border/60 bg-background/60 px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${pipelineStatus === 'running' ? 'animate-spin' : ''}`} />
+                    {pipelineStatus === 'running' ? 'Sincronizando...' : pipelineStatus === 'success' ? 'Listo' : 'Sync pipeline'}
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="inline-flex h-8 items-center justify-center rounded-xl border border-border/60 bg-background/60 px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    Salir
+                  </button>
+                </>
               ) : (
                 <button
                   onClick={handleStartStravaLogin}
