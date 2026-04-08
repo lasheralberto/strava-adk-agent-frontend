@@ -1036,6 +1036,7 @@ function App() {
                             <PlanReactMessage
                               blocks={message.structured?.blocks ?? []}
                               fallbackText={message.content}
+                              isActive={isActiveAssistantMessage}
                             />
                           ) : (
                             <p className="text-sm leading-6">{message.content}</p>
