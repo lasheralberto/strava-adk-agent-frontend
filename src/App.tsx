@@ -9,14 +9,12 @@ import {
 import RuixenPromptBox from '@/components/ui/ruixen-prompt-box'
 import { BouncingDots } from '@/components/ui/bouncing-dots'
 import { PlanReactMessage } from '@/components/ui/plan-react-message'
-import { WeeklyKpiDashboard } from '@/components/ui/weekly-kpi-dashboard'
 import {
   planReactSectionOrder,
   type PlanReactBlock,
   type PlanReactSection,
   type StructuredChatContent,
 } from '@/types/plan-react'
-import type { WeeklySummaryResponse } from '@/types/weekly-kpis'
 import './styles/chat.css'
 
 type ChatRole = 'assistant' | 'user'
@@ -67,7 +65,7 @@ type StravaAuthSession = {
 }
 
 const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
-const llmProvider = (import.meta.env.VITE_LLM_PROVIDER ?? '').trim()
+const llmProvider = (import.meta.env.VITE_LLM_PROVIDER ?? '').trim() || 'openai/gpt-4o-mini'
 const stravaScope = (import.meta.env.VITE_STRAVA_SCOPE ?? 'read,activity:read_all,profile:read_all').trim()
 const localStorageAuthKey = 'strava_oauth_session_v1'
 const planReactPhaseEvents = new Set<PlanReactSection>(planReactSectionOrder)
@@ -421,9 +419,6 @@ function App() {
   const [requestStatus, setRequestStatus] = useState<RequestStatus>('idle')
   const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<number | null>(null)
   const [authSession, setAuthSession] = useState<StravaAuthSession | null>(() => readStoredSession())
-  const [weeklySummary, setWeeklySummary] = useState<WeeklySummaryResponse | null>(null)
-  const [weeklySummaryLoading, setWeeklySummaryLoading] = useState(false)
-  const [weeklySummaryError, setWeeklySummaryError] = useState<string | null>(null)
   const [authPending, setAuthPending] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
@@ -444,9 +439,6 @@ function App() {
     authSessionRef.current = null
     setAuthSession(null)
     writeStoredSession(null)
-    setWeeklySummary(null)
-    setWeeklySummaryError(null)
-    setWeeklySummaryLoading(false)
     if (message) {
       setAuthError(message)
     }
@@ -609,98 +601,6 @@ function App() {
       }
     })
   }, [clearAuthSession, refreshStravaSession])
-
-  const loadWeeklySummary = useCallback(async () => {
-    if (!apiBaseUrl) {
-      setWeeklySummaryError('No hay URL configurada para el backend.')
-      return
-    }
-
-    const currentSession = authSessionRef.current
-    if (!currentSession) {
-      setWeeklySummary(null)
-      return
-    }
-
-    setWeeklySummaryLoading(true)
-    setWeeklySummaryError(null)
-
-    try {
-      let session = await ensureValidStravaSession()
-      if (!session) {
-        throw new Error('No hay sesion Strava activa.')
-      }
-
-      const fetchWeeklySummary = (activeSession: StravaAuthSession): Promise<Response> => {
-        return fetch(`${apiBaseUrl}/strava/weekly-summary`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${activeSession.access_token}`,
-          },
-          body: JSON.stringify({
-            days: 7,
-            include_activity_zones: true,
-            zone_sample_limit: 8,
-            strava_athlete_id: activeSession.athlete?.id,
-          }),
-        })
-      }
-
-      let response = await fetchWeeklySummary(session)
-
-      if (!response.ok) {
-        let backendError = await readBackendErrorMessage(response)
-        if (isAuthorizationFailure(response.status, backendError)) {
-          try {
-            session = await refreshStravaSession(session)
-            setAuthError(null)
-          } catch (error) {
-            const message =
-              error instanceof Error
-                ? error.message
-                : 'Tu sesion de Strava expiro. Inicia sesion de nuevo.'
-            clearAuthSession(message)
-            throw new Error(message)
-          }
-
-          response = await fetchWeeklySummary(session)
-          if (!response.ok) {
-            backendError = await readBackendErrorMessage(response)
-            if (isAuthorizationFailure(response.status, backendError)) {
-              const message = 'La sesion de Strava no pudo renovarse. Autoriza de nuevo.'
-              clearAuthSession(message)
-              throw new Error(message)
-            }
-            throw new Error(backendError)
-          }
-        } else {
-          throw new Error(backendError)
-        }
-      }
-
-      const payload = (await response.json()) as WeeklySummaryResponse
-      setWeeklySummary(payload)
-      setWeeklySummaryError(null)
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'No se pudo cargar el resumen semanal de Strava.'
-      setWeeklySummary(null)
-      setWeeklySummaryError(message)
-    } finally {
-      setWeeklySummaryLoading(false)
-    }
-  }, [clearAuthSession, ensureValidStravaSession, refreshStravaSession])
-
-  useEffect(() => {
-    if (!authSession || messages.length > 0) {
-      return
-    }
-
-    void loadWeeklySummary()
-  }, [authSession, loadWeeklySummary, messages.length])
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -1053,12 +953,23 @@ function App() {
 
           <div ref={messageStreamRef} className="message-stream flex-1 space-y-2 overflow-y-auto px-5 py-4 lg:px-7">
             {messages.length === 0 ? (
-              <WeeklyKpiDashboard
-                data={weeklySummary}
-                loading={weeklySummaryLoading}
-                error={weeklySummaryError}
-                isAuthenticated={Boolean(authSession)}
-              />
+              <section className="space-y-3 rounded-2xl border border-border/70 bg-background/50 p-4">
+                <p className="text-sm font-medium text-foreground">Arquitectura v2 activa</p>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Este frontend ya consume el flujo nuevo basado en Query Layer y pipeline diario.
+                  Si acabas de autenticarte, escribe una pregunta para consultar tu contexto indexado.
+                </p>
+                {authSession ? (
+                  <p className="text-xs text-muted-foreground">
+                    Atleta conectado: {authSession.athlete?.firstname ?? 'Usuario'} {authSession.athlete?.lastname ?? ''}
+                    {authSession.athlete?.id ? ` · ID ${authSession.athlete.id}` : ''}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Inicia sesion con Strava para habilitar el chat y la recuperacion multi-atleta.
+                  </p>
+                )}
+              </section>
             ) : (
               messages.map((message) => {
                 const isUser = message.role === 'user'
