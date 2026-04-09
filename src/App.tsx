@@ -796,7 +796,7 @@ function App() {
       )
 
       const sendChatRequest = (activeSession: StravaAuthSession): Promise<Response> => {
-        return fetch(`${apiBaseUrl}/chat`, {
+        return fetch(`${apiBaseUrl}/chat/wiki`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -805,10 +805,7 @@ function App() {
             message: requestMessage,
             llm_provider: llmProvider,
             stream: true,
-            response_format: 'plan_react_v1',
-            planner_mode: 'full_only',
-            strava_access_token: activeSession.access_token,
-            strava_athlete_id: activeSession.athlete?.id,
+            athlete_id: activeSession.athlete?.id,
           }),
         })
       }
@@ -816,7 +813,20 @@ function App() {
       let response = await sendChatRequest(session)
 
       if (!response.ok) {
-        let backendError = await readBackendErrorMessage(response)
+        const errorPayload = await response.json().catch(() => ({})) as {
+          error?: string
+          details?: string
+          message?: string
+        }
+
+        if (response.status === 404 && errorPayload.error === 'wiki_not_found') {
+          throw new Error(
+            errorPayload.details ??
+            'Aún no tienes un informe de entrenamiento generado. Ejecuta la pipeline diaria primero.',
+          )
+        }
+
+        let backendError = errorPayload.error ?? errorPayload.details ?? errorPayload.message ?? 'No se pudo obtener respuesta del backend.'
         if (isAuthorizationFailure(response.status, backendError)) {
           try {
             session = await refreshStravaSession(session)
