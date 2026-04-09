@@ -1,4 +1,6 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   CircleCheck,
   LogIn,
@@ -1164,7 +1166,13 @@ function App() {
                                     isActive={isActiveAssistantMessage}
                                   />
                                 ) : (
-                                  <p className="text-sm leading-6">{message.content}</p>
+                                  isUser ? (
+                                    <p className="text-sm leading-6">{message.content}</p>
+                                  ) : (
+                                    <div className="markdown-body text-sm">
+                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                                    </div>
+                                  )
                                 )}
 
                                 {isActiveAssistantMessage ? (

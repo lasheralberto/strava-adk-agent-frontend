@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, Sparkles } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { PlanReactBlock, PlanReactSection } from '@/types/plan-react'
 
 type PlanReactMessageProps = {
@@ -37,7 +39,11 @@ export function PlanReactMessage({ blocks, fallbackText, isActive = false }: Pla
   }, [isActive])
 
   if (blocks.length === 0) {
-    return <p className="text-sm leading-6 whitespace-pre-wrap">{fallbackText ?? ''}</p>
+    return (
+      <div className="markdown-body text-sm">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{fallbackText ?? ''}</ReactMarkdown>
+      </div>
+    )
   }
 
   return (
@@ -82,9 +88,11 @@ export function PlanReactMessage({ blocks, fallbackText, isActive = false }: Pla
       )}
 
       {(answerText || (!thinkingBlocks.length && fallbackText)) && (
-        <p className="text-sm leading-6 whitespace-pre-wrap mt-2">
-          {answerText || fallbackText}
-        </p>
+        <div className="markdown-body text-sm mt-2">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {answerText || fallbackText || ''}
+          </ReactMarkdown>
+        </div>
       )}
     </div>
   )
