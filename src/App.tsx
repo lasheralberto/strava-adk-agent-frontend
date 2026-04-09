@@ -446,6 +446,7 @@ function App() {
   const [authPending, setAuthPending] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   const [pipelineStatus, setPipelineStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
+  const [indexedToday, setIndexedToday] = useState<boolean | null>(null)
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
@@ -649,6 +650,27 @@ function App() {
     container.scrollTop = container.scrollHeight
   }, [messages, requestStatus])
 
+  const fetchIndexingStatus = useCallback(async () => {
+    const athleteId = authSessionRef.current?.athlete?.id
+    if (!apiBaseUrl || !athleteId) return
+    try {
+      const res = await fetch(`${apiBaseUrl}/pipeline/indexing-status?athlete_id=${athleteId}`)
+      if (!res.ok) return
+      const data = (await res.json()) as { indexed_today?: boolean }
+      setIndexedToday(data.indexed_today ?? null)
+    } catch {
+      // silently ignore – badge simply won't render
+    }
+  }, [apiBaseUrl])
+
+  useEffect(() => {
+    if (authSession?.athlete?.id) {
+      fetchIndexingStatus()
+    } else {
+      setIndexedToday(null)
+    }
+  }, [authSession, fetchIndexingStatus])
+
   const handleStartStravaLogin = async () => {
     if (!apiBaseUrl || authPending) {
       return
@@ -704,6 +726,7 @@ function App() {
         throw new Error(err)
       }
       setPipelineStatus('success')
+      fetchIndexingStatus()
       setTimeout(() => setPipelineStatus('idle'), 3000)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error ejecutando pipeline.'
@@ -992,6 +1015,35 @@ function App() {
                   </motion.span>
                 )}
               </AnimatePresence>
+              {authSession && indexedToday !== null && (
+                <AnimatePresence mode="wait">
+                  {indexedToday ? (
+                    <motion.span
+                      key="indexed"
+                      initial={{ opacity: 0, scale: 0.85 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.85 }}
+                      transition={{ duration: BADGE_DURATION_S, ease: 'easeOut' }}
+                      className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-500"
+                    >
+                      <CircleCheck className="h-3 w-3" />
+                      <span className="hidden sm:inline">Indexado</span>
+                    </motion.span>
+                  ) : (
+                    <motion.span
+                      key="not-indexed"
+                      initial={{ opacity: 0, scale: 0.85 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.85 }}
+                      transition={{ duration: BADGE_DURATION_S, ease: 'easeOut' }}
+                      className="inline-flex items-center gap-1 rounded-full border border-red-400/40 bg-red-500/10 px-2 py-0.5 text-[11px] text-red-500"
+                    >
+                      <ShieldAlert className="h-3 w-3" />
+                      <span className="hidden sm:inline">No indexado</span>
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              )}
             </div>
             <div className="flex items-center gap-1.5">
               {authSession ? (
