@@ -747,6 +747,11 @@ function App() {
         body: JSON.stringify({ athlete_id: session.athlete.id }),
       })
       if (!response.ok) {
+        if (response.status === 401) {
+          clearAuthSession()
+          handleStartStravaLogin()
+          return
+        }
         const err = await readBackendErrorMessage(response)
         throw new Error(err)
       }
