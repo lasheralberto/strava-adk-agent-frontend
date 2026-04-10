@@ -449,6 +449,7 @@ function App() {
   const [authError, setAuthError] = useState<string | null>(null)
   const [pipelineStatus, setPipelineStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const [lastSyncStatus, setLastSyncStatus] = useState<'success' | 'failed' | 'queued' | null>(null)
+  const [lastIndexedDate, setLastIndexedDate] = useState<string | null>(null)
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
@@ -658,13 +659,14 @@ function App() {
     try {
       const res = await fetch(`${apiBaseUrl}/pipeline/indexing-status?athlete_id=${athleteId}`)
       if (!res.ok) return
-      const data = (await res.json()) as { last_sync_status?: string }
+      const data = (await res.json()) as { last_sync_status?: string; last_indexed_date?: string }
       const status = data.last_sync_status
       if (status === 'success' || status === 'failed' || status === 'queued') {
         setLastSyncStatus(status)
       } else {
         setLastSyncStatus(null)
       }
+      setLastIndexedDate(data.last_indexed_date ?? null)
     } catch {
       // silently ignore
     }
@@ -747,7 +749,7 @@ function App() {
         headers,
         body: JSON.stringify({
           athlete_id: session.athlete.id,
-          target_date: new Date().toISOString().slice(0, 10),
+          target_date: lastIndexedDate ?? new Date(Date.now() - 86400000).toISOString().slice(0, 10),
         }),
       })
       if (!response.ok) {
@@ -791,7 +793,13 @@ function App() {
               return
             }
 
-            if (runStatus === 'failed') {
+            if (runStatus === 'skipped') {
+              setLastSyncStatus(null)
+              setPipelineStatus('idle')
+              return
+            }
+
+            if (runStatus === 'failed' || runStatus === 'partial_failure') {
               setLastSyncStatus('failed')
               setPipelineStatus('error')
               setTimeout(() => setPipelineStatus('idle'), 3000)
