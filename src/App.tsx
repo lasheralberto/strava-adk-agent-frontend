@@ -10,6 +10,7 @@ import {
   Sun,
 } from 'lucide-react'
 import { AnimatePresence, MotionConfig, motion, type Variants } from 'motion/react'
+import AuthSwitch from '@/components/ui/auth-switch'
 import RuixenPromptBox from '@/components/ui/ruixen-prompt-box'
 import { BouncingDots } from '@/components/ui/bouncing-dots'
 import { PlanReactMessage } from '@/components/ui/plan-react-message'
@@ -1078,6 +1079,18 @@ function App() {
       setRequestStatus('idle')
       setActiveAssistantMessageId(null)
     }
+  }
+
+  if (!authSession) {
+    return (
+      <MotionConfig reducedMotion="user">
+        <AuthSwitch
+          onLogin={handleStartStravaLogin}
+          isPending={authPending}
+          error={authError}
+        />
+      </MotionConfig>
+    )
   }
 
   return (
