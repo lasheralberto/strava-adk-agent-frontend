@@ -718,7 +718,7 @@ function App() {
   }
 
   const handleRunDailyPipeline = async () => {
-    if (pipelineStatus === 'running') return
+    if (pipelineStatus === 'running' || lastSyncStatus === 'queued') return
 
     if (!authSession) {
       handleStartStravaLogin()
@@ -738,6 +738,7 @@ function App() {
     }
 
     setPipelineStatus('running')
+    setLastSyncStatus('queued')
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (internalPipelineToken) headers['X-Internal-Token'] = internalPipelineToken
@@ -758,19 +759,60 @@ function App() {
         const err = await readBackendErrorMessage(response)
         throw new Error(err)
       }
-      const data = (await response.json().catch(() => ({}))) as { status?: string }
-      const backendStatus = data.status
-      if (backendStatus === 'failed') {
-        setLastSyncStatus('failed')
-        setPipelineStatus('error')
-      } else {
-        setLastSyncStatus(backendStatus === 'success' ? 'success' : null)
-        setPipelineStatus('success')
+
+      // Poll /pipeline/runs until research_wiki stage reaches a terminal state
+      const POLL_INTERVAL_MS = 4000
+      const POLL_TIMEOUT_MS = 5 * 60 * 1000
+      const pollStart = Date.now()
+
+      const pollRunStatus = async (): Promise<void> => {
+        if (Date.now() - pollStart > POLL_TIMEOUT_MS) {
+          setLastSyncStatus('failed')
+          setPipelineStatus('error')
+          setTimeout(() => setPipelineStatus('idle'), 3000)
+          return
+        }
+
+        try {
+          const pollRes = await fetch(
+            `${apiBaseUrl}/pipeline/runs?stage=research_wiki&limit=1`,
+            internalPipelineToken
+              ? { headers: { 'X-Internal-Token': internalPipelineToken } }
+              : undefined,
+          )
+          if (pollRes.ok) {
+            const pollData = (await pollRes.json()) as { runs?: Array<{ status?: string }> }
+            const runStatus = pollData.runs?.[0]?.status
+
+            if (runStatus === 'success') {
+              setLastSyncStatus('success')
+              setPipelineStatus('success')
+              setTimeout(() => setPipelineStatus('idle'), 3000)
+              return
+            }
+
+            if (runStatus === 'failed') {
+              setLastSyncStatus('failed')
+              setPipelineStatus('error')
+              setTimeout(() => setPipelineStatus('idle'), 3000)
+              return
+            }
+
+            // queued or running — keep spinner + yellow
+            setLastSyncStatus(runStatus === 'running' ? 'queued' : 'queued')
+          }
+        } catch {
+          // network hiccup — keep polling
+        }
+
+        setTimeout(pollRunStatus, POLL_INTERVAL_MS)
       }
-      setTimeout(() => setPipelineStatus('idle'), 3000)
+
+      setTimeout(pollRunStatus, POLL_INTERVAL_MS)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error ejecutando pipeline.'
       setAuthError(message)
+      setLastSyncStatus('failed')
       setPipelineStatus('error')
       setTimeout(() => setPipelineStatus('idle'), 3000)
     }
