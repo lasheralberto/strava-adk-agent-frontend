@@ -448,7 +448,7 @@ function App() {
   const [authPending, setAuthPending] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   const [pipelineStatus, setPipelineStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
-  const [indexedToday, setIndexedToday] = useState<boolean | null>(null)
+  const [lastSyncStatus, setLastSyncStatus] = useState<'success' | 'failed' | 'queued' | null>(null)
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
@@ -658,10 +658,15 @@ function App() {
     try {
       const res = await fetch(`${apiBaseUrl}/pipeline/indexing-status?athlete_id=${athleteId}`)
       if (!res.ok) return
-      const data = (await res.json()) as { indexed_today?: boolean }
-      setIndexedToday(data.indexed_today ?? null)
+      const data = (await res.json()) as { last_sync_status?: string }
+      const status = data.last_sync_status
+      if (status === 'success' || status === 'failed' || status === 'queued') {
+        setLastSyncStatus(status)
+      } else {
+        setLastSyncStatus(null)
+      }
     } catch {
-      // silently ignore – badge simply won't render
+      // silently ignore
     }
   }, [apiBaseUrl])
 
@@ -669,7 +674,7 @@ function App() {
     if (authSession?.athlete?.id) {
       fetchIndexingStatus()
     } else {
-      setIndexedToday(null)
+      setLastSyncStatus(null)
     }
   }, [authSession, fetchIndexingStatus])
 
@@ -1045,48 +1050,35 @@ function App() {
                   </motion.span>
                 )}
               </AnimatePresence>
-              {authSession && indexedToday !== null && (
-                <AnimatePresence mode="wait">
-                  {indexedToday ? (
-                    <motion.span
-                      key="indexed"
-                      initial={{ opacity: 0, scale: 0.85 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.85 }}
-                      transition={{ duration: BADGE_DURATION_S, ease: 'easeOut' }}
-                      className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-500"
-                    >
-                      <CircleCheck className="h-3 w-3" />
-                      <span className="hidden sm:inline">Indexado</span>
-                    </motion.span>
-                  ) : (
-                    <motion.span
-                      key="not-indexed"
-                      initial={{ opacity: 0, scale: 0.85 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.85 }}
-                      transition={{ duration: BADGE_DURATION_S, ease: 'easeOut' }}
-                      className="inline-flex items-center gap-1 rounded-full border border-red-400/40 bg-red-500/10 px-2 py-0.5 text-[11px] text-red-500"
-                    >
-                      <ShieldAlert className="h-3 w-3" />
-                      <span className="hidden sm:inline">No indexado</span>
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              )}
             </div>
             <div className="flex items-center gap-1.5">
               {authSession ? (
                 <>
                   <button
                     onClick={handleRunDailyPipeline}
-                    disabled={pipelineStatus === 'running'}
-                    title={pipelineStatus === 'running' ? 'Sincronizando...' : pipelineStatus === 'success' ? 'Listo' : 'Sync pipeline'}
-                    className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-border/60 bg-background/60 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
+                    disabled={pipelineStatus === 'running' || lastSyncStatus === 'queued'}
+                    title={
+                      pipelineStatus === 'running' || lastSyncStatus === 'queued'
+                        ? 'Sincronizando...'
+                        : lastSyncStatus === 'failed'
+                        ? 'Último sync fallido'
+                        : lastSyncStatus === 'success'
+                        ? 'Sync completado'
+                        : 'Sync pipeline'
+                    }
+                    className={`inline-flex h-8 items-center justify-center gap-1 rounded-xl border px-2.5 text-xs transition-colors disabled:opacity-60 ${
+                      pipelineStatus === 'running' || lastSyncStatus === 'queued'
+                        ? 'border-amber-400/40 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20'
+                        : lastSyncStatus === 'failed'
+                        ? 'border-red-400/40 bg-red-500/10 text-red-500 hover:bg-red-500/20'
+                        : lastSyncStatus === 'success'
+                        ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20'
+                        : 'border-border/60 bg-background/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`}
                   >
-                    <RefreshCw className={`h-3.5 w-3.5 ${pipelineStatus === 'running' ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`h-3.5 w-3.5 ${pipelineStatus === 'running' || lastSyncStatus === 'queued' ? 'animate-spin' : ''}`} />
                     <span className="hidden sm:inline">
-                      {pipelineStatus === 'running' ? 'Sync...' : pipelineStatus === 'success' ? 'Listo' : 'Sync'}
+                      {pipelineStatus === 'running' || lastSyncStatus === 'queued' ? 'Sync...' : 'Sync'}
                     </span>
                   </button>
                   <button
