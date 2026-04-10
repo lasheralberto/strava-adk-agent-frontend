@@ -758,8 +758,15 @@ function App() {
         const err = await readBackendErrorMessage(response)
         throw new Error(err)
       }
-      setPipelineStatus('success')
-      fetchIndexingStatus()
+      const data = (await response.json().catch(() => ({}))) as { status?: string }
+      const backendStatus = data.status
+      if (backendStatus === 'failed') {
+        setLastSyncStatus('failed')
+        setPipelineStatus('error')
+      } else {
+        setLastSyncStatus(backendStatus === 'success' ? 'success' : null)
+        setPipelineStatus('success')
+      }
       setTimeout(() => setPipelineStatus('idle'), 3000)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error ejecutando pipeline.'
