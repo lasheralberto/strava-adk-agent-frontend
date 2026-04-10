@@ -744,7 +744,10 @@ function App() {
       const response = await fetch(`${apiBaseUrl}/pipeline/daily`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ athlete_id: session.athlete.id }),
+        body: JSON.stringify({
+          athlete_id: session.athlete.id,
+          target_date: new Date().toISOString().slice(0, 10),
+        }),
       })
       if (!response.ok) {
         if (response.status === 401) {
