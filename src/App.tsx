@@ -713,7 +713,25 @@ function App() {
   }
 
   const handleRunDailyPipeline = async () => {
-    if (!authSession?.athlete?.id || pipelineStatus === 'running') return
+    if (pipelineStatus === 'running') return
+
+    if (!authSession) {
+      handleStartStravaLogin()
+      return
+    }
+
+    let session: StravaAuthSession | null = null
+    try {
+      session = await ensureValidStravaSession()
+    } catch {
+      // ensureValidStravaSession already clears the session on error
+    }
+
+    if (!session?.athlete?.id) {
+      handleStartStravaLogin()
+      return
+    }
+
     setPipelineStatus('running')
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -721,7 +739,7 @@ function App() {
       const response = await fetch(`${apiBaseUrl}/pipeline/daily`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ athlete_id: authSession.athlete.id }),
+        body: JSON.stringify({ athlete_id: session.athlete.id }),
       })
       if (!response.ok) {
         const err = await readBackendErrorMessage(response)
