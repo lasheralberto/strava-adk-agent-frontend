@@ -14,6 +14,7 @@ import AuthSwitch from '@/components/ui/auth-switch'
 import RuixenPromptBox from '@/components/ui/ruixen-prompt-box'
 import { BouncingDots } from '@/components/ui/bouncing-dots'
 import { PlanReactMessage } from '@/components/ui/plan-react-message'
+import { ActivitiesRunsPanel } from '@/components/ui/activities-runs-panel'
 import {
   planReactSectionOrder,
   type PlanReactBlock,
@@ -450,6 +451,7 @@ function App() {
   const [authError, setAuthError] = useState<string | null>(null)
   const [pipelineStatus, setPipelineStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const [lastSyncStatus, setLastSyncStatus] = useState<'success' | 'failed' | 'queued' | null>(null)
+  const [activitiesRefreshKey, setActivitiesRefreshKey] = useState(0)
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
@@ -740,6 +742,7 @@ function App() {
 
     setPipelineStatus('running')
     setLastSyncStatus('queued')
+    setActivitiesRefreshKey((k) => k + 1)
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (internalPipelineToken) headers['X-Internal-Token'] = internalPipelineToken
@@ -791,6 +794,7 @@ function App() {
             if (runStatus === 'success') {
               setLastSyncStatus('success')
               setPipelineStatus('success')
+              setActivitiesRefreshKey((k) => k + 1)
               setTimeout(() => setPipelineStatus('idle'), 3000)
               return
             }
@@ -1133,6 +1137,10 @@ function App() {
             <div className="flex items-center gap-1.5">
               {authSession ? (
                 <>
+                  <ActivitiesRunsPanel
+                    athleteId={authSession.athlete?.id ?? null}
+                    refreshKey={activitiesRefreshKey}
+                  />
                   <button
                     onClick={handleRunDailyPipeline}
                     disabled={pipelineStatus === 'running' || lastSyncStatus === 'queued'}
