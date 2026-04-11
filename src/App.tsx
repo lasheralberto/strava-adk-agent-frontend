@@ -450,7 +450,6 @@ function App() {
   const [authError, setAuthError] = useState<string | null>(null)
   const [pipelineStatus, setPipelineStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const [lastSyncStatus, setLastSyncStatus] = useState<'success' | 'failed' | 'queued' | null>(null)
-  const [lastIndexedDate, setLastIndexedDate] = useState<string | null>(null)
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
@@ -660,14 +659,13 @@ function App() {
     try {
       const res = await fetch(`${apiBaseUrl}/pipeline/indexing-status?athlete_id=${athleteId}`)
       if (!res.ok) return
-      const data = (await res.json()) as { last_sync_status?: string; last_indexed_date?: string }
+      const data = (await res.json()) as { last_sync_status?: string }
       const status = data.last_sync_status
       if (status === 'success' || status === 'failed' || status === 'queued') {
         setLastSyncStatus(status)
       } else {
         setLastSyncStatus(null)
       }
-      setLastIndexedDate(data.last_indexed_date ?? null)
     } catch {
       // silently ignore
     }
@@ -745,12 +743,15 @@ function App() {
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (internalPipelineToken) headers['X-Internal-Token'] = internalPipelineToken
+      // New per-activity flow: backend ingests the latest N Strava activities,
+      // deduplicates against the GCS bucket and queues them in Firestore
+      // (`activities_runs`). No `target_date` — processing is per-activity now.
       const response = await fetch(`${apiBaseUrl}/pipeline/daily`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
           athlete_id: session.athlete.id,
-          target_date: lastIndexedDate ?? new Date(Date.now() - 86400000).toISOString().slice(0, 10),
+          latest_limit: 10,
         }),
       })
       if (!response.ok) {
