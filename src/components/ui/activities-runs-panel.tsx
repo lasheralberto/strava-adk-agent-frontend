@@ -132,7 +132,7 @@ export function ActivitiesRunsPanel({ athleteId, refreshKey = 0 }: Props) {
       const headers: Record<string, string> = {}
       if (internalPipelineToken) headers['X-Internal-Token'] = internalPipelineToken
       const res = await fetch(
-        `${apiBaseUrl}/pipeline/activities-runs?athlete_id=${athleteId}&limit=20`,
+        `${apiBaseUrl}/pipeline/indexed-activities?athlete_id=${athleteId}&limit=20`,
         { headers, signal: controller.signal },
       )
       if (!res.ok) {
