@@ -93,7 +93,6 @@ type StravaAuthSession = {
 
 const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
 const internalPipelineToken = (import.meta.env.VITE_INTERNAL_PIPELINE_TOKEN ?? '').trim()
-const llmProvider = (import.meta.env.VITE_LLM_PROVIDER ?? '').trim() || 'openai/gpt-4o-mini'
 const stravaScope = (import.meta.env.VITE_STRAVA_SCOPE ?? 'read,activity:read_all,profile:read_all').trim()
 const sessionStorageAuthKey = 'strava_oauth_session_v1'
 const planReactPhaseEvents = new Set<PlanReactSection>(planReactSectionOrder)
@@ -899,7 +898,6 @@ function App() {
           },
           body: JSON.stringify({
             message: requestMessage,
-            llm_provider: llmProvider,
             stream: true,
             athlete_id: activeSession.athlete?.id,
           }),
