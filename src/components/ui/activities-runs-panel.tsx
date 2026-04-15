@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { ChevronDown, ListChecks, RefreshCw } from 'lucide-react'
+import { ListChecks, RefreshCw, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
@@ -54,28 +54,28 @@ const STATUS_LABELS: Record<string, string> = {
 function statusClasses(status: ActivityRunStatus | undefined): string {
   switch (status) {
     case 'success':
-      return 'border-emerald-400/40 bg-emerald-500/10 text-emerald-500'
+      return 'border-success/40 bg-success/10 text-success'
     case 'failed':
-      return 'border-red-400/40 bg-red-500/10 text-red-500'
+      return 'border-destructive/40 bg-destructive/10 text-destructive'
     case 'running':
-      return 'border-sky-400/40 bg-sky-500/10 text-sky-500'
+      return 'border-primary/40 bg-primary/10 text-primary'
     case 'queued':
-      return 'border-amber-400/40 bg-amber-500/10 text-amber-500'
+      return 'border-warning/40 bg-warning/10 text-warning'
     default:
-      return 'border-border/60 bg-muted/50 text-muted-foreground'
+      return 'border-border bg-muted text-muted-foreground'
   }
 }
 
 function statusDotClass(status: ActivityRunStatus | undefined): string {
   switch (status) {
     case 'success':
-      return 'bg-emerald-500'
+      return 'bg-success'
     case 'failed':
-      return 'bg-red-500'
+      return 'bg-destructive'
     case 'running':
-      return 'bg-sky-500 animate-pulse'
+      return 'bg-primary animate-pulse'
     case 'queued':
-      return 'bg-amber-500'
+      return 'bg-warning'
     default:
       return 'bg-muted-foreground/60'
   }
@@ -119,6 +119,8 @@ export function ActivitiesRunsPanel({ athleteId, refreshKey = 0 }: Props) {
   const [runs, setRuns] = useState<ActivityRun[]>([])
   const [error, setError] = useState<string | null>(null)
   const inflightRef = useRef<AbortController | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null)
 
   const fetchRuns = useCallback(async () => {
     if (!apiBaseUrl || !athleteId) return
@@ -153,13 +155,11 @@ export function ActivitiesRunsPanel({ athleteId, refreshKey = 0 }: Props) {
     }
   }, [athleteId])
 
-  // Fetch on open, athlete change, or refreshKey bump (e.g. after sync)
   useEffect(() => {
     if (!open || !athleteId) return
     fetchRuns()
   }, [open, athleteId, refreshKey, fetchRuns])
 
-  // Reset panel when logging out
   useEffect(() => {
     if (!athleteId) {
       setOpen(false)
@@ -168,119 +168,176 @@ export function ActivitiesRunsPanel({ athleteId, refreshKey = 0 }: Props) {
     }
   }, [athleteId])
 
+  // Esc to close; focus close button on open; restore focus to trigger on close.
+  useEffect(() => {
+    if (!open) return
+    closeBtnRef.current?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        setOpen(false)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) {
+      triggerRef.current?.focus({ preventScroll: true })
+    }
+  }, [open])
+
   if (!athleteId) return null
 
   return (
-    <div className="relative">
+    <>
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => setOpen(true)}
         aria-expanded={open}
-        aria-controls="activities-runs-panel"
-        title={open ? 'Ocultar actividades' : 'Ver últimas actividades'}
-        className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-border/60 bg-background/60 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        aria-controls="activities-runs-drawer"
+        aria-label="Ver últimas actividades indexadas"
+        className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <ListChecks className="h-3.5 w-3.5" />
+        <ListChecks className="h-4 w-4" aria-hidden="true" />
         <span className="hidden sm:inline">Actividades</span>
-        <ChevronDown
-          className={cn(
-            'h-3.5 w-3.5 transition-transform duration-200',
-            open && 'rotate-180',
-          )}
-        />
       </button>
 
       <AnimatePresence>
         {open ? (
-          <motion.div
-            key="activities-runs-panel"
-            id="activities-runs-panel"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="absolute right-0 z-30 mt-2 w-[min(92vw,44rem)] origin-top-right overflow-hidden rounded-2xl border border-border/70 bg-popover/95 text-popover-foreground shadow-xl backdrop-blur"
-          >
-            <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
-              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                <ListChecks className="h-3.5 w-3.5" />
-                <span>Últimas actividades indexadas</span>
-              </div>
-              <button
-                type="button"
-                onClick={fetchRuns}
-                disabled={loading}
-                title="Recargar"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border/60 bg-background/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
-              >
-                <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-              </button>
-            </div>
-
-            <div className="max-h-[min(70vh,28rem)] overflow-y-auto">
-              {error ? (
-                <div className="px-3 py-4 text-xs text-destructive">{error}</div>
-              ) : runs.length === 0 && !loading ? (
-                <div className="px-3 py-6 text-center text-xs text-muted-foreground">
-                  No hay actividades indexadas todavía. Pulsa Sync para comenzar.
+          <>
+            <motion.div
+              key="activities-drawer-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12, ease: 'linear' }}
+              onClick={() => setOpen(false)}
+              className="fixed inset-0 z-40 bg-foreground/40 backdrop-blur-sm"
+              aria-hidden="true"
+            />
+            <motion.aside
+              key="activities-drawer"
+              id="activities-runs-drawer"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="activities-drawer-title"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
+              className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[min(92vw,32rem)] flex-col border-l border-border bg-popover text-popover-foreground shadow-2xl"
+            >
+              <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <ListChecks className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  <h2
+                    id="activities-drawer-title"
+                    className="text-[15px] font-semibold text-foreground"
+                  >
+                    Actividades indexadas
+                  </h2>
                 </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Actividad</TableHead>
-                      <TableHead className="hidden sm:table-cell">Deporte</TableHead>
-                      <TableHead className="hidden md:table-cell">Fecha</TableHead>
-                      <TableHead className="hidden md:table-cell">Distancia</TableHead>
-                      <TableHead className="hidden lg:table-cell">Tiempo</TableHead>
-                      <TableHead className="text-right">Estado</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {runs.map((run) => {
-                      const status = (run.status ?? 'unknown') as ActivityRunStatus
-                      const label = STATUS_LABELS[status] ?? status
-                      return (
-                        <TableRow key={String(run.activity_id)}>
-                          <TableCell className="max-w-[14rem] truncate font-medium text-foreground">
-                            {run.name || `Actividad ${run.activity_id}`}
-                          </TableCell>
-                          <TableCell className="hidden text-muted-foreground sm:table-cell">
-                            {run.sport_type || run.type || '—'}
-                          </TableCell>
-                          <TableCell className="hidden text-muted-foreground md:table-cell">
-                            {formatDate(run.start_date)}
-                          </TableCell>
-                          <TableCell className="hidden text-muted-foreground md:table-cell">
-                            {formatDistance(run.distance)}
-                          </TableCell>
-                          <TableCell className="hidden text-muted-foreground lg:table-cell">
-                            {formatDuration(run.moving_time)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <span
-                              className={cn(
-                                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium',
-                                statusClasses(status),
-                              )}
-                            >
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={fetchRuns}
+                    disabled={loading}
+                    aria-label="Recargar actividades"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-muted-foreground/50"
+                  >
+                    <RefreshCw
+                      className={cn('h-4 w-4', loading && 'animate-spin')}
+                      aria-hidden="true"
+                    />
+                  </button>
+                  <button
+                    ref={closeBtnRef}
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    aria-label="Cerrar panel"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+              </header>
+
+              <div className="flex-1 overflow-y-auto">
+                {error ? (
+                  <div
+                    role="alert"
+                    className="m-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive"
+                  >
+                    {error}
+                  </div>
+                ) : runs.length === 0 && !loading ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-2 px-6 py-10 text-center">
+                    <p className="text-[15px] text-foreground">Sin actividades indexadas</p>
+                    <p className="text-[13px] text-muted-foreground">
+                      Pulsa Sync para comenzar a analizar tu historial.
+                    </p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Actividad</TableHead>
+                        <TableHead className="hidden sm:table-cell">Deporte</TableHead>
+                        <TableHead className="hidden md:table-cell">Fecha</TableHead>
+                        <TableHead className="hidden md:table-cell">Distancia</TableHead>
+                        <TableHead className="hidden lg:table-cell">Tiempo</TableHead>
+                        <TableHead className="text-right">Estado</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {runs.map((run) => {
+                        const status = (run.status ?? 'unknown') as ActivityRunStatus
+                        const label = STATUS_LABELS[status] ?? status
+                        return (
+                          <TableRow key={String(run.activity_id)}>
+                            <TableCell className="max-w-[14rem] truncate font-medium text-foreground">
+                              {run.name || `Actividad ${run.activity_id}`}
+                            </TableCell>
+                            <TableCell className="hidden text-muted-foreground sm:table-cell">
+                              {run.sport_type || run.type || '—'}
+                            </TableCell>
+                            <TableCell className="hidden text-muted-foreground md:table-cell">
+                              {formatDate(run.start_date)}
+                            </TableCell>
+                            <TableCell className="hidden text-muted-foreground md:table-cell">
+                              {formatDistance(run.distance)}
+                            </TableCell>
+                            <TableCell className="hidden text-muted-foreground lg:table-cell">
+                              {formatDuration(run.moving_time)}
+                            </TableCell>
+                            <TableCell className="text-right">
                               <span
-                                aria-hidden="true"
-                                className={cn('h-1.5 w-1.5 rounded-full', statusDotClass(status))}
-                              />
-                              {label}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
-          </motion.div>
+                                className={cn(
+                                  'inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[12px] font-medium',
+                                  statusClasses(status),
+                                )}
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  className={cn('h-1.5 w-1.5 rounded-full', statusDotClass(status))}
+                                />
+                                {label}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </motion.aside>
+          </>
         ) : null}
       </AnimatePresence>
-    </div>
+    </>
   )
 }

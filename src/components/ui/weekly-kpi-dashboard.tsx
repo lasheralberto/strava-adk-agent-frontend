@@ -28,12 +28,12 @@ function formatTrend(metric: WeeklyDeltaMetric, unit = ''): string {
 
 function trendClassName(metric: WeeklyDeltaMetric): string {
   if (metric.delta > 0) {
-    return 'border-emerald-400/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
+    return 'border-success/40 bg-success/10 text-success'
   }
   if (metric.delta < 0) {
-    return 'border-rose-400/40 bg-rose-500/10 text-rose-600 dark:text-rose-300'
+    return 'border-destructive/40 bg-destructive/10 text-destructive'
   }
-  return 'border-border/70 bg-background/60 text-muted-foreground'
+  return 'border-border bg-muted text-muted-foreground'
 }
 
 function formatDateWindow(start: string, end: string): string {
@@ -114,7 +114,7 @@ export function WeeklyKpiDashboard({
       </div>
 
       {error ? (
-        <p className="rounded-xl border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-300">
+        <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
           {error}
         </p>
       ) : null}

@@ -6,9 +6,10 @@ const config: Config = {
   theme: {
     extend: {
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        sm: '4px',
+        md: '8px',
+        lg: '12px',
+        xl: '16px',
       },
       colors: {
         border: 'hsl(var(--border) / <alpha-value>)',
@@ -28,6 +29,14 @@ const config: Config = {
           DEFAULT: 'hsl(var(--destructive) / <alpha-value>)',
           foreground: 'hsl(var(--destructive-foreground) / <alpha-value>)',
         },
+        success: {
+          DEFAULT: 'hsl(var(--success) / <alpha-value>)',
+          foreground: 'hsl(var(--success-foreground) / <alpha-value>)',
+        },
+        warning: {
+          DEFAULT: 'hsl(var(--warning) / <alpha-value>)',
+          foreground: 'hsl(var(--warning-foreground) / <alpha-value>)',
+        },
         muted: {
           DEFAULT: 'hsl(var(--muted) / <alpha-value>)',
           foreground: 'hsl(var(--muted-foreground) / <alpha-value>)',
@@ -44,6 +53,24 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card) / <alpha-value>)',
           foreground: 'hsl(var(--card-foreground) / <alpha-value>)',
         },
+      },
+      fontSize: {
+        caption: ['12px', { lineHeight: '1.35' }],
+        footnote: ['13px', { lineHeight: '1.4' }],
+        callout: ['14px', { lineHeight: '1.45' }],
+        body: ['15px', { lineHeight: '1.5' }],
+        'title-2': ['17px', { lineHeight: '1.35', fontWeight: '600' }],
+        'title-1': ['20px', { lineHeight: '1.3', fontWeight: '600' }],
+        display: ['28px', { lineHeight: '1.2', fontWeight: '700', letterSpacing: '-0.01em' }],
+      },
+      transitionDuration: {
+        80: '80ms',
+        120: '120ms',
+        220: '220ms',
+        280: '280ms',
+      },
+      transitionTimingFunction: {
+        'design-out': 'cubic-bezier(0.4, 0, 0.2, 1)',
       },
     },
   },

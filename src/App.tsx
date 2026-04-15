@@ -1099,76 +1099,86 @@ function App() {
   return (
     <MotionConfig reducedMotion="user">
     <div className="chat-shell h-screen overflow-hidden bg-background text-foreground">
-      <main className="flex h-full w-full p-2">
-        <section className="glass-panel flex h-full w-full flex-col rounded-[28px] border border-border/80 overflow-hidden">
-          <header className="flex items-center justify-between border-b border-border/70 px-3 py-2.5 sm:px-5 sm:py-3 lg:px-7">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold tracking-tight text-foreground">Toontracks</h2>
+      <main className="flex h-full w-full">
+        <section className="glass-panel flex h-full w-full flex-col overflow-hidden">
+          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-3 sm:gap-3 sm:px-6">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <h1 className="truncate text-title-2 font-semibold tracking-tight text-foreground">
+                Toontracks
+              </h1>
               <AnimatePresence mode="wait">
                 {authSession ? (
                   <motion.span
                     key="connected"
-                    initial={{ opacity: 0, scale: 0.85 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.85 }}
-                    transition={{ duration: BADGE_DURATION_S, ease: 'easeOut' }}
-                    className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-500"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: BADGE_DURATION_S, ease: 'linear' }}
+                    role="status"
+                    className="inline-flex items-center gap-1 rounded-sm border border-success/40 bg-success/10 px-2 py-0.5 text-[12px] font-medium text-success"
                   >
-                    <CircleCheck className="h-3 w-3" />
+                    <CircleCheck className="h-3 w-3" aria-hidden="true" />
                     <span className="hidden sm:inline">Conectado</span>
                   </motion.span>
                 ) : (
                   <motion.span
                     key="disconnected"
-                    initial={{ opacity: 0, scale: 0.85 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.85 }}
-                    transition={{ duration: BADGE_DURATION_S, ease: 'easeOut' }}
-                    className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-500"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: BADGE_DURATION_S, ease: 'linear' }}
+                    role="status"
+                    className="inline-flex items-center gap-1 rounded-sm border border-warning/40 bg-warning/10 px-2 py-0.5 text-[12px] font-medium text-warning"
                   >
-                    <ShieldAlert className="h-3 w-3" />
+                    <ShieldAlert className="h-3 w-3" aria-hidden="true" />
                     <span className="hidden sm:inline">Sin login</span>
                   </motion.span>
                 )}
               </AnimatePresence>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
               {authSession ? (
                 <>
                   <ActivitiesRunsPanel
                     athleteId={authSession.athlete?.id ?? null}
                     refreshKey={activitiesRefreshKey}
                   />
-                  <button
-                    onClick={handleRunDailyPipeline}
-                    disabled={pipelineStatus === 'running' || lastSyncStatus === 'queued'}
-                    title={
-                      pipelineStatus === 'running' || lastSyncStatus === 'queued'
-                        ? 'Sincronizando...'
+                  {(() => {
+                    const syncing = pipelineStatus === 'running' || lastSyncStatus === 'queued'
+                    const syncLabel = syncing
+                      ? 'Sincronizando actividades'
+                      : lastSyncStatus === 'failed'
+                      ? 'Último sync fallido — reintentar'
+                      : lastSyncStatus === 'success'
+                      ? 'Sincronizar — último sync correcto'
+                      : 'Sincronizar actividades'
+                    const syncTone =
+                      syncing
+                        ? 'border-warning/40 bg-warning/10 text-warning hover:bg-warning/15'
                         : lastSyncStatus === 'failed'
-                        ? 'Último sync fallido'
+                        ? 'border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/15'
                         : lastSyncStatus === 'success'
-                        ? 'Sync completado'
-                        : 'Sync pipeline'
-                    }
-                    className={`inline-flex h-8 items-center justify-center gap-1 rounded-xl border px-2.5 text-xs transition-colors disabled:opacity-60 ${
-                      pipelineStatus === 'running' || lastSyncStatus === 'queued'
-                        ? 'border-amber-400/40 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20'
-                        : lastSyncStatus === 'failed'
-                        ? 'border-red-400/40 bg-red-500/10 text-red-500 hover:bg-red-500/20'
-                        : lastSyncStatus === 'success'
-                        ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20'
-                        : 'border-border/60 bg-background/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-                    }`}
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${pipelineStatus === 'running' || lastSyncStatus === 'queued' ? 'animate-spin' : ''}`} />
-                    <span className="hidden sm:inline">
-                      {pipelineStatus === 'running' || lastSyncStatus === 'queued' ? 'Sync...' : 'Sync'}
-                    </span>
-                  </button>
+                        ? 'border-success/40 bg-success/10 text-success hover:bg-success/15'
+                        : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+                    return (
+                      <button
+                        onClick={handleRunDailyPipeline}
+                        disabled={syncing}
+                        aria-label={syncLabel}
+                        className={`inline-flex h-8 items-center justify-center gap-1 rounded-md border px-2 text-[13px] transition-colors duration-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed ${syncTone}`}
+                      >
+                        <RefreshCw
+                          className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`}
+                          aria-hidden="true"
+                        />
+                        <span className="hidden sm:inline">{syncing ? 'Sync…' : 'Sync'}</span>
+                      </button>
+                    )
+                  })()}
                   <button
                     onClick={handleLogout}
-                    className="inline-flex h-8 items-center justify-center rounded-xl border border-border/60 bg-background/60 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    aria-label="Cerrar sesión"
+                    className="inline-flex h-8 items-center justify-center rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Salir
                   </button>
@@ -1177,18 +1187,26 @@ function App() {
                 <button
                   onClick={handleStartStravaLogin}
                   disabled={authPending}
-                  className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-border/60 bg-background/60 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
+                  aria-label={authPending ? 'Conectando con Strava' : 'Conectar con Strava'}
+                  className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-muted-foreground/50"
                 >
-                  <LogIn className="h-3.5 w-3.5" />
-                  <span className="hidden xs:inline sm:inline">{authPending ? 'Conectando...' : 'Strava'}</span>
+                  <LogIn className="h-4 w-4" aria-hidden="true" />
+                  <span className="hidden sm:inline">
+                    {authPending ? 'Conectando…' : 'Strava'}
+                  </span>
                 </button>
               )}
               <button
                 onClick={() => setIsDark((d) => !d)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border/60 bg-background/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                aria-label="Toggle theme"
+                aria-label={isDark ? 'Activar tema claro' : 'Activar tema oscuro'}
+                aria-pressed={isDark}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                {isDark ? (
+                  <Sun className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Moon className="h-4 w-4" aria-hidden="true" />
+                )}
               </button>
             </div>
           </header>

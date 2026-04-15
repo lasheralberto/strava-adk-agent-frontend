@@ -1,53 +1,77 @@
-@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@400;500;600;700&display=swap");
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens — derived from /DESIGN.md (strava-agent-back).
+ * Dark palette is canonical; light palette mirrors it for contrast parity.
+ * All values are HSL triplets so Tailwind's `hsl(var(--x) / <alpha-value>)` works.
+ */
+
 @layer base {
   :root {
-    --background: 42 89% 96%;
-    --foreground: 221 35% 19%;
-    --card: 45 100% 99%;
-    --card-foreground: 221 35% 19%;
-    --popover: 45 100% 99%;
-    --popover-foreground: 221 35% 19%;
-    --primary: 194 79% 57%;
-    --primary-foreground: 210 45% 98%;
-    --secondary: 340 100% 94%;
-    --secondary-foreground: 221 35% 19%;
-    --muted: 145 64% 92%;
-    --muted-foreground: 222 17% 37%;
-    --accent: 35 95% 67%;
-    --accent-foreground: 24 60% 20%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 214 56% 86%;
-    --input: 214 56% 86%;
-    --ring: 194 79% 57%;
-    --radius: 1.4rem;
+    /* Surfaces */
+    --background: 226 40% 98%;           /* bg-base light */
+    --foreground: 223 57% 10%;           /* text-primary */
+    --card: 0 0% 100%;                   /* bg-raised */
+    --card-foreground: 223 57% 10%;
+    --popover: 224 35% 96%;              /* bg-overlay */
+    --popover-foreground: 223 57% 10%;
+    --muted: 222 39% 94%;                /* bg-subtle */
+    --muted-foreground: 218 24% 40%;     /* text-secondary */
+    --secondary: 222 39% 94%;
+    --secondary-foreground: 223 57% 10%;
+
+    /* Accent = hover/selected tint (shadcn semantics). Primary = DESIGN accent blue. */
+    --accent: 222 39% 94%;
+    --accent-foreground: 223 57% 10%;
+    --primary: 220 98% 57%;              /* DESIGN --color-accent */
+    --primary-foreground: 0 0% 100%;
+
+    /* Semantic */
+    --destructive: 4 100% 61%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 135 59% 49%;
+    --success-foreground: 0 0% 100%;
+    --warning: 36 100% 52%;
+    --warning-foreground: 223 57% 10%;
+
+    /* Lines */
+    --border: 220 20% 89%;
+    --input: 220 20% 89%;
+    --ring: 223 100% 65%;                /* border-focus */
+
+    /* Radius — DESIGN.md scale: sm 4 / md 8 / lg 12 / xl 16 */
+    --radius: 0.5rem;
   }
 
   .dark {
-    --background: 228 30% 13%;
-      --foreground: 48 90% 96%;
-      --card: 228 28% 16%;
-      --card-foreground: 48 90% 96%;
-      --popover: 228 28% 16%;
-      --popover-foreground: 48 90% 96%;
-      --primary: 195 88% 66%;
-      --primary-foreground: 222 40% 10%;
-      --secondary: 270 44% 26%;
-      --secondary-foreground: 48 90% 96%;
-      --muted: 228 24% 20%;
-      --muted-foreground: 222 16% 78%;
-      --accent: 35 91% 64%;
-      --accent-foreground: 24 64% 14%;
-      --destructive: 0 62% 44%;
-      --destructive-foreground: 0 0% 98%;
-      --border: 228 19% 29%;
-      --input: 228 19% 29%;
-      --ring: 195 88% 66%;
+    --background: 218 55% 8%;
+    --foreground: 226 89% 92%;
+    --card: 218 53% 12%;
+    --card-foreground: 226 89% 92%;
+    --popover: 220 44% 15%;
+    --popover-foreground: 226 89% 92%;
+    --muted: 218 41% 19%;
+    --muted-foreground: 219 24% 64%;
+    --secondary: 218 41% 19%;
+    --secondary-foreground: 226 89% 92%;
+
+    --accent: 218 41% 19%;
+    --accent-foreground: 226 89% 92%;
+    --primary: 220 98% 57%;
+    --primary-foreground: 223 57% 10%;
+
+    --destructive: 4 100% 61%;
+    --destructive-foreground: 223 57% 10%;
+    --success: 135 59% 49%;
+    --success-foreground: 223 57% 10%;
+    --warning: 36 100% 52%;
+    --warning-foreground: 223 57% 10%;
+
+    --border: 220 23% 22%;
+    --input: 220 23% 22%;
+    --ring: 223 100% 65%;
   }
 
   * {
@@ -58,25 +82,35 @@
     scroll-behavior: smooth;
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: "Nunito", sans-serif;
+    font-family: "SF Pro Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-feature-settings: "cv11", "ss01";
     min-height: 100vh;
   }
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    font-family: "Baloo 2", sans-serif;
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "SF Pro Display", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    letter-spacing: -0.01em;
   }
 
-  button,
-  input,
-  textarea {
+  code, kbd, samp, pre {
+    font-family: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+
+  button, input, textarea {
     font: inherit;
+  }
+
+  /* Numbers in tables align by column */
+  table, tbody {
+    font-variant-numeric: tabular-nums;
   }
 
   #root {
