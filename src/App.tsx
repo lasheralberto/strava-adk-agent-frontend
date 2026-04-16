@@ -1148,7 +1148,12 @@ function App() {
                     refreshKey={activitiesRefreshKey}
                   />
                   <AgentPromptPanel selectedAgentId={selectedAgentId} onAgentChange={setSelectedAgentId} />
-                  <AgentDesignerPanel isDark={isDark} selectedAgentId={selectedAgentId} onAgentChange={setSelectedAgentId} />
+                  <AgentDesignerPanel
+                    isDark={isDark}
+                    athleteId={authSession.athlete?.id ?? null}
+                    selectedAgentId={selectedAgentId}
+                    onAgentChange={setSelectedAgentId}
+                  />
                   {(() => {
                     const syncing = pipelineStatus === 'running' || lastSyncStatus === 'queued'
                     const syncLabel = syncing
