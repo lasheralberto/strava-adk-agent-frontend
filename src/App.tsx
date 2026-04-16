@@ -452,6 +452,7 @@ function App() {
   const [pipelineStatus, setPipelineStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const [lastSyncStatus, setLastSyncStatus] = useState<'success' | 'failed' | 'queued' | null>(null)
   const [activitiesRefreshKey, setActivitiesRefreshKey] = useState(0)
+  const [selectedAgentId, setSelectedAgentId] = useState('wiki_research_chat')
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
@@ -901,6 +902,7 @@ function App() {
             message: requestMessage,
             stream: true,
             athlete_id: activeSession.athlete?.id,
+            agent_id: selectedAgentId,
           }),
         })
       }
@@ -1144,7 +1146,7 @@ function App() {
                     athleteId={authSession.athlete?.id ?? null}
                     refreshKey={activitiesRefreshKey}
                   />
-                  <AgentPromptPanel />
+                  <AgentPromptPanel selectedAgentId={selectedAgentId} onAgentChange={setSelectedAgentId} />
                   {(() => {
                     const syncing = pipelineStatus === 'running' || lastSyncStatus === 'queued'
                     const syncLabel = syncing
