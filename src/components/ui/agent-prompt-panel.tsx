@@ -13,7 +13,6 @@ type AgentRecord = {
   agent_id: string
   name?: string
   description?: string
-  placeholders?: string[]
   instruction_template: string
   is_default?: boolean
   updated_at?: string | null
@@ -145,11 +144,11 @@ function CreateAgentModal({
               onChange={(e) => setTemplate(e.target.value)}
               rows={6}
               spellCheck={false}
-              placeholder="Escribe el prompt del agente. Usa %%ATHLETE_ID%% y %%WIKI%% como placeholders..."
+              placeholder="Escribe las instrucciones del agente. El contexto de la wiki y el ID del atleta se inyectan automáticamente."
               className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[13px] leading-5 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Placeholders disponibles: <code className="rounded bg-muted px-1 py-0.5 text-[10px]">%%ATHLETE_ID%%</code> · <code className="rounded bg-muted px-1 py-0.5 text-[10px]">%%WIKI%%</code>
+              La wiki del atleta y su ID se inyectan automáticamente por el backend.
             </p>
           </div>
 
@@ -495,19 +494,6 @@ export function AgentPromptPanel({ selectedAgentId, onAgentChange }: Props) {
               <div className="flex-1 overflow-y-auto px-4 py-4">
                 {record?.description ? (
                   <p className="mb-2 text-[13px] text-muted-foreground">{record.description}</p>
-                ) : null}
-                {record?.placeholders && record.placeholders.length > 0 ? (
-                  <p className="mb-3 text-[12px] text-muted-foreground">
-                    Placeholders:{' '}
-                    {record.placeholders.map((placeholder, idx) => (
-                      <span key={placeholder}>
-                        <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">
-                          {placeholder}
-                        </code>
-                        {idx < (record.placeholders?.length ?? 0) - 1 ? ' · ' : ''}
-                      </span>
-                    ))}
-                  </p>
                 ) : null}
 
                 {error ? (
