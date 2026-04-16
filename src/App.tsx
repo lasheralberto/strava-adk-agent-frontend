@@ -15,8 +15,7 @@ import RuixenPromptBox from '@/components/ui/ruixen-prompt-box'
 import { BouncingDots } from '@/components/ui/bouncing-dots'
 import { PlanReactMessage } from '@/components/ui/plan-react-message'
 import { ActivitiesRunsPanel } from '@/components/ui/activities-runs-panel'
-import { AgentPromptPanel } from '@/components/ui/agent-prompt-panel'
-import { AgentDesignerPanel } from '@/components/ui/agent-designer-panel'
+import { CustomizableAgentsPanel } from '@/components/ui/customizable-agents-panel'
 import {
   planReactSectionOrder,
   type PlanReactBlock,
@@ -1147,8 +1146,7 @@ function App() {
                     athleteId={authSession.athlete?.id ?? null}
                     refreshKey={activitiesRefreshKey}
                   />
-                  <AgentPromptPanel selectedAgentId={selectedAgentId} onAgentChange={setSelectedAgentId} />
-                  <AgentDesignerPanel
+                  <CustomizableAgentsPanel
                     isDark={isDark}
                     athleteId={authSession.athlete?.id ?? null}
                     selectedAgentId={selectedAgentId}
