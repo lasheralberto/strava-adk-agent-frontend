@@ -83,6 +83,42 @@ type DesignerDefinition = {
   agents: AgentEntry[]
 }
 
+type AgentLogEvent = {
+  author?: string
+  text?: string
+  tool_outputs?: Array<{
+    agent?: string
+    output?: string
+  }>
+}
+
+type AgentLogAttempt = {
+  attempt?: number
+  succeeded?: boolean
+  events?: AgentLogEvent[]
+}
+
+type AgentLogConversation = {
+  conversation_id?: string
+  created_at?: string
+  attempts?: AgentLogAttempt[]
+}
+
+type AgentLogPayload = {
+  conversations?: AgentLogConversation[]
+}
+
+type RoundContribution = {
+  agentId: string
+  outputKey: string
+  text: string
+}
+
+type RoundTimeline = {
+  round: number
+  contributions: RoundContribution[]
+}
+
 type Props = {
   isDark: boolean
   athleteId: number | null
@@ -90,10 +126,22 @@ type Props = {
   onAgentChange: (agentId: string) => void
 }
 
+const ROUND_AUTHOR_RE = /^([a-z0-9_]+)_round_(\d+)$/i
+
 function authHeaders(base: Record<string, string> = {}): Record<string, string> {
   const headers: Record<string, string> = { ...base }
   if (internalPipelineToken) headers['X-Internal-Token'] = internalPipelineToken
   return headers
+}
+
+async function readErrorResponse(response: Response): Promise<string> {
+  const payload = (await response.json().catch(() => ({}))) as {
+    error?: string
+    details?: string
+    message?: string
+  }
+
+  return payload.error || payload.details || payload.message || `HTTP ${response.status}`
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -118,6 +166,118 @@ function resolveOutputKey(agent: AgentEntry): string {
   const candidate = (agent.output_key || '').trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '')
   if (candidate) return candidate
   return `${agent.id}_output`
+}
+
+function truncateContributionText(value: string, maxChars = 220): string {
+  const normalized = value.trim().replace(/\s+/g, ' ')
+  if (!normalized) return ''
+  if (normalized.length <= maxChars) return normalized
+  return `${normalized.slice(0, maxChars - 3)}...`
+}
+
+function buildEmptyTimeline(agents: AgentEntry[], rounds: number): RoundTimeline[] {
+  const safeRounds = Math.max(1, rounds)
+  const timeline: RoundTimeline[] = []
+
+  for (let round = 1; round <= safeRounds; round++) {
+    timeline.push({
+      round,
+      contributions: agents.map((agent) => ({
+        agentId: agent.id,
+        outputKey: resolveOutputKey(agent),
+        text: '',
+      })),
+    })
+  }
+
+  return timeline
+}
+
+function parseRoundAuthor(value: string): { agentId: string; round: number } | null {
+  const match = ROUND_AUTHOR_RE.exec(value.trim())
+  if (!match) return null
+
+  const rawAgentId = (match[1] || '').trim().toLowerCase()
+  const rawRound = Number(match[2])
+  if (!rawAgentId || !Number.isFinite(rawRound) || rawRound <= 0) return null
+
+  return { agentId: rawAgentId, round: rawRound }
+}
+
+function buildRoundTimelineFromLogs(
+  payload: AgentLogPayload,
+  agents: AgentEntry[],
+): { rounds: RoundTimeline[]; sourceCreatedAt: string | null } {
+  const orderedAgents = [...agents]
+    .sort((left, right) => left.order - right.order)
+    .map((agent) => ({ ...agent, id: agent.id.toLowerCase() }))
+
+  if (orderedAgents.length === 0) {
+    return { rounds: [], sourceCreatedAt: null }
+  }
+
+  const conversations = Array.isArray(payload.conversations) ? payload.conversations : []
+  const fallbackRounds = buildEmptyTimeline(orderedAgents, CONSENSUS_ROUNDS)
+
+  for (const conversation of conversations) {
+    const attempts = Array.isArray(conversation.attempts) ? conversation.attempts : []
+    const hasEvents = attempts.some((attempt) => Array.isArray(attempt.events) && attempt.events.length > 0)
+    if (!hasEvents) continue
+
+    const contributionsByRound = new Map<string, string>()
+    let maxRound = CONSENSUS_ROUNDS
+    for (const attempt of attempts) {
+      const events = Array.isArray(attempt.events) ? attempt.events : []
+      for (const event of events) {
+        const author = typeof event.author === 'string' ? event.author : ''
+        const parsed = parseRoundAuthor(author)
+        if (parsed && orderedAgents.some((agent) => agent.id === parsed.agentId)) {
+          maxRound = Math.max(maxRound, parsed.round)
+          const text = truncateContributionText(String(event.text ?? ''))
+          if (text) {
+            contributionsByRound.set(`${parsed.round}::${parsed.agentId}`, text)
+          }
+        }
+
+        const toolOutputs = Array.isArray(event.tool_outputs) ? event.tool_outputs : []
+        for (const output of toolOutputs) {
+          const outputAgent = typeof output.agent === 'string' ? output.agent : ''
+          const parsedOutput = parseRoundAuthor(outputAgent)
+          if (!parsedOutput || !orderedAgents.some((agent) => agent.id === parsedOutput.agentId)) {
+            continue
+          }
+
+          maxRound = Math.max(maxRound, parsedOutput.round)
+          const outputText = truncateContributionText(String(output.output ?? ''))
+          if (outputText) {
+            contributionsByRound.set(`${parsedOutput.round}::${parsedOutput.agentId}`, outputText)
+          }
+        }
+      }
+    }
+
+    const rounds: RoundTimeline[] = []
+    for (let round = 1; round <= maxRound; round++) {
+      rounds.push({
+        round,
+        contributions: orderedAgents.map((agent) => ({
+          agentId: agent.id,
+          outputKey: resolveOutputKey(agent),
+          text: contributionsByRound.get(`${round}::${agent.id}`) || '',
+        })),
+      })
+    }
+
+    return {
+      rounds,
+      sourceCreatedAt: typeof conversation.created_at === 'string' ? conversation.created_at : null,
+    }
+  }
+
+  return {
+    rounds: fallbackRounds,
+    sourceCreatedAt: null,
+  }
 }
 
 function normalizeAgentId(value: string, fallback: string): string {
@@ -420,6 +580,10 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [timelineLoading, setTimelineLoading] = useState(false)
+  const [timelineError, setTimelineError] = useState<string | null>(null)
+  const [roundTimeline, setRoundTimeline] = useState<RoundTimeline[]>([])
+  const [timelineSourceCreatedAt, setTimelineSourceCreatedAt] = useState<string | null>(null)
 
   const [definition, setDefinition] = useState<DesignerDefinition>({
     system: { entrypoint: 'orchestrator' },
@@ -444,6 +608,25 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
   const flowGraph = useMemo(() => buildFlowGraph(orderedAgents), [orderedAgents])
 
+  const agentNameById = useMemo(() => {
+    return new Map(
+      orderedAgents.map((agent) => [agent.id.toLowerCase(), agent.name || agent.id]),
+    )
+  }, [orderedAgents])
+
+  const timelineSourceLabel = useMemo(() => {
+    if (!timelineSourceCreatedAt) return ''
+
+    try {
+      return new Intl.DateTimeFormat('es-ES', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      }).format(new Date(timelineSourceCreatedAt))
+    } catch {
+      return timelineSourceCreatedAt
+    }
+  }, [timelineSourceCreatedAt])
+
   const setActiveAndNotify = useCallback(
     (agentId: string) => {
       setActiveAgentId(agentId)
@@ -451,6 +634,52 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     },
     [onAgentChange],
   )
+
+  const fetchRoundTimeline = useCallback(async (agentsSnapshot?: AgentEntry[]) => {
+    if (!apiBaseUrl || athleteId === null || athleteId <= 0) {
+      return
+    }
+
+    const targetAgents = [...(agentsSnapshot ?? orderedAgents)].sort(
+      (left, right) => left.order - right.order,
+    )
+    if (targetAgents.length === 0) {
+      setRoundTimeline([])
+      setTimelineSourceCreatedAt(null)
+      return
+    }
+
+    setTimelineLoading(true)
+    setTimelineError(null)
+
+    try {
+      const searchParams = new URLSearchParams({
+        page: '1',
+        page_size: '5',
+        include_events: 'true',
+      })
+
+      const response = await fetch(
+        `${apiBaseUrl}/agent-definition-logs/${athleteId}?${searchParams.toString()}`,
+        { headers: authHeaders() },
+      )
+      if (!response.ok) {
+        throw new Error(await readErrorResponse(response))
+      }
+
+      const payload = (await response.json()) as AgentLogPayload
+      const timeline = buildRoundTimelineFromLogs(payload, targetAgents)
+      setRoundTimeline(timeline.rounds)
+      setTimelineSourceCreatedAt(timeline.sourceCreatedAt)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo cargar el timeline de consenso.'
+      setTimelineError(message)
+      setRoundTimeline(buildEmptyTimeline(targetAgents, CONSENSUS_ROUNDS))
+      setTimelineSourceCreatedAt(null)
+    } finally {
+      setTimelineLoading(false)
+    }
+  }, [athleteId, orderedAgents])
 
   // ── Fetch ──────────────────────────────────────────────────────────
 
@@ -476,6 +705,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
       setVersion(typeof payload.version === 'number' ? payload.version : 0)
       setIsDefaultDefinition(Boolean(payload.is_default))
       setDefinition(parsed)
+      void fetchRoundTimeline(parsed.agents)
 
       const preferred = parsed.agents.some((a) => a.id === selectedAgentIdRef.current)
         ? selectedAgentIdRef.current
@@ -487,7 +717,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     } finally {
       setLoading(false)
     }
-  }, [athleteId, setActiveAndNotify])
+  }, [athleteId, fetchRoundTimeline, setActiveAndNotify])
 
   useEffect(() => {
     selectedAgentIdRef.current = selectedAgentId
@@ -715,6 +945,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
       setVersion(typeof payload.version === 'number' ? payload.version : version + 1)
       setIsDefaultDefinition(false)
+      void fetchRoundTimeline()
       setNotice('Definición guardada.')
       setTimeout(() => setNotice(null), 2500)
     } catch (err) {
@@ -722,7 +953,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     } finally {
       setSaving(false)
     }
-  }, [athleteId, serializeCurrent, validateTomlContent, version])
+  }, [athleteId, fetchRoundTimeline, serializeCurrent, validateTomlContent, version])
 
   const disabled = athleteId === null || athleteId <= 0 || !apiBaseUrl
 
@@ -968,6 +1199,82 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         Salida por output_key al consenso
                       </span>
                     </div>
+
+                    <section className="mt-3 rounded-md border border-border bg-background/50 p-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Timeline Por Ronda
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void fetchRoundTimeline()
+                          }}
+                          disabled={timelineLoading || orderedAgents.length === 0}
+                          className="inline-flex h-6 items-center rounded border border-border px-2 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {timelineLoading ? 'Actualizando...' : 'Actualizar'}
+                        </button>
+                      </div>
+
+                      {timelineError ? (
+                        <p className="mt-2 text-[11px] text-destructive">{timelineError}</p>
+                      ) : null}
+
+                      <div className="mt-2 space-y-2">
+                        {roundTimeline.length === 0 ? (
+                          <div className="rounded-md border border-border bg-background px-2 py-2 text-[11px] text-muted-foreground">
+                            {timelineLoading
+                              ? 'Cargando aportes por ronda...'
+                              : 'Aun no hay eventos para construir el timeline.'}
+                          </div>
+                        ) : (
+                          roundTimeline.map((round) => (
+                            <div
+                              key={`round-${round.round}`}
+                              className="rounded-md border border-border bg-background/70 p-2"
+                            >
+                              <p className="mb-1 text-[11px] font-medium text-foreground">Ronda {round.round}</p>
+                              <div className="space-y-1.5">
+                                {round.contributions.map((contribution) => {
+                                  const agentName =
+                                    agentNameById.get(contribution.agentId.toLowerCase()) || contribution.agentId
+                                  return (
+                                    <div
+                                      key={`round-${round.round}-${contribution.agentId}`}
+                                      className="grid grid-cols-[minmax(0,165px)_1fr] gap-2 rounded border border-border bg-background px-2 py-1.5"
+                                    >
+                                      <div className="min-w-0">
+                                        <p className="truncate text-[11px] font-medium text-foreground">{agentName}</p>
+                                        <p className="truncate text-[10px] text-muted-foreground">
+                                          {contribution.outputKey}
+                                        </p>
+                                      </div>
+                                      <p
+                                        className={cn(
+                                          'text-[11px] leading-5',
+                                          contribution.text
+                                            ? 'text-foreground'
+                                            : 'italic text-muted-foreground',
+                                        )}
+                                      >
+                                        {contribution.text || 'Sin aporte capturado en esta ronda.'}
+                                      </p>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <p className="mt-2 text-[10px] text-muted-foreground">
+                        {timelineSourceLabel
+                          ? `Fuente: ultima conversacion (${timelineSourceLabel}).`
+                          : 'Fuente: sin eventos recientes con rondas de consenso.'}
+                      </p>
+                    </section>
                   </div>
                 </section>
               </div>
