@@ -5,21 +5,18 @@ import {
   Background,
   Controls,
   MarkerType,
-  type Connection,
   type Edge,
   type Node,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   Bot,
-  Layers,
   Plus,
-  Repeat,
   Save,
-  Wrench,
   X,
-  Zap,
 } from 'lucide-react'
 import { parse as parseToml, stringify as stringifyToml } from 'smol-toml'
 
@@ -30,6 +27,7 @@ const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/
 const internalPipelineToken = (import.meta.env.VITE_INTERNAL_PIPELINE_TOKEN ?? '').trim()
 
 const MAX_AGENTS = 10
+const CONSENSUS_ROUNDS = 2
 const PANEL_ANIMATION_DURATION_S = 0.16
 const NOTICE_ANIMATION_DURATION_S = 0.15
 const EDITOR_ANIMATION_DURATION_S = 0.2
@@ -47,15 +45,11 @@ const RESERVED_AGENT_IDS = new Set([
   'wiki_research_chat',
 ])
 
-const AGENT_TYPES = ['llm', 'sequential', 'parallel', 'loop', 'custom'] as const
+const AGENT_TYPES = ['llm'] as const
 type AgentType = (typeof AGENT_TYPES)[number]
 
 const AGENT_TYPE_META: Record<AgentType, { label: string; icon: typeof Bot; color: string }> = {
   llm: { label: 'LLM', icon: Bot, color: 'text-blue-500' },
-  sequential: { label: 'Sequential', icon: Layers, color: 'text-amber-500' },
-  parallel: { label: 'Parallel', icon: Zap, color: 'text-green-500' },
-  loop: { label: 'Loop', icon: Repeat, color: 'text-cyan-500' },
-  custom: { label: 'Custom', icon: Wrench, color: 'text-pink-500' },
 }
 
 const MODEL_OPTIONS = [
@@ -116,21 +110,14 @@ function asNumber(value: unknown, fallback: number): number {
 
 function normalizeAgentType(value: string): AgentType {
   const lower = value.trim().toLowerCase()
-  const aliases: Record<string, AgentType> = {
-    llm: 'llm',
-    llmagent: 'llm',
-    sequential: 'sequential',
-    sequentialagent: 'sequential',
-    parallel: 'parallel',
-    parallelagent: 'parallel',
-    loop: 'loop',
-    loopagent: 'loop',
-    custom: 'custom',
-    customagent: 'custom',
-  }
-  const normalized = aliases[lower] ?? lower
-  if (AGENT_TYPES.includes(normalized as AgentType)) return normalized as AgentType
+  if (lower === 'llm' || lower === 'llmagent') return 'llm'
   return 'llm'
+}
+
+function resolveOutputKey(agent: AgentEntry): string {
+  const candidate = (agent.output_key || '').trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '')
+  if (candidate) return candidate
+  return `${agent.id}_output`
 }
 
 function normalizeAgentId(value: string, fallback: string): string {
@@ -155,7 +142,7 @@ function readPromptValue(candidate: Record<string, unknown>): string {
   return asString(candidate.instructions)
 }
 
-function parseNamedTableEntries(table: unknown, defaultType: AgentType, orderOffset = 0): AgentEntry[] {
+function parseNamedTableEntries(table: unknown, defaultType: string, orderOffset = 0): AgentEntry[] {
   if (!isRecord(table)) return []
 
   const entries: AgentEntry[] = []
@@ -297,12 +284,12 @@ function definitionToToml(definition: DesignerDefinition): string {
   const agents = definition.agents.map((item, index) => ({
     id: item.id,
     name: item.name,
-    type: item.type,
+    type: 'llm',
     model: item.model || '',
     description: item.description || '',
     prompt: item.prompt || '',
-    custom_type: item.custom_type || '',
-    sub_agents: item.sub_agents,
+    custom_type: '',
+    sub_agents: [],
     output_key: item.output_key || '',
     order: index + 1,
   }))
@@ -343,154 +330,72 @@ type FlowNode = Node<AgentNodeData, 'agent'>
 
 const flowNodeTypes = { agent: AgentNode }
 
-function extractPromptVariables(prompt: string): string[] {
-  const found = new Set<string>()
-  const regex = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g
-  let match: RegExpExecArray | null = regex.exec(prompt)
-  while (match) {
-    if (match[1]) found.add(match[1])
-    match = regex.exec(prompt)
-  }
-  return Array.from(found)
-}
-
-function wouldCreateCycle(sourceId: string, targetId: string, agents: AgentEntry[]): boolean {
-  if (sourceId === targetId) return true
-  const agentMap = new Map(agents.map((agent) => [agent.id, agent]))
-  const stack = [targetId]
-  const visited = new Set<string>()
-
-  while (stack.length > 0) {
-    const current = stack.pop()
-    if (!current || visited.has(current)) continue
-    visited.add(current)
-    if (current === sourceId) return true
-
-    const node = agentMap.get(current)
-    if (!node) continue
-    for (const childId of node.sub_agents) {
-      stack.push(childId)
-    }
-  }
-
-  return false
-}
-
 function buildFlowGraph(agents: AgentEntry[]): { nodes: FlowNode[]; edges: Edge[] } {
-  const agentById = new Map(agents.map((agent) => [agent.id, agent]))
-
-  const depths = new Map<string, number>()
-  for (const agent of agents) {
-    depths.set(agent.id, 0)
-  }
-
-  // Relax depth assignment across links to place children to the right.
-  for (let i = 0; i < agents.length; i++) {
-    let changed = false
-    for (const agent of agents) {
-      const parentDepth = depths.get(agent.id) ?? 0
-      for (const childId of agent.sub_agents) {
-        if (!agentById.has(childId)) continue
-        const currentDepth = depths.get(childId) ?? 0
-        const nextDepth = parentDepth + 1
-        if (nextDepth > currentDepth) {
-          depths.set(childId, nextDepth)
-          changed = true
-        }
-      }
-    }
-    if (!changed) break
-  }
-
-  const depthGroups = new Map<number, AgentEntry[]>()
-  for (const agent of agents) {
-    const depth = depths.get(agent.id) ?? 0
-    const group = depthGroups.get(depth) ?? []
-    group.push(agent)
-    depthGroups.set(depth, group)
-  }
-
+  const ordered = [...agents].sort((a, b) => a.order - b.order)
+  const columnWidth = 280
+  const agentsY = 96
+  const consensusY = 340
   const nodes: FlowNode[] = []
-  const sortedDepths = Array.from(depthGroups.keys()).sort((a, b) => a - b)
-  for (const depth of sortedDepths) {
-    const group = depthGroups.get(depth) ?? []
-    group.sort((a, b) => a.order - b.order)
-    for (let row = 0; row < group.length; row++) {
-      const agent = group[row]
-      nodes.push({
-        id: agent.id,
-        type: 'agent',
-        position: { x: depth * 300, y: row * 150 },
-        data: {
-          agentId: agent.id,
-          name: agent.name,
-          type: agent.type,
-          promptPreview: promptPreview(agent.prompt, 90),
-          subAgentsCount: agent.sub_agents.length,
-        },
-      })
-    }
+
+  for (let i = 0; i < ordered.length; i++) {
+    const agent = ordered[i]
+    nodes.push({
+      id: agent.id,
+      type: 'agent',
+      position: { x: i * columnWidth, y: agentsY },
+      data: {
+        agentId: agent.id,
+        name: agent.name,
+        type: 'llm',
+        promptPreview: promptPreview(agent.prompt, 90),
+        subAgentsCount: 0,
+      },
+    })
+  }
+
+  if (ordered.length > 0) {
+    nodes.push({
+      id: '__consensus__',
+      type: 'agent',
+      position: { x: ((ordered.length - 1) * columnWidth) / 2, y: consensusY },
+      data: {
+        agentId: 'consensus_final_answer',
+        name: 'Consenso Final',
+        type: 'consensus',
+        promptPreview: `Sintesis tras ${CONSENSUS_ROUNDS} rondas`,
+        subAgentsCount: ordered.length,
+      },
+    })
   }
 
   const edges: Edge[] = []
-  const structuralPairs = new Set<string>()
-  for (const agent of agents) {
-    for (const childId of agent.sub_agents) {
-      if (!agentById.has(childId)) continue
-      structuralPairs.add(`${agent.id}__${childId}`)
+
+  if (ordered.length > 1) {
+    for (let i = 0; i < ordered.length; i++) {
+      const sourceAgent = ordered[i]
+      const targetAgent = ordered[(i + 1) % ordered.length]
       edges.push({
-        id: `struct__${agent.id}__${childId}`,
-        source: agent.id,
-        target: childId,
+        id: `iter__${sourceAgent.id}__${targetAgent.id}`,
+        source: sourceAgent.id,
+        target: targetAgent.id,
         type: 'smoothstep',
-        label: 'flow',
+        label: i === ordered.length - 1 ? 'cierra ronda' : 'itera',
         style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.6 },
         labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
         markerEnd: { type: MarkerType.ArrowClosed },
-        animated: agent.type === 'loop',
+        animated: true,
       })
     }
   }
 
-  const outputKeyProducers = new Map<string, string[]>()
-  for (const agent of agents) {
-    const key = agent.output_key.trim()
-    if (!key) continue
-    const current = outputKeyProducers.get(key) ?? []
-    current.push(agent.id)
-    outputKeyProducers.set(key, current)
-  }
-
-  const dataPairs = new Map<string, Set<string>>()
-  for (const consumer of agents) {
-    const variables = extractPromptVariables(consumer.prompt)
-    for (const variable of variables) {
-      const producers = outputKeyProducers.get(variable) ?? []
-      for (const producerId of producers) {
-        if (producerId === consumer.id) continue
-        const pairKey = `${producerId}__${consumer.id}`
-        const current = dataPairs.get(pairKey) ?? new Set<string>()
-        current.add(variable)
-        dataPairs.set(pairKey, current)
-      }
-    }
-  }
-
-  for (const [pairKey, vars] of dataPairs.entries()) {
-    const [sourceId, targetId] = pairKey.split('__')
-    if (!sourceId || !targetId || !agentById.has(sourceId) || !agentById.has(targetId)) continue
-
-    const variableLabel = Array.from(vars).sort().join(', ')
+  for (const agent of ordered) {
     edges.push({
-      id: `data__${sourceId}__${targetId}`,
-      source: sourceId,
-      target: targetId,
+      id: `consensus__${agent.id}`,
+      source: agent.id,
+      target: '__consensus__',
       type: 'bezier',
-      label: variableLabel,
-      style: {
-        stroke: structuralPairs.has(pairKey) ? 'hsl(var(--warning))' : 'hsl(var(--success))',
-        strokeDasharray: '5 4',
-      },
+      label: resolveOutputKey(agent),
+      style: { stroke: 'hsl(var(--success))', strokeDasharray: '5 4' },
       labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
       markerEnd: { type: MarkerType.ArrowClosed },
       animated: true,
@@ -498,20 +403,6 @@ function buildFlowGraph(agents: AgentEntry[]): { nodes: FlowNode[]; edges: Edge[
   }
 
   return { nodes, edges }
-}
-
-function getAncestors(agentId: string, agents: AgentEntry[]): Set<string> {
-  const ancestors = new Set<string>()
-  function findParents(targetId: string) {
-    for (const agent of agents) {
-      if (agent.sub_agents.includes(targetId) && !ancestors.has(agent.id)) {
-        ancestors.add(agent.id)
-        findParents(agent.id)
-      }
-    }
-  }
-  findParents(agentId)
-  return ancestors
 }
 
 // ---------------------------------------------------------------------------
@@ -538,7 +429,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   const [activeAgentId, setActiveAgentId] = useState(selectedAgentId)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorDraft, setEditorDraft] = useState<AgentEntry | null>(null)
-  const [showAdvancedEditor, setShowAdvancedEditor] = useState(false)
   const [isMobileEditorViewport, setIsMobileEditorViewport] = useState(false)
 
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -616,7 +506,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
         if (editorOpen) {
           setEditorOpen(false)
           setEditorDraft(null)
-          setShowAdvancedEditor(false)
           return
         }
         setOpen(false)
@@ -662,7 +551,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     const candidate = orderedAgents.find((agent) => agent.id === agentId)
     if (!candidate) return
     setEditorDraft({ ...candidate, sub_agents: [...candidate.sub_agents] })
-    setShowAdvancedEditor(false)
     setEditorOpen(true)
     setActiveAndNotify(agentId)
   }, [orderedAgents, setActiveAndNotify])
@@ -670,7 +558,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   const closeEditor = useCallback(() => {
     setEditorOpen(false)
     setEditorDraft(null)
-    setShowAdvancedEditor(false)
   }, [])
 
   const saveEditor = useCallback(() => {
@@ -678,89 +565,12 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     replaceAgent(editorDraft.id, {
       ...editorDraft,
       name: editorDraft.name.trim() || editorDraft.id,
-      custom_type: editorDraft.custom_type.trim(),
+      output_key: editorDraft.output_key.trim(),
     })
     setNotice('Agente actualizado. Guarda para persistir.')
     setTimeout(() => setNotice(null), 2000)
     closeEditor()
   }, [closeEditor, editorDraft, replaceAgent])
-
-  const handleConnectNodes = useCallback((connection: Connection) => {
-    const sourceId = connection.source?.trim()
-    const targetId = connection.target?.trim()
-    if (!sourceId || !targetId) return
-
-    const outcomeRef: { current: 'added' | 'exists' | 'cycle' | 'invalid' } = { current: 'invalid' }
-
-    setDefinition((cur) => {
-      const sourceAgent = cur.agents.find((a) => a.id === sourceId)
-      const targetAgent = cur.agents.find((a) => a.id === targetId)
-      if (!sourceAgent || !targetAgent) {
-        outcomeRef.current = 'invalid'
-        return cur
-      }
-
-      if (sourceAgent.sub_agents.includes(targetId)) {
-        outcomeRef.current = 'exists'
-        return cur
-      }
-
-      if (wouldCreateCycle(sourceId, targetId, cur.agents)) {
-        outcomeRef.current = 'cycle'
-        return cur
-      }
-
-      outcomeRef.current = 'added'
-      return {
-        ...cur,
-        agents: cur.agents.map((agent) => {
-          if (agent.id !== sourceId) return agent
-          return {
-            ...agent,
-            sub_agents: [...agent.sub_agents, targetId],
-          }
-        }),
-      }
-    })
-
-    const outcome = outcomeRef.current
-    if (outcome === 'cycle') {
-      setError('Conexión inválida: generaría un ciclo en el workflow.')
-      return
-    }
-
-    if (outcome === 'added') {
-      setNotice('Conexión agregada. Guarda para persistir.')
-      setTimeout(() => setNotice(null), 2000)
-    }
-  }, [])
-
-  const handleDeleteEdges = useCallback((edgesToDelete: Edge[]) => {
-    const structuralEdges = edgesToDelete.filter((edge) => edge.id.startsWith('struct__'))
-    if (structuralEdges.length === 0) return
-
-    const toRemove = structuralEdges.map((edge) => ({
-      source: edge.source,
-      target: edge.target,
-    }))
-
-    setDefinition((cur) => ({
-      ...cur,
-      agents: cur.agents.map((agent) => {
-        const targets = toRemove
-          .filter((item) => item.source === agent.id)
-          .map((item) => item.target)
-        if (targets.length === 0) return agent
-        return {
-          ...agent,
-          sub_agents: agent.sub_agents.filter((subId) => !targets.includes(subId)),
-        }
-      }),
-    }))
-
-    setNotice('Conexión eliminada. Guarda para persistir.')
-    setTimeout(() => setNotice(null), 1800)
-  }, [])
 
   const handleAddAgent = useCallback(() => {
     if (!canAddAgent) {
@@ -778,7 +588,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
     setActiveAndNotify(candidateId)
     setEditorDraft({ ...newAgent, sub_agents: [] })
-    setShowAdvancedEditor(false)
     setEditorOpen(true)
     setNotice('Agente agregado. Guarda para persistir.')
     setTimeout(() => setNotice(null), 2500)
@@ -814,6 +623,32 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     },
     [activeAgentId, closeEditor, editorDraft?.id, orderedAgents, setActiveAndNotify],
   )
+
+  const handleMoveAgent = useCallback((agentId: string, direction: -1 | 1) => {
+    let moved = false
+    setDefinition((cur) => {
+      const ordered = [...cur.agents].sort((a, b) => a.order - b.order)
+      const currentIndex = ordered.findIndex((agent) => agent.id === agentId)
+      const targetIndex = currentIndex + direction
+      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= ordered.length) {
+        return cur
+      }
+
+      const next = [...ordered]
+      const [agent] = next.splice(currentIndex, 1)
+      next.splice(targetIndex, 0, agent)
+      moved = true
+      return {
+        ...cur,
+        agents: next.map((item, index) => ({ ...item, order: index + 1 })),
+      }
+    })
+
+    if (moved) {
+      setNotice('Orden actualizado. Guarda para persistir.')
+      setTimeout(() => setNotice(null), 1800)
+    }
+  }, [])
 
   // ── Validate / Save / Reload / Restore ─────────────────────────────
 
@@ -892,14 +727,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   const disabled = athleteId === null || athleteId <= 0 || !apiBaseUrl
 
   // ── Modal editor helpers ───────────────────────────────────────────
-
-  const editorAvailableSubAgents = useMemo(() => {
-    if (!editorDraft) return []
-    const ancestors = getAncestors(editorDraft.id, definition.agents)
-    return definition.agents
-      .filter((a) => a.id !== editorDraft.id && !ancestors.has(a.id))
-      .map((a) => a.id)
-  }, [definition.agents, editorDraft])
 
   const closePanel = useCallback(() => {
     closeEditor()
@@ -1054,9 +881,30 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                                   <span className={cn('shrink-0 text-[10px] font-medium', meta.color)}>{meta.label}</span>
                                 </div>
                                 <div className="truncate text-[10px] text-muted-foreground">{promptPreview(item.prompt, 46)}</div>
+                                <div className="truncate text-[10px] text-muted-foreground/90">
+                                  output_key: {resolveOutputKey(item)}
+                                </div>
                               </div>
                             </button>
                             <div className="mt-1 flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleMoveAgent(item.id, -1)}
+                                disabled={orderedAgents[0]?.id === item.id}
+                                className="inline-flex h-6 w-6 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                                aria-label="Mover arriba"
+                              >
+                                <ArrowUp className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveAgent(item.id, 1)}
+                                disabled={orderedAgents[orderedAgents.length - 1]?.id === item.id}
+                                className="inline-flex h-6 w-6 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                                aria-label="Mover abajo"
+                              >
+                                <ArrowDown className="h-3.5 w-3.5" />
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => openEditorFor(item.id)}
@@ -1084,7 +932,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                 <section className="flex flex-col p-3 md:p-4">
                   <div className="rounded-md border border-border bg-background/40 p-3">
                     <div className="mb-2 text-[12px] text-muted-foreground">
-                      Conecta agentes arrastrando una línea entre nodos. Doble click en un nodo para editar detalles.
+                      Flujo automatico: los agentes iteran entre si durante {CONSENSUS_ROUNDS} rondas y luego pasan sus output_key al nodo de consenso final.
                     </div>
                     <div className="h-[52vh] min-h-[320px] overflow-hidden rounded-md border border-border bg-background md:h-[62vh] md:min-h-[420px]">
                       <ReactFlow
@@ -1093,14 +941,17 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         nodeTypes={flowNodeTypes}
                         fitView
                         nodesDraggable={false}
-                        nodesConnectable
+                        nodesConnectable={false}
                         edgesFocusable
-                        deleteKeyCode={["Backspace", "Delete"]}
                         elementsSelectable
-                        onConnect={handleConnectNodes}
-                        onEdgesDelete={handleDeleteEdges}
-                        onNodeClick={(_, node) => setActiveAndNotify(node.id)}
-                        onNodeDoubleClick={(_, node) => openEditorFor(node.id)}
+                        onNodeClick={(_, node) => {
+                          if (node.id === '__consensus__') return
+                          setActiveAndNotify(node.id)
+                        }}
+                        onNodeDoubleClick={(_, node) => {
+                          if (node.id === '__consensus__') return
+                          openEditorFor(node.id)
+                        }}
                         className="bg-background"
                       >
                         <Background gap={18} size={1} color="hsl(var(--border))" />
@@ -1110,11 +961,11 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
                       <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
                         <span className="inline-block h-2 w-4 rounded-sm bg-primary" />
-                        Flujo principal
+                        Iteracion entre agentes
                       </span>
                       <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
                         <span className="inline-block h-2 w-4 rounded-sm border border-success bg-transparent" />
-                        Flujo de datos ({'{variable}'})
+                        Salida por output_key al consenso
                       </span>
                     </div>
                   </div>
@@ -1187,160 +1038,58 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         />
                       </div>
 
-                      {editorDraft.type === 'llm' ? (
-                        <div>
-                          <label className="mb-1 block text-[12px] text-muted-foreground">Prompt</label>
-                          <textarea
-                            value={editorDraft.prompt}
-                            onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, prompt: event.target.value } : cur))}
-                            rows={7}
-                            spellCheck={false}
-                            placeholder="Escribe instrucciones sencillas para este agente..."
-                            className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground"
-                          />
-                        </div>
-                      ) : (
-                        <p className="rounded-md border border-border bg-background/60 px-3 py-2 text-[12px] text-muted-foreground">
-                          Este tipo de agente no necesita prompt directo. Conecta sub-agents en el canvas.
+                      <div>
+                        <label className="mb-1 block text-[12px] text-muted-foreground">Prompt</label>
+                        <textarea
+                          value={editorDraft.prompt}
+                          onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, prompt: event.target.value } : cur))}
+                          rows={7}
+                          spellCheck={false}
+                          placeholder="Escribe instrucciones sencillas para este agente..."
+                          className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[12px] text-muted-foreground">Modelo</label>
+                        <select
+                          value={editorDraft.model}
+                          onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, model: event.target.value } : cur))}
+                          className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
+                        >
+                          <option value="">Modelo por defecto (env)</option>
+                          {MODEL_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[12px] text-muted-foreground">Descripcion</label>
+                        <input
+                          type="text"
+                          value={editorDraft.description}
+                          onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, description: event.target.value } : cur))}
+                          placeholder="Descripcion corta"
+                          className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[12px] text-muted-foreground">Output key</label>
+                        <input
+                          type="text"
+                          value={editorDraft.output_key}
+                          onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, output_key: event.target.value } : cur))}
+                          placeholder="ej: research_result"
+                          className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
+                        />
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Si lo dejas vacio, se usa automaticamente: {`${editorDraft.id}_output`}.
                         </p>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => setShowAdvancedEditor((prev) => !prev)}
-                        className="text-[12px] font-medium text-primary hover:underline"
-                      >
-                        {showAdvancedEditor ? 'Ocultar opciones avanzadas' : 'Mostrar opciones avanzadas'}
-                      </button>
-
-                      {showAdvancedEditor ? (
-                        <div className="space-y-3 rounded-md border border-border bg-background/40 p-3">
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div>
-                              <label className="mb-1 block text-[12px] text-muted-foreground">Tipo</label>
-                              <select
-                                value={editorDraft.type}
-                                onChange={(event) => {
-                                  const nextType = normalizeAgentType(event.target.value)
-                                  setEditorDraft((cur) => {
-                                    if (!cur) return cur
-                                    const next: AgentEntry = { ...cur, type: nextType }
-                                    if (nextType !== 'llm') {
-                                      next.model = ''
-                                      next.prompt = ''
-                                    }
-                                    if (nextType === 'custom' && !next.custom_type.trim()) {
-                                      next.custom_type = cur.name || cur.id
-                                    }
-                                    if (nextType !== 'custom') {
-                                      next.custom_type = ''
-                                    }
-                                    return next
-                                  })
-                                }}
-                                className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
-                              >
-                                {AGENT_TYPES.map((typeValue) => (
-                                  <option key={typeValue} value={typeValue}>
-                                    {AGENT_TYPE_META[typeValue].label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-
-                            {editorDraft.type === 'llm' ? (
-                              <div>
-                                <label className="mb-1 block text-[12px] text-muted-foreground">Modelo</label>
-                                <select
-                                  value={editorDraft.model}
-                                  onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, model: event.target.value } : cur))}
-                                  className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
-                                >
-                                  <option value="">Modelo por defecto (env)</option>
-                                  {MODEL_OPTIONS.map((opt) => (
-                                    <option key={opt.value} value={opt.value}>
-                                      {opt.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            ) : null}
-                          </div>
-
-                          {editorDraft.type === 'custom' ? (
-                            <div>
-                              <label className="mb-1 block text-[12px] text-muted-foreground">Custom type</label>
-                              <input
-                                type="text"
-                                value={editorDraft.custom_type}
-                                onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, custom_type: event.target.value } : cur))}
-                                placeholder="ej: slack_notifier"
-                                className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
-                              />
-                            </div>
-                          ) : null}
-
-                          <div>
-                            <label className="mb-1 block text-[12px] text-muted-foreground">Descripción</label>
-                            <input
-                              type="text"
-                              value={editorDraft.description}
-                              onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, description: event.target.value } : cur))}
-                              placeholder="Descripción corta"
-                              className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="mb-1 block text-[12px] text-muted-foreground">Output key</label>
-                            <input
-                              type="text"
-                              value={editorDraft.output_key}
-                              onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, output_key: event.target.value } : cur))}
-                              placeholder="ej: research_result"
-                              className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="mb-1 block text-[12px] text-muted-foreground">Sub-agents</label>
-                            {editorAvailableSubAgents.length === 0 ? (
-                              <p className="text-[11px] italic text-muted-foreground">No hay agentes disponibles.</p>
-                            ) : (
-                              <div className="grid grid-cols-2 gap-1.5">
-                                {editorAvailableSubAgents.map((subId) => {
-                                  const checked = editorDraft.sub_agents.includes(subId)
-                                  return (
-                                    <label
-                                      key={subId}
-                                      className={cn(
-                                        'flex cursor-pointer items-center gap-2 rounded-md border p-2 text-[11px]',
-                                        checked ? 'border-primary/50 bg-primary/10' : 'border-border bg-background',
-                                      )}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={checked}
-                                        onChange={() => {
-                                          setEditorDraft((cur) => {
-                                            if (!cur) return cur
-                                            const nextSubAgents = checked
-                                              ? cur.sub_agents.filter((value) => value !== subId)
-                                              : [...cur.sub_agents, subId]
-                                            return { ...cur, sub_agents: nextSubAgents }
-                                          })
-                                        }}
-                                        className="h-3.5 w-3.5"
-                                      />
-                                      <span className="truncate">{subId}</span>
-                                    </label>
-                                  )
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : null}
+                      </div>
                     </div>
 
                     <footer className="mt-4 flex items-center justify-end gap-2">

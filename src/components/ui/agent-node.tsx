@@ -1,13 +1,13 @@
 import { memo } from 'react'
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
-import { Bot, Layers, Repeat, Wrench, Zap } from 'lucide-react'
+import { Bot, Target } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
 export type AgentNodeData = {
   agentId: string
   name: string
-  type: 'llm' | 'sequential' | 'parallel' | 'loop' | 'custom'
+  type: 'llm' | 'consensus'
   promptPreview: string
   subAgentsCount: number
 }
@@ -16,10 +16,7 @@ export type AgentNodeType = Node<AgentNodeData, 'agent'>
 
 const TYPE_META: Record<AgentNodeData['type'], { label: string; color: string; icon: typeof Bot }> = {
   llm: { label: 'LLM', color: 'text-blue-500', icon: Bot },
-  sequential: { label: 'Sequential', color: 'text-amber-500', icon: Layers },
-  parallel: { label: 'Parallel', color: 'text-green-500', icon: Zap },
-  loop: { label: 'Loop', color: 'text-cyan-500', icon: Repeat },
-  custom: { label: 'Custom', color: 'text-pink-500', icon: Wrench },
+  consensus: { label: 'Consensus', color: 'text-emerald-500', icon: Target },
 }
 
 function AgentNode({ data, selected }: NodeProps<AgentNodeType>) {
@@ -48,9 +45,7 @@ function AgentNode({ data, selected }: NodeProps<AgentNodeType>) {
         {data.type === 'llm' ? (
           <p className="line-clamp-2">{data.promptPreview}</p>
         ) : (
-          <p>
-            {data.subAgentsCount} sub-agent{data.subAgentsCount !== 1 ? 's' : ''}
-          </p>
+          <p>Integra {data.subAgentsCount} output_keys y produce la respuesta final.</p>
         )}
         <div className="flex items-center justify-between gap-2 text-[10px]">
           <span>entrada</span>
