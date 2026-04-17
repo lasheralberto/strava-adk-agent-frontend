@@ -13,13 +13,10 @@ import '@xyflow/react/dist/style.css'
 import {
   AlertTriangle,
   Bot,
-  GitBranch,
   Layers,
   Plus,
-  RefreshCw,
   Repeat,
   Save,
-  Trash2,
   Wrench,
   X,
   Zap,
@@ -336,7 +333,6 @@ function nextAgentId(existingIds: string[]): string {
 // Topology helpers
 // ---------------------------------------------------------------------------
 
-type TopoNode = { id: string; name: string; type: AgentType; children: string[]; depth: number }
 type FlowNode = Node<AgentNodeData, 'agent'>
 
 const flowNodeTypes = { agent: AgentNode }
@@ -372,45 +368,6 @@ function wouldCreateCycle(sourceId: string, targetId: string, agents: AgentEntry
   }
 
   return false
-}
-
-function buildTopology(agents: AgentEntry[]): TopoNode[] {
-  const agentMap = new Map(agents.map((a) => [a.id, a]))
-  const referencedAsChild = new Set(agents.flatMap((a) => a.sub_agents))
-
-  // Root agents = not referenced as sub_agent by anyone
-  const roots = agents.filter((a) => !referencedAsChild.has(a.id))
-
-  const result: TopoNode[] = []
-  const visited = new Set<string>()
-
-  function walk(id: string, depth: number) {
-    if (visited.has(id)) return
-    visited.add(id)
-    const agent = agentMap.get(id)
-    if (!agent) return
-    result.push({ id: agent.id, name: agent.name, type: agent.type, children: agent.sub_agents, depth })
-    for (const childId of agent.sub_agents) {
-      walk(childId, depth + 1)
-    }
-  }
-
-  for (const root of roots) walk(root.id, 0)
-
-  // Orphans (in case of cycles or disconnected)
-  for (const agent of agents) {
-    if (!visited.has(agent.id)) {
-      result.push({
-        id: agent.id,
-        name: agent.name,
-        type: agent.type,
-        children: agent.sub_agents,
-        depth: 0,
-      })
-    }
-  }
-
-  return result
 }
 
 function buildFlowGraph(agents: AgentEntry[]): { nodes: FlowNode[]; edges: Edge[] } {
@@ -574,6 +531,10 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   })
 
   const [activeAgentId, setActiveAgentId] = useState(selectedAgentId)
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [editorDraft, setEditorDraft] = useState<AgentEntry | null>(null)
+  const [showAdvancedEditor, setShowAdvancedEditor] = useState(false)
+  const [showUtilitiesMenu, setShowUtilitiesMenu] = useState(false)
 
   const triggerRef = useRef<HTMLButtonElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
@@ -587,7 +548,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
   const activeAgent = orderedAgents.find((a) => a.id === activeAgentId) ?? null
 
-  const topology = useMemo(() => buildTopology(orderedAgents), [orderedAgents])
   const flowGraph = useMemo(() => buildFlowGraph(orderedAgents), [orderedAgents])
 
   const setActiveAndNotify = useCallback(
@@ -645,12 +605,18 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation()
+        if (editorOpen) {
+          setEditorOpen(false)
+          setEditorDraft(null)
+          setShowAdvancedEditor(false)
+          return
+        }
         setOpen(false)
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [open])
+  }, [editorOpen, open])
 
   useEffect(() => {
     if (!open) triggerRef.current?.focus({ preventScroll: true })
@@ -664,12 +630,39 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
   // ── Mutations ──────────────────────────────────────────────────────
 
-  const updateAgent = useCallback((agentId: string, patch: Partial<AgentEntry>) => {
+  const replaceAgent = useCallback((agentId: string, nextAgent: AgentEntry) => {
     setDefinition((cur) => ({
       ...cur,
-      agents: cur.agents.map((a) => (a.id === agentId ? { ...a, ...patch } : a)),
+      agents: cur.agents.map((agent) => (agent.id === agentId ? nextAgent : agent)),
     }))
   }, [])
+
+  const openEditorFor = useCallback((agentId: string) => {
+    const candidate = orderedAgents.find((agent) => agent.id === agentId)
+    if (!candidate) return
+    setEditorDraft({ ...candidate, sub_agents: [...candidate.sub_agents] })
+    setShowAdvancedEditor(false)
+    setEditorOpen(true)
+    setActiveAndNotify(agentId)
+  }, [orderedAgents, setActiveAndNotify])
+
+  const closeEditor = useCallback(() => {
+    setEditorOpen(false)
+    setEditorDraft(null)
+    setShowAdvancedEditor(false)
+  }, [])
+
+  const saveEditor = useCallback(() => {
+    if (!editorDraft) return
+    replaceAgent(editorDraft.id, {
+      ...editorDraft,
+      name: editorDraft.name.trim() || editorDraft.id,
+      custom_type: editorDraft.custom_type.trim(),
+    })
+    setNotice('Agente actualizado. Guarda para persistir.')
+    setTimeout(() => setNotice(null), 2000)
+    closeEditor()
+  }, [closeEditor, editorDraft, replaceAgent])
 
   const handleConnectNodes = useCallback((connection: Connection) => {
     const sourceId = connection.source?.trim()
@@ -763,6 +756,9 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     }))
 
     setActiveAndNotify(candidateId)
+    setEditorDraft({ ...newAgent, sub_agents: [] })
+    setShowAdvancedEditor(false)
+    setEditorOpen(true)
     setNotice('Agente agregado. Guarda para persistir.')
     setTimeout(() => setNotice(null), 2500)
   }, [canAddAgent, definition.agents, setActiveAndNotify])
@@ -788,10 +784,14 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
         setActiveAndNotify(cleaned[0].id)
       }
 
+      if (editorDraft?.id === agentId) {
+        closeEditor()
+      }
+
       setNotice('Agente eliminado. Guarda para persistir.')
       setTimeout(() => setNotice(null), 2200)
     },
-    [activeAgentId, orderedAgents, setActiveAndNotify],
+    [activeAgentId, closeEditor, editorDraft?.id, orderedAgents, setActiveAndNotify],
   )
 
   // ── Validate / Save / Reload / Restore ─────────────────────────────
@@ -921,17 +921,23 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
   const disabled = athleteId === null || athleteId <= 0 || !apiBaseUrl
 
-  const activeAgentLabel = activeAgent?.name || activeAgent?.id || 'Agentes'
+  const activeAgentMeta = activeAgent ? AGENT_TYPE_META[activeAgent.type] : null
 
-  // ── Sub-agents: which agents can be selected as children ────────────
+  // ── Modal editor helpers ───────────────────────────────────────────
 
-  const availableSubAgents = useMemo(() => {
-    if (!activeAgent) return []
-    const ancestors = getAncestors(activeAgent.id, definition.agents)
+  const editorAvailableSubAgents = useMemo(() => {
+    if (!editorDraft) return []
+    const ancestors = getAncestors(editorDraft.id, definition.agents)
     return definition.agents
-      .filter((a) => a.id !== activeAgent.id && !ancestors.has(a.id))
+      .filter((a) => a.id !== editorDraft.id && !ancestors.has(a.id))
       .map((a) => a.id)
-  }, [activeAgent, definition.agents])
+  }, [definition.agents, editorDraft])
+
+  const closePanel = useCallback(() => {
+    setShowUtilitiesMenu(false)
+    closeEditor()
+    setOpen(false)
+  }, [closeEditor])
 
   // ── Render ─────────────────────────────────────────────────────────
 
@@ -940,7 +946,10 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setShowUtilitiesMenu(false)
+          setOpen(true)
+        }}
         disabled={disabled}
         aria-expanded={open}
         aria-controls="customizable-agents-drawer"
@@ -948,35 +957,24 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
         className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Bot className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden sm:inline">{activeAgentLabel}</span>
+        <span className="hidden sm:inline">Diseñar agentes</span>
       </button>
 
       <AnimatePresence>
         {open ? (
           <>
-            <motion.div
-              key="agents-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.12, ease: 'linear' }}
-              onClick={() => setOpen(false)}
-              className="fixed inset-0 z-40 bg-foreground/40 backdrop-blur-sm"
-              aria-hidden="true"
-            />
-
             <motion.aside
               key="agents-drawer"
               id="customizable-agents-drawer"
               role="dialog"
               aria-modal="true"
               aria-labelledby="agents-drawer-title"
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              transition={{ duration: 0.16, ease: 'easeOut' }}
               className={cn(
-                'fixed inset-y-0 right-0 z-50 flex w-full max-w-[min(96vw,68rem)] flex-col border-l border-border bg-popover text-popover-foreground shadow-2xl',
+                'fixed inset-0 z-50 flex h-screen w-screen flex-col bg-popover text-popover-foreground',
                 isDark ? 'text-foreground' : 'text-foreground',
               )}
             >
@@ -984,7 +982,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
               <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div className="flex items-center gap-2">
                   <Bot className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                  <h2 id="agents-drawer-title" className="text-[15px] font-semibold text-foreground">
+                  <h2 id="agents-drawer-title" className="text-[16px] font-semibold text-foreground">
                     Multi-Agent Designer
                   </h2>
                   <span className="text-[12px] text-muted-foreground">
@@ -997,7 +995,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                   ) : null}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex flex-wrap items-center gap-2">
                   <AnimatePresence>
                     {notice ? (
                       <motion.span
@@ -1014,21 +1012,21 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
                   <button
                     type="button"
-                    onClick={handleValidate}
-                    disabled={validating || loading || saving}
+                    onClick={handleAddAgent}
+                    disabled={!canAddAgent}
                     className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background px-2 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {validating ? 'Validando...' : 'Validar'}
+                    <Plus className="h-3.5 w-3.5" />
+                    Nuevo
                   </button>
 
                   <button
                     type="button"
-                    onClick={handleReload}
-                    disabled={loading || saving || validating}
+                    onClick={() => activeAgent && openEditorFor(activeAgent.id)}
+                    disabled={!activeAgent || loading || saving}
                     className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background px-2 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    Recargar
+                    Editar
                   </button>
 
                   <button
@@ -1043,17 +1041,54 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
                   <button
                     type="button"
-                    onClick={handleRestoreDefault}
-                    disabled={restoringDefault || loading}
-                    className="inline-flex h-8 items-center gap-1 rounded-md border border-warning/40 bg-warning/10 px-2 text-[12px] text-warning hover:bg-warning/15 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => setShowUtilitiesMenu((prev) => !prev)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
-                    {restoringDefault ? 'Restaurando...' : 'Default'}
+                    Más
                   </button>
+
+                  {showUtilitiesMenu ? (
+                    <div className="absolute right-12 top-10 z-20 w-44 rounded-md border border-border bg-background p-1.5 shadow-xl">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUtilitiesMenu(false)
+                          handleValidate()
+                        }}
+                        disabled={validating || loading || saving}
+                        className="flex h-8 w-full items-center rounded px-2 text-left text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {validating ? 'Validando...' : 'Validar definición'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUtilitiesMenu(false)
+                          handleReload()
+                        }}
+                        disabled={loading || saving || validating}
+                        className="flex h-8 w-full items-center rounded px-2 text-left text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Recargar cambios
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUtilitiesMenu(false)
+                          handleRestoreDefault()
+                        }}
+                        disabled={restoringDefault || loading}
+                        className="flex h-8 w-full items-center rounded px-2 text-left text-[12px] text-warning hover:bg-warning/10 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {restoringDefault ? 'Restaurando...' : 'Restaurar default'}
+                      </button>
+                    </div>
+                  ) : null}
 
                   <button
                     ref={closeBtnRef}
                     type="button"
-                    onClick={() => setOpen(false)}
+                    onClick={closePanel}
                     aria-label="Cerrar panel"
                     className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
@@ -1072,27 +1107,17 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                 </div>
               ) : null}
 
-              {/* ── Body: sidebar + editor ── */}
-              <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[300px_1fr]">
+              {/* ── Body: sidebar + canvas ── */}
+              <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
                 {/* ── Sidebar ── */}
-                <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto border-b border-border p-3 lg:border-b-0 lg:border-r">
+                <aside className="flex min-h-0 flex-col overflow-y-auto border-b border-border p-3 md:border-b-0 md:border-r">
                   {/* Agent list */}
-                  <section className="rounded-md border border-border bg-background/40 p-3">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Agentes
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={handleAddAgent}
-                        disabled={!canAddAgent}
-                        className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Nuevo
-                      </button>
+                  <section className="rounded-md border border-border bg-background/40 p-2">
+                    <div className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Agentes
                     </div>
 
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                       {orderedAgents.map((item) => {
                         const active = item.id === activeAgentId
                         const meta = AGENT_TYPE_META[item.type]
@@ -1101,404 +1126,347 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                           <div
                             key={item.id}
                             className={cn(
-                              'rounded-md border p-2',
+                              'rounded-md border p-2 transition-colors',
                               active ? 'border-primary/50 bg-primary/10' : 'border-border bg-background',
                             )}
                           >
                             <button
                               type="button"
                               onClick={() => setActiveAndNotify(item.id)}
-                              className="mb-1 flex w-full items-start gap-2 text-left"
+                              onDoubleClick={() => openEditorFor(item.id)}
+                              className="flex w-full items-start gap-2 text-left"
                             >
                               <Icon className={cn('mt-0.5 h-3.5 w-3.5 shrink-0', meta.color)} />
                               <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center justify-between gap-2">
                                   <span className="truncate text-[12px] font-medium text-foreground">
                                     {item.name || item.id}
                                   </span>
-                                  <span className={cn('text-[10px] font-medium', meta.color)}>{meta.label}</span>
+                                  <span className={cn('shrink-0 text-[10px] font-medium', meta.color)}>{meta.label}</span>
                                 </div>
-                                <div className="truncate text-[10px] text-muted-foreground">{item.id}</div>
-                                <div className="text-[11px] text-muted-foreground">
-                                  {item.type === 'llm'
-                                    ? promptPreview(item.prompt)
-                                    : `${item.sub_agents.length} sub-agent${item.sub_agents.length !== 1 ? 's' : ''}`}
-                                </div>
+                                <div className="truncate text-[10px] text-muted-foreground">{promptPreview(item.prompt, 46)}</div>
                               </div>
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteAgent(item.id)}
-                              disabled={orderedAgents.length <= 1}
-                              className="inline-flex h-5 items-center gap-1 rounded border border-destructive/40 bg-destructive/10 px-1.5 text-[10px] text-destructive hover:bg-destructive/15 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <Trash2 className="h-2.5 w-2.5" />
-                            </button>
+                            <div className="mt-1 flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openEditorFor(item.id)}
+                                className="inline-flex h-6 items-center rounded border border-border px-2 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAgent(item.id)}
+                                disabled={orderedAgents.length <= 1}
+                                className="inline-flex h-6 items-center rounded border border-destructive/40 px-2 text-[10px] text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Borrar
+                              </button>
+                            </div>
                           </div>
                         )
                       })}
-                    </div>
-                  </section>
-
-                  {/* Topology preview */}
-                  <section className="rounded-md border border-border bg-background/40 p-3">
-                    <div className="mb-2 flex items-center gap-1.5">
-                      <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
-                      <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Topología
-                      </h3>
-                    </div>
-                    <div className="space-y-0.5 font-mono text-[11px] text-muted-foreground">
-                      {topology.map((node) => {
-                        const meta = AGENT_TYPE_META[node.type]
-                        const indent = '\u00A0\u00A0'.repeat(node.depth)
-                        const prefix = node.depth > 0 ? '└─ ' : ''
-                        return (
-                          <div key={node.id} className="flex items-center gap-1">
-                            <span>{indent}{prefix}</span>
-                            <span className={cn('font-medium', meta.color)}>{node.name || node.id}</span>
-                            <span className="text-[10px] opacity-60">[{node.id}]</span>
-                            <span className="text-[10px] opacity-60">({meta.label.toLowerCase()})</span>
-                          </div>
-                        )
-                      })}
-                      {topology.length === 0 ? (
-                        <span className="italic">Sin agentes</span>
-                      ) : null}
                     </div>
                   </section>
                 </aside>
 
-                {/* ── Editor pane ── */}
-                <section className="min-h-0 overflow-y-auto p-4">
-                  {!activeAgent ? (
-                    <div className="rounded-md border border-border bg-background/40 p-4 text-[13px] text-muted-foreground">
-                      Selecciona un agente para editar.
+                {/* ── Main canvas pane ── */}
+                <section className="flex min-h-0 flex-col p-4">
+                  <div className="rounded-md border border-border bg-background/40 px-3 py-2">
+                    {activeAgent ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-[14px] font-semibold text-foreground">{activeAgent.name || activeAgent.id}</p>
+                          <p className="truncate text-[11px] text-muted-foreground">{promptPreview(activeAgent.prompt, 90)}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {activeAgentMeta ? (
+                            <span className={cn('rounded-sm border border-border px-1.5 py-0.5 text-[10px] font-medium', activeAgentMeta.color)}>
+                              {activeAgentMeta.label}
+                            </span>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => openEditorFor(activeAgent.id)}
+                            className="inline-flex h-7 items-center rounded-md border border-border px-2 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                          >
+                            Editar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[13px] text-muted-foreground">Selecciona un agente o crea uno nuevo para empezar.</p>
+                    )}
+                  </div>
+
+                  <div className="mt-3 min-h-0 flex-1 rounded-md border border-border bg-background/40 p-3">
+                    <div className="mb-2 text-[12px] text-muted-foreground">
+                      Conecta agentes arrastrando una línea entre nodos. Doble click en un nodo para editar detalles.
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="rounded-md border border-border bg-background/40 p-3">
-                        <div className="mb-2 flex items-center gap-1.5">
-                          <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
-                          <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            Canvas de flujo
-                          </h3>
-                        </div>
-                        <div className="h-[290px] overflow-hidden rounded-md border border-border bg-background">
-                          <ReactFlow
-                            nodes={flowGraph.nodes}
-                            edges={flowGraph.edges}
-                            nodeTypes={flowNodeTypes}
-                            fitView
-                            nodesDraggable={false}
-                            nodesConnectable
-                            edgesFocusable
-                            deleteKeyCode={["Backspace", "Delete"]}
-                            elementsSelectable
-                            onConnect={handleConnectNodes}
-                            onEdgesDelete={handleDeleteEdges}
-                            onNodeClick={(_, node) => setActiveAndNotify(node.id)}
-                            className="bg-background"
-                          >
-                            <Background gap={18} size={1} color="hsl(var(--border))" />
-                            <Controls showInteractive={false} />
-                          </ReactFlow>
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-                          <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
-                            <span className="inline-block h-2 w-4 rounded-sm bg-primary" />
-                            flujo sub_agents
-                          </span>
-                          <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
-                            <span className="inline-block h-2 w-4 rounded-sm border border-success bg-transparent" />
-                            datos output_key -&gt; {'{variable}'}
-                          </span>
-                        </div>
-                      </div>
+                    <div className="h-full min-h-[360px] overflow-hidden rounded-md border border-border bg-background">
+                      <ReactFlow
+                        nodes={flowGraph.nodes}
+                        edges={flowGraph.edges}
+                        nodeTypes={flowNodeTypes}
+                        fitView
+                        nodesDraggable={false}
+                        nodesConnectable
+                        edgesFocusable
+                        deleteKeyCode={["Backspace", "Delete"]}
+                        elementsSelectable
+                        onConnect={handleConnectNodes}
+                        onEdgesDelete={handleDeleteEdges}
+                        onNodeClick={(_, node) => setActiveAndNotify(node.id)}
+                        onNodeDoubleClick={(_, node) => openEditorFor(node.id)}
+                        className="bg-background"
+                      >
+                        <Background gap={18} size={1} color="hsl(var(--border))" />
+                        <Controls showInteractive={false} />
+                      </ReactFlow>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                      <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
+                        <span className="inline-block h-2 w-4 rounded-sm bg-primary" />
+                        Flujo principal
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
+                        <span className="inline-block h-2 w-4 rounded-sm border border-success bg-transparent" />
+                        Flujo de datos ({'{variable}'})
+                      </span>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </motion.aside>
 
-                      {/* ID + Type row */}
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div>
-                          <label className="mb-1 block text-[12px] text-muted-foreground">ID</label>
-                          <input
-                            type="text"
-                            value={activeAgent.id}
-                            disabled
-                            className="h-8 w-full rounded-md border border-border bg-muted px-2 text-[12px] text-muted-foreground"
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-[12px] text-muted-foreground">Tipo</label>
-                          <select
-                            value={activeAgent.type}
-                            onChange={(e) => {
-                              const newType = normalizeAgentType(e.target.value)
-                              const patch: Partial<AgentEntry> = { type: newType }
-                              // Clear irrelevant fields when switching type
-                              if (newType !== 'llm') {
-                                patch.model = ''
-                                patch.prompt = ''
-                              }
-                              if (newType === 'custom' && !activeAgent.custom_type.trim()) {
-                                patch.custom_type = activeAgent.name || activeAgent.id
-                              }
-                              if (newType !== 'custom') {
-                                patch.custom_type = ''
-                              }
-                              if (newType === 'llm') {
-                                // Keep sub_agents — llm can have them for delegation
-                              }
-                              updateAgent(activeAgent.id, patch)
-                            }}
-                            disabled={loading || saving}
-                            className="h-8 w-full rounded-md border border-border bg-background px-2 text-[12px] text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {AGENT_TYPES.map((t) => (
-                              <option key={t} value={t}>
-                                {AGENT_TYPE_META[t].label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
+            <AnimatePresence>
+              {editorOpen && editorDraft ? (
+                <>
+                  <motion.div
+                    key="agent-editor-backdrop"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={closeEditor}
+                    className="fixed inset-0 z-[60] bg-foreground/40"
+                    aria-hidden="true"
+                  />
 
+                  <motion.section
+                    key="agent-editor"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Editar agente"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    transition={{ duration: 0.14, ease: 'easeOut' }}
+                    className="fixed left-1/2 top-1/2 z-[70] w-[min(92vw,34rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-popover p-4 shadow-2xl"
+                  >
+                    <header className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-[15px] font-semibold text-foreground">Editar agente</h3>
+                        <p className="text-[11px] text-muted-foreground">{editorDraft.id}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={closeEditor}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                        aria-label="Cerrar edición"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </header>
+
+                    <div className="space-y-3">
                       <div>
                         <label className="mb-1 block text-[12px] text-muted-foreground">Nombre</label>
                         <input
                           type="text"
-                          value={activeAgent.name}
-                          onChange={(e) => updateAgent(activeAgent.id, { name: e.target.value })}
-                          disabled={loading || saving}
-                          placeholder="Nombre visible del agente..."
-                          className="h-8 w-full rounded-md border border-border bg-background px-2 text-[12px] text-foreground placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-60"
+                          value={editorDraft.name}
+                          onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, name: event.target.value } : cur))}
+                          placeholder="Ej: Analista de entreno"
+                          className="h-9 w-full rounded-md border border-border bg-background px-2 text-[13px] text-foreground"
                         />
                       </div>
 
-                      {/* Model (only for LLM) */}
-                      {activeAgent.type === 'llm' ? (
-                        <div>
-                          <label className="mb-1 block text-[12px] text-muted-foreground">Modelo</label>
-                          <select
-                            value={activeAgent.model}
-                            onChange={(e) => updateAgent(activeAgent.id, { model: e.target.value })}
-                            disabled={loading || saving}
-                            className="h-8 w-full rounded-md border border-border bg-background px-2 text-[12px] text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <option value="">Modelo por defecto (env)</option>
-                            {MODEL_OPTIONS.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ) : null}
-
-                      {/* Description */}
-                      <div>
-                        <label className="mb-1 block text-[12px] text-muted-foreground">
-                          Descripción
-                          <span className="ml-1 text-[10px] opacity-60">(para delegación LLM)</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={activeAgent.description}
-                          onChange={(e) => updateAgent(activeAgent.id, { description: e.target.value })}
-                          disabled={loading || saving}
-                          placeholder="Describe qué hace este agente..."
-                          className="h-8 w-full rounded-md border border-border bg-background px-2 text-[12px] text-foreground placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-60"
-                        />
-                      </div>
-
-                      {activeAgent.type === 'custom' ? (
-                        <div>
-                          <label className="mb-1 block text-[12px] text-muted-foreground">
-                            Custom Type
-                            <span className="ml-1 text-[10px] opacity-60">(registrado en backend)</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={activeAgent.custom_type}
-                            onChange={(e) => updateAgent(activeAgent.id, { custom_type: e.target.value })}
-                            disabled={loading || saving}
-                            placeholder="ej: slack_notifier"
-                            className="h-8 w-full rounded-md border border-border bg-background px-2 text-[12px] text-foreground placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-60"
-                          />
-                        </div>
-                      ) : null}
-
-                      {/* Prompt (only for LLM) */}
-                      {activeAgent.type === 'llm' ? (
+                      {editorDraft.type === 'llm' ? (
                         <div>
                           <label className="mb-1 block text-[12px] text-muted-foreground">Prompt</label>
                           <textarea
-                            value={activeAgent.prompt}
-                            onChange={(e) => updateAgent(activeAgent.id, { prompt: e.target.value })}
-                            disabled={loading || saving}
-                            rows={12}
+                            value={editorDraft.prompt}
+                            onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, prompt: event.target.value } : cur))}
+                            rows={7}
                             spellCheck={false}
-                            placeholder="Instrucción del agente..."
-                            className={cn(
-                              'w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[13px] leading-5 text-foreground',
-                              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                              'disabled:cursor-not-allowed disabled:opacity-60',
-                            )}
+                            placeholder="Escribe instrucciones sencillas para este agente..."
+                            className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground"
                           />
                         </div>
-                      ) : null}
+                      ) : (
+                        <p className="rounded-md border border-border bg-background/60 px-3 py-2 text-[12px] text-muted-foreground">
+                          Este tipo de agente no necesita prompt directo. Conecta sub-agents en el canvas.
+                        </p>
+                      )}
 
-                      {/* Sub-agents */}
-                      <div>
-                        <label className="mb-1 block text-[12px] text-muted-foreground">
-                          Sub-agents
-                          {activeAgent.type !== 'llm' ? (
-                            <span className="ml-1 text-[10px] text-warning">requerido</span>
-                          ) : (
-                            <span className="ml-1 text-[10px] opacity-60">(opcional, para delegación)</span>
-                          )}
-                        </label>
-                        {availableSubAgents.length === 0 ? (
-                          <p className="text-[11px] italic text-muted-foreground">
-                            No hay agentes disponibles. Crea más agentes primero.
-                          </p>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                            {availableSubAgents.map((subId) => {
-                              const checked = activeAgent.sub_agents.includes(subId)
-                              const subAgent = definition.agents.find((a) => a.id === subId)
-                              const subMeta = subAgent ? AGENT_TYPE_META[subAgent.type] : null
-                              return (
-                                <label
-                                  key={subId}
-                                  className={cn(
-                                    'flex cursor-pointer items-center gap-2 rounded-md border p-2 text-[12px] transition-colors',
-                                    checked
-                                      ? 'border-primary/50 bg-primary/10 text-foreground'
-                                      : 'border-border bg-background text-muted-foreground hover:bg-muted',
-                                  )}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() => {
-                                      const next = checked
-                                        ? activeAgent.sub_agents.filter((s) => s !== subId)
-                                        : [...activeAgent.sub_agents, subId]
-                                      updateAgent(activeAgent.id, { sub_agents: next })
-                                    }}
-                                    disabled={loading || saving}
-                                    className="h-3.5 w-3.5 rounded border-border"
-                                  />
-                                  <span className="font-medium">{subId}</span>
-                                  {subMeta ? (
-                                    <span className={cn('text-[10px]', subMeta.color)}>{subMeta.label}</span>
-                                  ) : null}
-                                </label>
-                              )
-                            })}
-                          </div>
-                        )}
+                      <button
+                        type="button"
+                        onClick={() => setShowAdvancedEditor((prev) => !prev)}
+                        className="text-[12px] font-medium text-primary hover:underline"
+                      >
+                        {showAdvancedEditor ? 'Ocultar opciones avanzadas' : 'Mostrar opciones avanzadas'}
+                      </button>
 
-                        {activeAgent.sub_agents.length > 0 ? (
-                          <div className="mt-2 rounded-md border border-border bg-background/60 p-2">
-                            <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                              Orden de ejecución
-                            </p>
-                            <div className="space-y-1">
-                              {activeAgent.sub_agents.map((subId, index) => {
-                                const move = (direction: -1 | 1) => {
-                                  const target = index + direction
-                                  if (target < 0 || target >= activeAgent.sub_agents.length) return
-                                  const next = [...activeAgent.sub_agents]
-                                  const [item] = next.splice(index, 1)
-                                  next.splice(target, 0, item)
-                                  updateAgent(activeAgent.id, { sub_agents: next })
-                                }
-
-                                return (
-                                  <div
-                                    key={`${subId}-${index}`}
-                                    className="flex items-center justify-between gap-2 rounded border border-border px-2 py-1 text-[11px] text-muted-foreground"
-                                  >
-                                    <span className="truncate">
-                                      {index + 1}. {subId}
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => move(-1)}
-                                        disabled={index === 0 || loading || saving}
-                                        className="inline-flex h-5 w-5 items-center justify-center rounded border border-border text-[10px] hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                                      >
-                                        ↑
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => move(1)}
-                                        disabled={index === activeAgent.sub_agents.length - 1 || loading || saving}
-                                        className="inline-flex h-5 w-5 items-center justify-center rounded border border-border text-[10px] hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                                      >
-                                        ↓
-                                      </button>
-                                    </div>
-                                  </div>
-                                )
-                              })}
+                      {showAdvancedEditor ? (
+                        <div className="space-y-3 rounded-md border border-border bg-background/40 p-3">
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div>
+                              <label className="mb-1 block text-[12px] text-muted-foreground">Tipo</label>
+                              <select
+                                value={editorDraft.type}
+                                onChange={(event) => {
+                                  const nextType = normalizeAgentType(event.target.value)
+                                  setEditorDraft((cur) => {
+                                    if (!cur) return cur
+                                    const next: AgentEntry = { ...cur, type: nextType }
+                                    if (nextType !== 'llm') {
+                                      next.model = ''
+                                      next.prompt = ''
+                                    }
+                                    if (nextType === 'custom' && !next.custom_type.trim()) {
+                                      next.custom_type = cur.name || cur.id
+                                    }
+                                    if (nextType !== 'custom') {
+                                      next.custom_type = ''
+                                    }
+                                    return next
+                                  })
+                                }}
+                                className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
+                              >
+                                {AGENT_TYPES.map((typeValue) => (
+                                  <option key={typeValue} value={typeValue}>
+                                    {AGENT_TYPE_META[typeValue].label}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
+
+                            {editorDraft.type === 'llm' ? (
+                              <div>
+                                <label className="mb-1 block text-[12px] text-muted-foreground">Modelo</label>
+                                <select
+                                  value={editorDraft.model}
+                                  onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, model: event.target.value } : cur))}
+                                  className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
+                                >
+                                  <option value="">Modelo por defecto (env)</option>
+                                  {MODEL_OPTIONS.map((opt) => (
+                                    <option key={opt.value} value={opt.value}>
+                                      {opt.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            ) : null}
                           </div>
-                        ) : null}
-                      </div>
 
-                      {/* Output key (optional) */}
-                      <div>
-                        <label className="mb-1 block text-[12px] text-muted-foreground">
-                          Output key
-                          <span className="ml-1 text-[10px] opacity-60">(opcional, para pipelines)</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={activeAgent.output_key}
-                          onChange={(e) => updateAgent(activeAgent.id, { output_key: e.target.value })}
-                          disabled={loading || saving}
-                          placeholder="ej: research_result"
-                          className="h-8 w-full rounded-md border border-border bg-background px-2 text-[12px] text-foreground placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-60"
-                        />
-                      </div>
+                          {editorDraft.type === 'custom' ? (
+                            <div>
+                              <label className="mb-1 block text-[12px] text-muted-foreground">Custom type</label>
+                              <input
+                                type="text"
+                                value={editorDraft.custom_type}
+                                onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, custom_type: event.target.value } : cur))}
+                                placeholder="ej: slack_notifier"
+                                className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
+                              />
+                            </div>
+                          ) : null}
 
-                      {/* Pattern hint */}
-                      <div className="rounded-md border border-border/50 bg-muted/30 p-3 text-[11px] text-muted-foreground">
-                        {activeAgent.type === 'llm' ? (
-                          <p>
-                            <strong>LLM Agent:</strong> Agente con modelo de lenguaje. Define un prompt con instrucciones.
-                            Si tiene sub-agents, puede delegar tareas a ellos (patrón Coordinator).
-                          </p>
-                        ) : activeAgent.type === 'sequential' ? (
-                          <p>
-                            <strong>Sequential:</strong> Ejecuta sub-agents en orden fijo. El output de cada paso
-                            está disponible para el siguiente via <code>output_key</code> en el estado compartido.
-                          </p>
-                        ) : activeAgent.type === 'parallel' ? (
-                          <p>
-                            <strong>Parallel:</strong> Ejecuta sub-agents simultáneamente. Ideal para recopilar
-                            información de múltiples fuentes. Combina resultados con un agente posterior.
-                          </p>
-                        ) : activeAgent.type === 'custom' ? (
-                          <p>
-                            <strong>Custom:</strong> Instancia una implementación registrada en backend por su
-                            <code>custom_type</code>. Útil para integrar lógica Python específica.
-                          </p>
-                        ) : (
-                          <p>
-                            <strong>Loop:</strong> Repite sub-agents iterativamente. Útil para refinamiento
-                            progresivo (generar → revisar → mejorar). Se detiene por max_iterations o escalación.
-                          </p>
-                        )}
-                      </div>
+                          <div>
+                            <label className="mb-1 block text-[12px] text-muted-foreground">Descripción</label>
+                            <input
+                              type="text"
+                              value={editorDraft.description}
+                              onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, description: event.target.value } : cur))}
+                              placeholder="Descripción corta"
+                              className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="mb-1 block text-[12px] text-muted-foreground">Output key</label>
+                            <input
+                              type="text"
+                              value={editorDraft.output_key}
+                              onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, output_key: event.target.value } : cur))}
+                              placeholder="ej: research_result"
+                              className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="mb-1 block text-[12px] text-muted-foreground">Sub-agents</label>
+                            {editorAvailableSubAgents.length === 0 ? (
+                              <p className="text-[11px] italic text-muted-foreground">No hay agentes disponibles.</p>
+                            ) : (
+                              <div className="grid grid-cols-2 gap-1.5">
+                                {editorAvailableSubAgents.map((subId) => {
+                                  const checked = editorDraft.sub_agents.includes(subId)
+                                  return (
+                                    <label
+                                      key={subId}
+                                      className={cn(
+                                        'flex cursor-pointer items-center gap-2 rounded-md border p-2 text-[11px]',
+                                        checked ? 'border-primary/50 bg-primary/10' : 'border-border bg-background',
+                                      )}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() => {
+                                          setEditorDraft((cur) => {
+                                            if (!cur) return cur
+                                            const nextSubAgents = checked
+                                              ? cur.sub_agents.filter((value) => value !== subId)
+                                              : [...cur.sub_agents, subId]
+                                            return { ...cur, sub_agents: nextSubAgents }
+                                          })
+                                        }}
+                                        className="h-3.5 w-3.5"
+                                      />
+                                      <span className="truncate">{subId}</span>
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
-                  )}
-                </section>
-              </div>
-            </motion.aside>
+
+                    <footer className="mt-4 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={closeEditor}
+                        className="inline-flex h-8 items-center rounded-md border border-border px-3 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveEditor}
+                        className="inline-flex h-8 items-center rounded-md border border-primary/40 bg-primary/10 px-3 text-[12px] font-medium text-primary hover:bg-primary/15"
+                      >
+                        Aplicar cambios
+                      </button>
+                    </footer>
+                  </motion.section>
+                </>
+              ) : null}
+            </AnimatePresence>
           </>
         ) : null}
       </AnimatePresence>
