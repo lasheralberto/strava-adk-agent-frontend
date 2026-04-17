@@ -23,6 +23,7 @@ import {
   type PlanReactSection,
   type StructuredChatContent,
 } from '@/types/plan-react'
+import { parse as parseToml } from 'smol-toml'
 import './styles/chat.css'
 
 // ── Animation constants ───────────────────────────────────────────────────────
@@ -136,6 +137,16 @@ const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/
 const internalPipelineToken = (import.meta.env.VITE_INTERNAL_PIPELINE_TOKEN ?? '').trim()
 const stravaScope = (import.meta.env.VITE_STRAVA_SCOPE ?? 'read,activity:read_all,profile:read_all').trim()
 const sessionStorageAuthKey = 'strava_oauth_session_v1'
+const DEFAULT_AGENT_ID = 'wiki_research_chat'
+const RESERVED_AGENT_IDS = new Set([
+  'intent_router',
+  'plan_react_planner',
+  'strava_ingestion_agent',
+  'query_agent',
+  'answer_agent',
+  'orchestrator',
+  DEFAULT_AGENT_ID,
+])
 const planReactPhaseEvents = new Set<PlanReactSection>(planReactSectionOrder)
 
 const planReactOrderIndex = planReactSectionOrder.reduce(
@@ -603,7 +614,7 @@ function App() {
   const [pipelineStatus, setPipelineStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const [lastSyncStatus, setLastSyncStatus] = useState<'success' | 'failed' | 'queued' | null>(null)
   const [activitiesRefreshKey, setActivitiesRefreshKey] = useState(0)
-  const [selectedAgentId, setSelectedAgentId] = useState('wiki_research_chat')
+  const [selectedAgentId, setSelectedAgentId] = useState(DEFAULT_AGENT_ID)
   const [logsLoading, setLogsLoading] = useState(false)
   const [logsPage, setLogsPage] = useState(1)
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
@@ -834,6 +845,40 @@ function App() {
       setLastSyncStatus(null)
     }
   }, [authSession, fetchIndexingStatus])
+
+  const fetchSavedAgentId = useCallback(async () => {
+    const athleteId = authSessionRef.current?.athlete?.id
+    if (!apiBaseUrl || !athleteId) return
+    try {
+      const headers: Record<string, string> = {}
+      if (internalPipelineToken) headers['X-Internal-Token'] = internalPipelineToken
+      const res = await fetch(`${apiBaseUrl}/agent-definition/${athleteId}`, { headers })
+      if (!res.ok) return
+      const payload = (await res.json()) as { toml_content?: string; is_default?: boolean }
+      if (payload.is_default || !payload.toml_content) return
+
+      const root = parseToml(payload.toml_content) as Record<string, unknown>
+      const agents = Array.isArray(root.agents) ? root.agents : []
+      const firstCustom = agents.find((a): a is Record<string, unknown> =>
+        a !== null && typeof a === 'object' && !Array.isArray(a) &&
+        typeof (a as Record<string, unknown>).id === 'string' &&
+        !RESERVED_AGENT_IDS.has(((a as Record<string, unknown>).id as string).trim()),
+      )
+      if (firstCustom && typeof firstCustom.id === 'string' && firstCustom.id.trim()) {
+        setSelectedAgentId(firstCustom.id.trim())
+      }
+    } catch {
+      // silently ignore — fall back to default agent
+    }
+  }, [])
+
+  useEffect(() => {
+    if (authSession?.athlete?.id) {
+      fetchSavedAgentId()
+    } else {
+      setSelectedAgentId(DEFAULT_AGENT_ID)
+    }
+  }, [authSession, fetchSavedAgentId])
 
   const handleStartStravaLogin = async () => {
     if (!apiBaseUrl || authPending) {
