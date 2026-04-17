@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
   ReactFlow,
   Background,
@@ -30,6 +30,12 @@ const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/
 const internalPipelineToken = (import.meta.env.VITE_INTERNAL_PIPELINE_TOKEN ?? '').trim()
 
 const MAX_AGENTS = 10
+const PANEL_ANIMATION_DURATION_S = 0.16
+const NOTICE_ANIMATION_DURATION_S = 0.15
+const EDITOR_ANIMATION_DURATION_S = 0.2
+const EDITOR_ENTER_Y_PX = 42
+const EDITOR_EXIT_Y_PX = 56
+const MOBILE_EDITOR_MEDIA_QUERY = '(max-width: 767px)'
 
 const RESERVED_AGENT_IDS = new Set([
   'intent_router',
@@ -513,6 +519,7 @@ function getAncestors(agentId: string, agents: AgentEntry[]): Set<string> {
 // ---------------------------------------------------------------------------
 
 export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, onAgentChange }: Props) {
+  const reduceMotion = useReducedMotion()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -535,6 +542,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   const [editorDraft, setEditorDraft] = useState<AgentEntry | null>(null)
   const [showAdvancedEditor, setShowAdvancedEditor] = useState(false)
   const [showUtilitiesMenu, setShowUtilitiesMenu] = useState(false)
+  const [isMobileEditorViewport, setIsMobileEditorViewport] = useState(false)
 
   const triggerRef = useRef<HTMLButtonElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
@@ -621,6 +629,19 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   useEffect(() => {
     if (!open) triggerRef.current?.focus({ preventScroll: true })
   }, [open])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mediaQuery = window.matchMedia(MOBILE_EDITOR_MEDIA_QUERY)
+
+    const updateViewport = () => {
+      setIsMobileEditorViewport(mediaQuery.matches)
+    }
+
+    updateViewport()
+    mediaQuery.addEventListener('change', updateViewport)
+    return () => mediaQuery.removeEventListener('change', updateViewport)
+  }, [])
 
   useEffect(() => {
     if (definition.agents.some((a) => a.id === selectedAgentId)) {
@@ -969,17 +990,17 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
               role="dialog"
               aria-modal="true"
               aria-labelledby="agents-drawer-title"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 6 }}
-              transition={{ duration: 0.16, ease: 'easeOut' }}
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+              animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
+              transition={{ duration: reduceMotion ? 0 : PANEL_ANIMATION_DURATION_S, ease: 'easeOut' }}
               className={cn(
                 'fixed inset-0 z-50 flex h-screen w-screen flex-col bg-popover text-popover-foreground',
                 isDark ? 'text-foreground' : 'text-foreground',
               )}
             >
               {/* ── Header ── */}
-              <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+              <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-popover/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-popover/90">
                 <div className="flex items-center gap-2">
                   <Bot className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   <h2 id="agents-drawer-title" className="text-[16px] font-semibold text-foreground">
@@ -1002,7 +1023,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         initial={{ opacity: 0, x: 8 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: 8 }}
-                        transition={{ duration: 0.15 }}
+                        transition={{ duration: reduceMotion ? 0 : NOTICE_ANIMATION_DURATION_S }}
                         className="text-[12px] text-success"
                       >
                         {notice}
@@ -1108,9 +1129,9 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
               ) : null}
 
               {/* ── Body: sidebar + canvas ── */}
-              <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
+              <div className="grid flex-1 grid-cols-1 overflow-y-auto md:grid-cols-[260px_1fr]">
                 {/* ── Sidebar ── */}
-                <aside className="flex min-h-0 flex-col overflow-y-auto border-b border-border p-3 md:border-b-0 md:border-r">
+                <aside className="flex flex-col border-b border-border p-3 md:border-b-0 md:border-r md:overflow-y-auto">
                   {/* Agent list */}
                   <section className="rounded-md border border-border bg-background/40 p-2">
                     <div className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1172,7 +1193,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                 </aside>
 
                 {/* ── Main canvas pane ── */}
-                <section className="flex min-h-0 flex-col p-4">
+                <section className="flex flex-col p-3 md:p-4">
                   <div className="rounded-md border border-border bg-background/40 px-3 py-2">
                     {activeAgent ? (
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1200,11 +1221,11 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     )}
                   </div>
 
-                  <div className="mt-3 min-h-0 flex-1 rounded-md border border-border bg-background/40 p-3">
+                  <div className="mt-3 rounded-md border border-border bg-background/40 p-3">
                     <div className="mb-2 text-[12px] text-muted-foreground">
                       Conecta agentes arrastrando una línea entre nodos. Doble click en un nodo para editar detalles.
                     </div>
-                    <div className="h-full min-h-[360px] overflow-hidden rounded-md border border-border bg-background">
+                    <div className="h-[52vh] min-h-[320px] overflow-hidden rounded-md border border-border bg-background md:h-[62vh] md:min-h-[420px]">
                       <ReactFlow
                         nodes={flowGraph.nodes}
                         edges={flowGraph.edges}
@@ -1248,22 +1269,36 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
+                    transition={{ duration: reduceMotion ? 0 : NOTICE_ANIMATION_DURATION_S }}
                     onClick={closeEditor}
                     className="fixed inset-0 z-[60] bg-foreground/40"
                     aria-hidden="true"
                   />
 
-                  <motion.section
-                    key="agent-editor"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-label="Editar agente"
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 8 }}
-                    transition={{ duration: 0.14, ease: 'easeOut' }}
-                    className="fixed left-1/2 top-1/2 z-[70] w-[min(92vw,34rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-popover p-4 shadow-2xl"
-                  >
+                  <div className="pointer-events-none fixed inset-0 z-[70] flex items-end justify-center md:items-center md:p-4">
+                    <motion.section
+                      key="agent-editor"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-label="Editar agente"
+                      initial={
+                        reduceMotion
+                          ? { opacity: 0 }
+                          : isMobileEditorViewport
+                            ? { opacity: 0, y: '100%' }
+                            : { opacity: 0, y: EDITOR_ENTER_Y_PX }
+                      }
+                      animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                      exit={
+                        reduceMotion
+                          ? { opacity: 0 }
+                          : isMobileEditorViewport
+                            ? { opacity: 0, y: '100%' }
+                            : { opacity: 0, y: EDITOR_EXIT_Y_PX }
+                      }
+                      transition={{ duration: reduceMotion ? 0 : EDITOR_ANIMATION_DURATION_S, ease: 'easeOut' }}
+                      className="pointer-events-auto w-full max-h-[88dvh] overflow-y-auto rounded-t-2xl border border-border bg-popover p-4 pb-6 shadow-2xl md:w-[min(92vw,34rem)] md:max-h-[86vh] md:rounded-xl md:pb-4"
+                    >
                     <header className="mb-3 flex items-center justify-between gap-3">
                       <div>
                         <h3 className="text-[15px] font-semibold text-foreground">Editar agente</h3>
@@ -1463,7 +1498,8 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         Aplicar cambios
                       </button>
                     </footer>
-                  </motion.section>
+                    </motion.section>
+                  </div>
                 </>
               ) : null}
             </AnimatePresence>
