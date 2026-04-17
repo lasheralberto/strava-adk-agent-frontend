@@ -523,8 +523,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [validating, setValidating] = useState(false)
-  const [restoringDefault, setRestoringDefault] = useState(false)
 
   const [version, setVersion] = useState(0)
   const [isDefaultDefinition, setIsDefaultDefinition] = useState(true)
@@ -541,7 +539,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorDraft, setEditorDraft] = useState<AgentEntry | null>(null)
   const [showAdvancedEditor, setShowAdvancedEditor] = useState(false)
-  const [showUtilitiesMenu, setShowUtilitiesMenu] = useState(false)
   const [isMobileEditorViewport, setIsMobileEditorViewport] = useState(false)
 
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -554,8 +551,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     () => [...definition.agents].sort((a, b) => a.order - b.order),
     [definition.agents],
   )
-
-  const activeAgent = orderedAgents.find((a) => a.id === activeAgentId) ?? null
 
   const flowGraph = useMemo(() => buildFlowGraph(orderedAgents), [orderedAgents])
 
@@ -853,21 +848,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     [athleteId],
   )
 
-  const handleValidate = useCallback(async () => {
-    setValidating(true)
-    setError(null)
-    setNotice(null)
-    try {
-      await validateTomlContent(serializeCurrent())
-      setNotice('Definición válida.')
-      setTimeout(() => setNotice(null), 2000)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Validación fallida.')
-    } finally {
-      setValidating(false)
-    }
-  }, [serializeCurrent, validateTomlContent])
-
   const handleSave = useCallback(async () => {
     if (!apiBaseUrl || athleteId === null || athleteId <= 0) {
       setError('No hay atleta activo.')
@@ -909,45 +889,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     }
   }, [athleteId, serializeCurrent, validateTomlContent, version])
 
-  const handleReload = useCallback(async () => {
-    await fetchDefinition()
-    setNotice('Cambios locales descartados.')
-    setTimeout(() => setNotice(null), 1800)
-  }, [fetchDefinition])
-
-  const handleRestoreDefault = useCallback(async () => {
-    if (!apiBaseUrl || athleteId === null || athleteId <= 0) {
-      setError('No hay atleta activo.')
-      return
-    }
-
-    setRestoringDefault(true)
-    setError(null)
-
-    try {
-      const res = await fetch(`${apiBaseUrl}/agent-definition/${athleteId}`, {
-        method: 'DELETE',
-        headers: authHeaders(),
-      })
-
-      if (!res.ok) {
-        const payload = (await res.json().catch(() => ({}))) as { error?: string; details?: string }
-        throw new Error(payload.error || payload.details || `HTTP ${res.status}`)
-      }
-
-      await fetchDefinition()
-      setNotice('Definición por defecto restaurada.')
-      setTimeout(() => setNotice(null), 2400)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo restaurar.')
-    } finally {
-      setRestoringDefault(false)
-    }
-  }, [athleteId, fetchDefinition])
-
   const disabled = athleteId === null || athleteId <= 0 || !apiBaseUrl
-
-  const activeAgentMeta = activeAgent ? AGENT_TYPE_META[activeAgent.type] : null
 
   // ── Modal editor helpers ───────────────────────────────────────────
 
@@ -960,7 +902,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   }, [definition.agents, editorDraft])
 
   const closePanel = useCallback(() => {
-    setShowUtilitiesMenu(false)
     closeEditor()
     setOpen(false)
   }, [closeEditor])
@@ -972,10 +913,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => {
-          setShowUtilitiesMenu(false)
-          setOpen(true)
-        }}
+        onClick={() => setOpen(true)}
         disabled={disabled}
         aria-expanded={open}
         aria-controls="customizable-agents-drawer"
@@ -1021,7 +959,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                   ) : null}
                 </div>
 
-                <div className="relative flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <AnimatePresence>
                     {notice ? (
                       <motion.span
@@ -1048,68 +986,13 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
                   <button
                     type="button"
-                    onClick={() => activeAgent && openEditorFor(activeAgent.id)}
-                    disabled={!activeAgent || loading || saving}
-                    className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background px-2 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Editar
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={handleSave}
-                    disabled={saving || validating || loading || definition.agents.length === 0}
+                    disabled={saving || loading || definition.agents.length === 0}
                     className="inline-flex h-8 items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 text-[12px] font-medium text-primary hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Save className={cn('h-3.5 w-3.5', saving && 'animate-pulse')} />
                     {saving ? 'Guardando...' : 'Guardar'}
                   </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowUtilitiesMenu((prev) => !prev)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-                  >
-                    Más
-                  </button>
-
-                  {showUtilitiesMenu ? (
-                    <div className="absolute right-12 top-10 z-20 w-44 rounded-md border border-border bg-background p-1.5 shadow-xl">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowUtilitiesMenu(false)
-                          handleValidate()
-                        }}
-                        disabled={validating || loading || saving}
-                        className="flex h-8 w-full items-center rounded px-2 text-left text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {validating ? 'Validando...' : 'Validar definición'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowUtilitiesMenu(false)
-                          handleReload()
-                        }}
-                        disabled={loading || saving || validating}
-                        className="flex h-8 w-full items-center rounded px-2 text-left text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Recargar cambios
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowUtilitiesMenu(false)
-                          handleRestoreDefault()
-                        }}
-                        disabled={restoringDefault || loading}
-                        className="flex h-8 w-full items-center rounded px-2 text-left text-[12px] text-warning hover:bg-warning/10 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {restoringDefault ? 'Restaurando...' : 'Restaurar default'}
-                      </button>
-                    </div>
-                  ) : null}
 
                   <button
                     ref={closeBtnRef}
@@ -1199,34 +1082,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
                 {/* ── Main canvas pane ── */}
                 <section className="flex flex-col p-3 md:p-4">
-                  <div className="rounded-md border border-border bg-background/40 px-3 py-2">
-                    {activeAgent ? (
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-[14px] font-semibold text-foreground">{activeAgent.name || activeAgent.id}</p>
-                          <p className="truncate text-[11px] text-muted-foreground">{promptPreview(activeAgent.prompt, 90)}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {activeAgentMeta ? (
-                            <span className={cn('rounded-sm border border-border px-1.5 py-0.5 text-[10px] font-medium', activeAgentMeta.color)}>
-                              {activeAgentMeta.label}
-                            </span>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() => openEditorFor(activeAgent.id)}
-                            className="inline-flex h-7 items-center rounded-md border border-border px-2 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground"
-                          >
-                            Editar
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-[13px] text-muted-foreground">Selecciona un agente o crea uno nuevo para empezar.</p>
-                    )}
-                  </div>
-
-                  <div className="mt-3 rounded-md border border-border bg-background/40 p-3">
+                  <div className="rounded-md border border-border bg-background/40 p-3">
                     <div className="mb-2 text-[12px] text-muted-foreground">
                       Conecta agentes arrastrando una línea entre nodos. Doble click en un nodo para editar detalles.
                     </div>
