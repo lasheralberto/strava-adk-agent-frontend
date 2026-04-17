@@ -546,6 +546,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
   const triggerRef = useRef<HTMLButtonElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
+  const selectedAgentIdRef = useRef(selectedAgentId)
 
   const canAddAgent = definition.agents.length < MAX_AGENTS
 
@@ -591,8 +592,8 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
       setIsDefaultDefinition(Boolean(payload.is_default))
       setDefinition(parsed)
 
-      const preferred = parsed.agents.some((a) => a.id === selectedAgentId)
-        ? selectedAgentId
+      const preferred = parsed.agents.some((a) => a.id === selectedAgentIdRef.current)
+        ? selectedAgentIdRef.current
         : parsed.agents[0]?.id ?? ''
 
       if (preferred) setActiveAndNotify(preferred)
@@ -601,7 +602,11 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     } finally {
       setLoading(false)
     }
-  }, [athleteId, selectedAgentId, setActiveAndNotify])
+  }, [athleteId, setActiveAndNotify])
+
+  useEffect(() => {
+    selectedAgentIdRef.current = selectedAgentId
+  }, [selectedAgentId])
 
   useEffect(() => {
     if (open) fetchDefinition()
