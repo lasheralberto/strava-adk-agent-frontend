@@ -19,6 +19,11 @@ const RESERVED_AGENT_IDS = new Set([
   'wiki_research_chat',
 ])
 
+const MODEL_OPTIONS = [
+  { value: 'openai/gpt-5-mini', label: 'GPT-5 Mini' },
+  { value: 'gemini/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+] as const
+
 type PlannerMode = 'always' | 'full_only' | 'off'
 
 type AgentDefinitionResponse = {
@@ -32,6 +37,7 @@ type AgentDefinitionResponse = {
 type PromptAgent = {
   id: string
   prompt: string
+  model: string
   order: number
 }
 
@@ -96,7 +102,7 @@ function dedupePromptAgents(promptAgents: PromptAgent[]): PromptAgent[] {
       candidate = `${item.id}_${suffix}`
     }
     seen.add(candidate)
-    return { id: candidate, prompt: item.prompt, order: item.order || index + 1 }
+    return { id: candidate, prompt: item.prompt, model: item.model, order: item.order || index + 1 }
   })
 }
 
@@ -121,6 +127,7 @@ function parseTomlDefinition(tomlContent: string): DesignerDefinition {
     promptAgents.push({
       id,
       prompt: asString(candidate.prompt),
+      model: asString(candidate.model),
       order: asNumber(candidate.order, index + 1),
     })
   })
@@ -133,14 +140,14 @@ function parseTomlDefinition(tomlContent: string): DesignerDefinition {
       const fallbackId = `agent_${index + 1}`
       const id = normalizeAgentId(asString(candidate.id), fallbackId)
       if (RESERVED_AGENT_IDS.has(id)) return
-      promptAgents.push({ id, prompt: rawInstruction, order: promptAgents.length + 1 })
+      promptAgents.push({ id, prompt: rawInstruction, model: '', order: promptAgents.length + 1 })
     })
   }
 
   const normalizedAgents = dedupePromptAgents(
     promptAgents.length > 0
       ? promptAgents
-      : [{ id: 'agent_1', prompt: '', order: 1 }],
+      : [{ id: 'agent_1', prompt: '', model: '', order: 1 }],
   )
 
   return {
@@ -153,6 +160,7 @@ function definitionToToml(definition: DesignerDefinition): string {
   const promptAgents = definition.promptAgents.map((item, index) => ({
     id: item.id,
     prompt: item.prompt,
+    model: item.model || '',
     order: index + 1,
   }))
 
@@ -188,11 +196,10 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
   const [definition, setDefinition] = useState<DesignerDefinition>({
     system: { entrypoint: 'orchestrator', model: '', planner_mode: 'full_only' },
-    promptAgents: [{ id: 'agent_1', prompt: '', order: 1 }],
+    promptAgents: [{ id: 'agent_1', prompt: '', model: '', order: 1 }],
   })
 
   const [activePromptAgentId, setActivePromptAgentId] = useState(selectedAgentId)
-  const [showSystemConfig, setShowSystemConfig] = useState(false)
 
   const triggerRef = useRef<HTMLButtonElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
@@ -285,6 +292,15 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     }))
   }, [])
 
+  const updatePromptAgentModel = useCallback((agentId: string, nextModel: string) => {
+    setDefinition((cur) => ({
+      ...cur,
+      promptAgents: cur.promptAgents.map((item) =>
+        item.id === agentId ? { ...item, model: nextModel } : item,
+      ),
+    }))
+  }, [])
+
   const handleAddAgent = useCallback(() => {
     if (!canAddAgent) {
       setError(`Solo se permiten ${MAX_AGENTS} agentes por atleta.`)
@@ -295,6 +311,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     const nextAgent: PromptAgent = {
       id: candidateId,
       prompt: '',
+      model: '',
       order: definition.promptAgents.length + 1,
     }
 
@@ -600,56 +617,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
               <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_1fr]">
                 {/* ── Sidebar: agent list + system config ── */}
                 <aside className="min-h-0 overflow-y-auto border-b border-border p-3 lg:border-b-0 lg:border-r">
-                  {/* System config (collapsible) */}
-                  <section className="mb-3 rounded-md border border-border bg-background/40 p-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowSystemConfig((v) => !v)}
-                      className="flex w-full items-center justify-between text-left"
-                    >
-                      <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Sistema
-                      </h3>
-                      <span className="text-[11px] text-muted-foreground">
-                        {showSystemConfig ? '▾' : '▸'}
-                      </span>
-                    </button>
-
-                    {showSystemConfig ? (
-                      <div className="mt-2">
-                        <label className="mb-1 block text-[12px] text-muted-foreground">Planner mode</label>
-                        <select
-                          value={definition.system.planner_mode}
-                          onChange={(event) =>
-                            setDefinition((cur) => ({
-                              ...cur,
-                              system: { ...cur.system, planner_mode: normalizePlannerMode(event.target.value) },
-                            }))
-                          }
-                          className="mb-2 h-8 w-full rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
-                        >
-                          <option value="full_only">full_only</option>
-                          <option value="always">always</option>
-                          <option value="off">off</option>
-                        </select>
-
-                        <label className="mb-1 block text-[12px] text-muted-foreground">Modelo</label>
-                        <input
-                          type="text"
-                          value={definition.system.model}
-                          onChange={(event) =>
-                            setDefinition((cur) => ({
-                              ...cur,
-                              system: { ...cur.system, model: event.target.value },
-                            }))
-                          }
-                          placeholder="vacío = modelo de entorno"
-                          className="h-8 w-full rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
-                        />
-                      </div>
-                    ) : null}
-                  </section>
-
                   {/* Agent list */}
                   <section className="rounded-md border border-border bg-background/40 p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
@@ -715,6 +682,18 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         disabled
                         className="mb-3 h-8 w-full rounded-md border border-border bg-muted px-2 text-[12px] text-muted-foreground"
                       />
+
+                      <label className="mb-1 block text-[12px] text-muted-foreground">Modelo</label>
+                      <select
+                        value={activePromptAgent.model}
+                        onChange={(event) => updatePromptAgentModel(activePromptAgent.id, event.target.value)}
+                        disabled={loading || saving}
+                        className="mb-3 h-8 w-full rounded-md border border-border bg-background px-2 text-[12px] text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {MODEL_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
 
                       <label className="mb-1 block text-[12px] text-muted-foreground">Prompt</label>
                       <textarea
