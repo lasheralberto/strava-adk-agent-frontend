@@ -1,61 +1,60 @@
 import { memo } from 'react'
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
-import { Bot, Brain, Wrench } from 'lucide-react'
+import { Bot, Layers, Repeat, Wrench, Zap } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
 export type AgentNodeData = {
   agentId: string
   name: string
-  description: string
-  hasInstruction: boolean
-  hasSkill: boolean
-  toolsCount: number
-  planner: boolean
-  wikiContext: boolean
+  type: 'llm' | 'sequential' | 'parallel' | 'loop' | 'custom'
+  promptPreview: string
+  subAgentsCount: number
 }
 
 export type AgentNodeType = Node<AgentNodeData, 'agent'>
 
+const TYPE_META: Record<AgentNodeData['type'], { label: string; color: string; icon: typeof Bot }> = {
+  llm: { label: 'LLM', color: 'text-blue-500', icon: Bot },
+  sequential: { label: 'Sequential', color: 'text-amber-500', icon: Layers },
+  parallel: { label: 'Parallel', color: 'text-green-500', icon: Zap },
+  loop: { label: 'Loop', color: 'text-cyan-500', icon: Repeat },
+  custom: { label: 'Custom', color: 'text-pink-500', icon: Wrench },
+}
+
 function AgentNode({ data, selected }: NodeProps<AgentNodeType>) {
+  const meta = TYPE_META[data.type]
+  const Icon = meta.icon
+
   return (
     <div
       className={cn(
-        'w-[270px] rounded-lg border bg-popover text-popover-foreground shadow-md transition-[border-color] duration-120',
+        'w-[260px] rounded-lg border bg-popover text-popover-foreground transition-[border-color] duration-120',
         selected ? 'border-primary/60' : 'border-border',
       )}
     >
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <Icon className={cn('h-4 w-4 shrink-0', meta.color)} aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-semibold text-foreground">{data.name}</p>
+          <p className="truncate text-[13px] font-semibold text-foreground">{data.name || data.agentId}</p>
           <p className="truncate text-[11px] text-muted-foreground">{data.agentId}</p>
         </div>
+        <span className={cn('rounded-sm border border-border px-1.5 py-0.5 text-[10px] font-medium', meta.color)}>
+          {meta.label}
+        </span>
       </div>
 
       <div className="space-y-2 px-3 py-2 text-[11px] text-muted-foreground">
-        {data.description ? <p className="line-clamp-2">{data.description}</p> : null}
-        <div className="flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1">
-            <Brain className="h-3.5 w-3.5" />
-            {data.hasSkill ? 'Skill' : data.hasInstruction ? 'Instruction' : 'Sin source'}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Wrench className="h-3.5 w-3.5" />
-            {data.toolsCount} tools
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {data.planner ? (
-            <span className="rounded-sm border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
-              planner
-            </span>
-          ) : null}
-          {data.wikiContext ? (
-            <span className="rounded-sm border border-success/40 bg-success/10 px-1.5 py-0.5 text-[10px] text-success">
-              wiki_context
-            </span>
-          ) : null}
+        {data.type === 'llm' ? (
+          <p className="line-clamp-2">{data.promptPreview}</p>
+        ) : (
+          <p>
+            {data.subAgentsCount} sub-agent{data.subAgentsCount !== 1 ? 's' : ''}
+          </p>
+        )}
+        <div className="flex items-center justify-between gap-2 text-[10px]">
+          <span>entrada</span>
+          <span>salida</span>
         </div>
       </div>
 

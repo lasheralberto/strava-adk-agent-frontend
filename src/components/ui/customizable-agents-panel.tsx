@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
+  ReactFlow,
+  Background,
+  Controls,
+  MarkerType,
+  type Connection,
+  type Edge,
+  type Node,
+} from '@xyflow/react'
+import '@xyflow/react/dist/style.css'
+import {
   AlertTriangle,
   Bot,
   GitBranch,
@@ -10,12 +20,14 @@ import {
   Repeat,
   Save,
   Trash2,
+  Wrench,
   X,
   Zap,
 } from 'lucide-react'
 import { parse as parseToml, stringify as stringifyToml } from 'smol-toml'
 
 import { cn } from '@/lib/utils'
+import AgentNode, { type AgentNodeData } from '@/components/ui/agent-node'
 
 const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
 const internalPipelineToken = (import.meta.env.VITE_INTERNAL_PIPELINE_TOKEN ?? '').trim()
@@ -32,14 +44,15 @@ const RESERVED_AGENT_IDS = new Set([
   'wiki_research_chat',
 ])
 
-const AGENT_TYPES = ['llm', 'sequential', 'parallel', 'loop'] as const
+const AGENT_TYPES = ['llm', 'sequential', 'parallel', 'loop', 'custom'] as const
 type AgentType = (typeof AGENT_TYPES)[number]
 
 const AGENT_TYPE_META: Record<AgentType, { label: string; icon: typeof Bot; color: string }> = {
   llm: { label: 'LLM', icon: Bot, color: 'text-blue-500' },
   sequential: { label: 'Sequential', icon: Layers, color: 'text-amber-500' },
   parallel: { label: 'Parallel', icon: Zap, color: 'text-green-500' },
-  loop: { label: 'Loop', icon: Repeat, color: 'text-purple-500' },
+  loop: { label: 'Loop', icon: Repeat, color: 'text-cyan-500' },
+  custom: { label: 'Custom', icon: Wrench, color: 'text-pink-500' },
 }
 
 const MODEL_OPTIONS = [
@@ -57,10 +70,12 @@ type AgentDefinitionResponse = {
 
 type AgentEntry = {
   id: string
+  name: string
   type: AgentType
   model: string
   description: string
   prompt: string
+  custom_type: string
   sub_agents: string[]
   output_key: string
   order: number
@@ -98,7 +113,20 @@ function asNumber(value: unknown, fallback: number): number {
 
 function normalizeAgentType(value: string): AgentType {
   const lower = value.trim().toLowerCase()
-  if (AGENT_TYPES.includes(lower as AgentType)) return lower as AgentType
+  const aliases: Record<string, AgentType> = {
+    llm: 'llm',
+    llmagent: 'llm',
+    sequential: 'sequential',
+    sequentialagent: 'sequential',
+    parallel: 'parallel',
+    parallelagent: 'parallel',
+    loop: 'loop',
+    loopagent: 'loop',
+    custom: 'custom',
+    customagent: 'custom',
+  }
+  const normalized = aliases[lower] ?? lower
+  if (AGENT_TYPES.includes(normalized as AgentType)) return normalized as AgentType
   return 'llm'
 }
 
@@ -112,6 +140,48 @@ function promptPreview(prompt: string, maxLen = 60): string {
   if (!compact) return 'Sin prompt'
   if (compact.length <= maxLen) return compact
   return `${compact.slice(0, maxLen - 3)}...`
+}
+
+function readPromptValue(candidate: Record<string, unknown>): string {
+  const prompt = asString(candidate.prompt)
+  if (prompt) return prompt
+
+  const instruction = asString(candidate.instruction)
+  if (instruction) return instruction
+
+  return asString(candidate.instructions)
+}
+
+function parseNamedTableEntries(table: unknown, defaultType: AgentType, orderOffset = 0): AgentEntry[] {
+  if (!isRecord(table)) return []
+
+  const entries: AgentEntry[] = []
+  const tableEntries = Object.entries(table)
+
+  for (let i = 0; i < tableEntries.length; i++) {
+    const [tableId, candidate] = tableEntries[i]
+    if (!isRecord(candidate)) continue
+
+    const fallbackId = `agent_${orderOffset + i + 1}`
+    const id = normalizeAgentId(asString(candidate.id, tableId), fallbackId)
+    const rawSubAgents = Array.isArray(candidate.sub_agents) ? candidate.sub_agents : []
+    const subAgents = rawSubAgents.map((s) => String(s).trim()).filter(Boolean)
+
+    entries.push({
+      id,
+      name: asString(candidate.name, tableId || id),
+      type: normalizeAgentType(asString(candidate.type, defaultType)),
+      model: asString(candidate.model),
+      description: asString(candidate.description),
+      prompt: readPromptValue(candidate),
+      custom_type: asString(candidate.custom_type) || asString(candidate.custom_class),
+      sub_agents: subAgents,
+      output_key: asString(candidate.output_key),
+      order: asNumber(candidate.order, orderOffset + i + 1),
+    })
+  }
+
+  return entries
 }
 
 // ---------------------------------------------------------------------------
@@ -139,14 +209,26 @@ function parseTomlDefinition(tomlContent: string): DesignerDefinition {
 
     agents.push({
       id,
+      name: asString(candidate.name, id),
       type: normalizeAgentType(asString(candidate.type, 'llm')),
       model: asString(candidate.model),
       description: asString(candidate.description),
-      prompt: asString(candidate.prompt),
+      prompt: readPromptValue(candidate),
+      custom_type: asString(candidate.custom_type) || asString(candidate.custom_class),
       sub_agents: subAgents,
       output_key: asString(candidate.output_key),
       order: asNumber(candidate.order, i + 1),
     })
+  }
+
+  // v3 compatibility: [agents.<id>] and [workflow.<id>] tables
+  if (agents.length === 0) {
+    const namedAgents = parseNamedTableEntries(root.agents, 'llm')
+    const namedWorkflow = parseNamedTableEntries(root.workflow, 'sequential', namedAgents.length)
+    agents.push(...namedAgents, ...namedWorkflow)
+  } else {
+    const workflowEntries = parseNamedTableEntries(root.workflow, 'sequential', agents.length)
+    agents.push(...workflowEntries)
   }
 
   // v2 fallback: [[prompt_agents]]
@@ -159,10 +241,12 @@ function parseTomlDefinition(tomlContent: string): DesignerDefinition {
       const id = normalizeAgentId(asString(candidate.id), fallbackId)
       agents.push({
         id,
+        name: asString(candidate.name, id),
         type: 'llm',
         model: asString(candidate.model),
         description: '',
-        prompt: asString(candidate.prompt),
+        prompt: readPromptValue(candidate),
+        custom_type: '',
         sub_agents: [],
         output_key: '',
         order: asNumber(candidate.order, i + 1),
@@ -183,10 +267,12 @@ function parseTomlDefinition(tomlContent: string): DesignerDefinition {
       if (RESERVED_AGENT_IDS.has(id)) continue
       agents.push({
         id,
+        name: asString(candidate.name, id),
         type: 'llm',
         model: '',
         description: '',
         prompt: instruction,
+        custom_type: '',
         sub_agents: [],
         output_key: '',
         order: agents.length + 1,
@@ -207,10 +293,12 @@ function parseTomlDefinition(tomlContent: string): DesignerDefinition {
 function definitionToToml(definition: DesignerDefinition): string {
   const agents = definition.agents.map((item, index) => ({
     id: item.id,
+    name: item.name,
     type: item.type,
     model: item.model || '',
     description: item.description || '',
     prompt: item.prompt || '',
+    custom_type: item.custom_type || '',
     sub_agents: item.sub_agents,
     output_key: item.output_key || '',
     order: index + 1,
@@ -223,7 +311,18 @@ function definitionToToml(definition: DesignerDefinition): string {
 }
 
 function emptyAgent(id: string, order: number): AgentEntry {
-  return { id, type: 'llm', model: '', description: '', prompt: '', sub_agents: [], output_key: '', order }
+  return {
+    id,
+    name: id,
+    type: 'llm',
+    model: '',
+    description: '',
+    prompt: '',
+    custom_type: '',
+    sub_agents: [],
+    output_key: '',
+    order,
+  }
 }
 
 function nextAgentId(existingIds: string[]): string {
@@ -237,7 +336,43 @@ function nextAgentId(existingIds: string[]): string {
 // Topology helpers
 // ---------------------------------------------------------------------------
 
-type TopoNode = { id: string; type: AgentType; children: string[]; depth: number }
+type TopoNode = { id: string; name: string; type: AgentType; children: string[]; depth: number }
+type FlowNode = Node<AgentNodeData, 'agent'>
+
+const flowNodeTypes = { agent: AgentNode }
+
+function extractPromptVariables(prompt: string): string[] {
+  const found = new Set<string>()
+  const regex = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g
+  let match: RegExpExecArray | null = regex.exec(prompt)
+  while (match) {
+    if (match[1]) found.add(match[1])
+    match = regex.exec(prompt)
+  }
+  return Array.from(found)
+}
+
+function wouldCreateCycle(sourceId: string, targetId: string, agents: AgentEntry[]): boolean {
+  if (sourceId === targetId) return true
+  const agentMap = new Map(agents.map((agent) => [agent.id, agent]))
+  const stack = [targetId]
+  const visited = new Set<string>()
+
+  while (stack.length > 0) {
+    const current = stack.pop()
+    if (!current || visited.has(current)) continue
+    visited.add(current)
+    if (current === sourceId) return true
+
+    const node = agentMap.get(current)
+    if (!node) continue
+    for (const childId of node.sub_agents) {
+      stack.push(childId)
+    }
+  }
+
+  return false
+}
 
 function buildTopology(agents: AgentEntry[]): TopoNode[] {
   const agentMap = new Map(agents.map((a) => [a.id, a]))
@@ -254,7 +389,7 @@ function buildTopology(agents: AgentEntry[]): TopoNode[] {
     visited.add(id)
     const agent = agentMap.get(id)
     if (!agent) return
-    result.push({ id: agent.id, type: agent.type, children: agent.sub_agents, depth })
+    result.push({ id: agent.id, name: agent.name, type: agent.type, children: agent.sub_agents, depth })
     for (const childId of agent.sub_agents) {
       walk(childId, depth + 1)
     }
@@ -265,11 +400,141 @@ function buildTopology(agents: AgentEntry[]): TopoNode[] {
   // Orphans (in case of cycles or disconnected)
   for (const agent of agents) {
     if (!visited.has(agent.id)) {
-      result.push({ id: agent.id, type: agent.type, children: agent.sub_agents, depth: 0 })
+      result.push({
+        id: agent.id,
+        name: agent.name,
+        type: agent.type,
+        children: agent.sub_agents,
+        depth: 0,
+      })
     }
   }
 
   return result
+}
+
+function buildFlowGraph(agents: AgentEntry[]): { nodes: FlowNode[]; edges: Edge[] } {
+  const agentById = new Map(agents.map((agent) => [agent.id, agent]))
+
+  const depths = new Map<string, number>()
+  for (const agent of agents) {
+    depths.set(agent.id, 0)
+  }
+
+  // Relax depth assignment across links to place children to the right.
+  for (let i = 0; i < agents.length; i++) {
+    let changed = false
+    for (const agent of agents) {
+      const parentDepth = depths.get(agent.id) ?? 0
+      for (const childId of agent.sub_agents) {
+        if (!agentById.has(childId)) continue
+        const currentDepth = depths.get(childId) ?? 0
+        const nextDepth = parentDepth + 1
+        if (nextDepth > currentDepth) {
+          depths.set(childId, nextDepth)
+          changed = true
+        }
+      }
+    }
+    if (!changed) break
+  }
+
+  const depthGroups = new Map<number, AgentEntry[]>()
+  for (const agent of agents) {
+    const depth = depths.get(agent.id) ?? 0
+    const group = depthGroups.get(depth) ?? []
+    group.push(agent)
+    depthGroups.set(depth, group)
+  }
+
+  const nodes: FlowNode[] = []
+  const sortedDepths = Array.from(depthGroups.keys()).sort((a, b) => a - b)
+  for (const depth of sortedDepths) {
+    const group = depthGroups.get(depth) ?? []
+    group.sort((a, b) => a.order - b.order)
+    for (let row = 0; row < group.length; row++) {
+      const agent = group[row]
+      nodes.push({
+        id: agent.id,
+        type: 'agent',
+        position: { x: depth * 300, y: row * 150 },
+        data: {
+          agentId: agent.id,
+          name: agent.name,
+          type: agent.type,
+          promptPreview: promptPreview(agent.prompt, 90),
+          subAgentsCount: agent.sub_agents.length,
+        },
+      })
+    }
+  }
+
+  const edges: Edge[] = []
+  const structuralPairs = new Set<string>()
+  for (const agent of agents) {
+    for (const childId of agent.sub_agents) {
+      if (!agentById.has(childId)) continue
+      structuralPairs.add(`${agent.id}__${childId}`)
+      edges.push({
+        id: `struct__${agent.id}__${childId}`,
+        source: agent.id,
+        target: childId,
+        type: 'smoothstep',
+        label: 'flow',
+        style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.6 },
+        labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
+        markerEnd: { type: MarkerType.ArrowClosed },
+        animated: agent.type === 'loop',
+      })
+    }
+  }
+
+  const outputKeyProducers = new Map<string, string[]>()
+  for (const agent of agents) {
+    const key = agent.output_key.trim()
+    if (!key) continue
+    const current = outputKeyProducers.get(key) ?? []
+    current.push(agent.id)
+    outputKeyProducers.set(key, current)
+  }
+
+  const dataPairs = new Map<string, Set<string>>()
+  for (const consumer of agents) {
+    const variables = extractPromptVariables(consumer.prompt)
+    for (const variable of variables) {
+      const producers = outputKeyProducers.get(variable) ?? []
+      for (const producerId of producers) {
+        if (producerId === consumer.id) continue
+        const pairKey = `${producerId}__${consumer.id}`
+        const current = dataPairs.get(pairKey) ?? new Set<string>()
+        current.add(variable)
+        dataPairs.set(pairKey, current)
+      }
+    }
+  }
+
+  for (const [pairKey, vars] of dataPairs.entries()) {
+    const [sourceId, targetId] = pairKey.split('__')
+    if (!sourceId || !targetId || !agentById.has(sourceId) || !agentById.has(targetId)) continue
+
+    const variableLabel = Array.from(vars).sort().join(', ')
+    edges.push({
+      id: `data__${sourceId}__${targetId}`,
+      source: sourceId,
+      target: targetId,
+      type: 'bezier',
+      label: variableLabel,
+      style: {
+        stroke: structuralPairs.has(pairKey) ? 'hsl(var(--warning))' : 'hsl(var(--success))',
+        strokeDasharray: '5 4',
+      },
+      labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
+      markerEnd: { type: MarkerType.ArrowClosed },
+      animated: true,
+    })
+  }
+
+  return { nodes, edges }
 }
 
 function getAncestors(agentId: string, agents: AgentEntry[]): Set<string> {
@@ -323,6 +588,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   const activeAgent = orderedAgents.find((a) => a.id === activeAgentId) ?? null
 
   const topology = useMemo(() => buildTopology(orderedAgents), [orderedAgents])
+  const flowGraph = useMemo(() => buildFlowGraph(orderedAgents), [orderedAgents])
 
   const setActiveAndNotify = useCallback(
     (agentId: string) => {
@@ -403,6 +669,83 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
       ...cur,
       agents: cur.agents.map((a) => (a.id === agentId ? { ...a, ...patch } : a)),
     }))
+  }, [])
+
+  const handleConnectNodes = useCallback((connection: Connection) => {
+    const sourceId = connection.source?.trim()
+    const targetId = connection.target?.trim()
+    if (!sourceId || !targetId) return
+
+    const outcomeRef: { current: 'added' | 'exists' | 'cycle' | 'invalid' } = { current: 'invalid' }
+
+    setDefinition((cur) => {
+      const sourceAgent = cur.agents.find((a) => a.id === sourceId)
+      const targetAgent = cur.agents.find((a) => a.id === targetId)
+      if (!sourceAgent || !targetAgent) {
+        outcomeRef.current = 'invalid'
+        return cur
+      }
+
+      if (sourceAgent.sub_agents.includes(targetId)) {
+        outcomeRef.current = 'exists'
+        return cur
+      }
+
+      if (wouldCreateCycle(sourceId, targetId, cur.agents)) {
+        outcomeRef.current = 'cycle'
+        return cur
+      }
+
+      outcomeRef.current = 'added'
+      return {
+        ...cur,
+        agents: cur.agents.map((agent) => {
+          if (agent.id !== sourceId) return agent
+          return {
+            ...agent,
+            sub_agents: [...agent.sub_agents, targetId],
+          }
+        }),
+      }
+    })
+
+    const outcome = outcomeRef.current
+    if (outcome === 'cycle') {
+      setError('Conexión inválida: generaría un ciclo en el workflow.')
+      return
+    }
+
+    if (outcome === 'added') {
+      setNotice('Conexión agregada. Guarda para persistir.')
+      setTimeout(() => setNotice(null), 2000)
+    }
+  }, [])
+
+  const handleDeleteEdges = useCallback((edgesToDelete: Edge[]) => {
+    const structuralEdges = edgesToDelete.filter((edge) => edge.id.startsWith('struct__'))
+    if (structuralEdges.length === 0) return
+
+    const toRemove = structuralEdges.map((edge) => ({
+      source: edge.source,
+      target: edge.target,
+    }))
+
+    setDefinition((cur) => ({
+      ...cur,
+      agents: cur.agents.map((agent) => {
+        const targets = toRemove
+          .filter((item) => item.source === agent.id)
+          .map((item) => item.target)
+        if (targets.length === 0) return agent
+        return {
+          ...agent,
+          sub_agents: agent.sub_agents.filter((subId) => !targets.includes(subId)),
+        }
+      }),
+    }))
+
+    setNotice('Conexión eliminada. Guarda para persistir.')
+    setTimeout(() => setNotice(null), 1800)
   }, [])
 
   const handleAddAgent = useCallback(() => {
@@ -578,7 +921,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
   const disabled = athleteId === null || athleteId <= 0 || !apiBaseUrl
 
-  const activeAgentLabel = activeAgent?.id ?? 'Agentes'
+  const activeAgentLabel = activeAgent?.name || activeAgent?.id || 'Agentes'
 
   // ── Sub-agents: which agents can be selected as children ────────────
 
@@ -770,9 +1113,12 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                               <Icon className={cn('mt-0.5 h-3.5 w-3.5 shrink-0', meta.color)} />
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[12px] font-medium text-foreground">{item.id}</span>
+                                  <span className="truncate text-[12px] font-medium text-foreground">
+                                    {item.name || item.id}
+                                  </span>
                                   <span className={cn('text-[10px] font-medium', meta.color)}>{meta.label}</span>
                                 </div>
+                                <div className="truncate text-[10px] text-muted-foreground">{item.id}</div>
                                 <div className="text-[11px] text-muted-foreground">
                                   {item.type === 'llm'
                                     ? promptPreview(item.prompt)
@@ -810,7 +1156,8 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         return (
                           <div key={node.id} className="flex items-center gap-1">
                             <span>{indent}{prefix}</span>
-                            <span className={cn('font-medium', meta.color)}>{node.id}</span>
+                            <span className={cn('font-medium', meta.color)}>{node.name || node.id}</span>
+                            <span className="text-[10px] opacity-60">[{node.id}]</span>
                             <span className="text-[10px] opacity-60">({meta.label.toLowerCase()})</span>
                           </div>
                         )
@@ -830,6 +1177,45 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     </div>
                   ) : (
                     <div className="space-y-4">
+                      <div className="rounded-md border border-border bg-background/40 p-3">
+                        <div className="mb-2 flex items-center gap-1.5">
+                          <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
+                          <h3 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Canvas de flujo
+                          </h3>
+                        </div>
+                        <div className="h-[290px] overflow-hidden rounded-md border border-border bg-background">
+                          <ReactFlow
+                            nodes={flowGraph.nodes}
+                            edges={flowGraph.edges}
+                            nodeTypes={flowNodeTypes}
+                            fitView
+                            nodesDraggable={false}
+                            nodesConnectable
+                            edgesFocusable
+                            deleteKeyCode={["Backspace", "Delete"]}
+                            elementsSelectable
+                            onConnect={handleConnectNodes}
+                            onEdgesDelete={handleDeleteEdges}
+                            onNodeClick={(_, node) => setActiveAndNotify(node.id)}
+                            className="bg-background"
+                          >
+                            <Background gap={18} size={1} color="hsl(var(--border))" />
+                            <Controls showInteractive={false} />
+                          </ReactFlow>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                          <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
+                            <span className="inline-block h-2 w-4 rounded-sm bg-primary" />
+                            flujo sub_agents
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
+                            <span className="inline-block h-2 w-4 rounded-sm border border-success bg-transparent" />
+                            datos output_key -&gt; {'{variable}'}
+                          </span>
+                        </div>
+                      </div>
+
                       {/* ID + Type row */}
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
@@ -853,6 +1239,12 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                                 patch.model = ''
                                 patch.prompt = ''
                               }
+                              if (newType === 'custom' && !activeAgent.custom_type.trim()) {
+                                patch.custom_type = activeAgent.name || activeAgent.id
+                              }
+                              if (newType !== 'custom') {
+                                patch.custom_type = ''
+                              }
                               if (newType === 'llm') {
                                 // Keep sub_agents — llm can have them for delegation
                               }
@@ -870,6 +1262,18 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         </div>
                       </div>
 
+                      <div>
+                        <label className="mb-1 block text-[12px] text-muted-foreground">Nombre</label>
+                        <input
+                          type="text"
+                          value={activeAgent.name}
+                          onChange={(e) => updateAgent(activeAgent.id, { name: e.target.value })}
+                          disabled={loading || saving}
+                          placeholder="Nombre visible del agente..."
+                          className="h-8 w-full rounded-md border border-border bg-background px-2 text-[12px] text-foreground placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-60"
+                        />
+                      </div>
+
                       {/* Model (only for LLM) */}
                       {activeAgent.type === 'llm' ? (
                         <div>
@@ -880,6 +1284,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                             disabled={loading || saving}
                             className="h-8 w-full rounded-md border border-border bg-background px-2 text-[12px] text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                           >
+                            <option value="">Modelo por defecto (env)</option>
                             {MODEL_OPTIONS.map((opt) => (
                               <option key={opt.value} value={opt.value}>
                                 {opt.label}
@@ -904,6 +1309,23 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                           className="h-8 w-full rounded-md border border-border bg-background px-2 text-[12px] text-foreground placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-60"
                         />
                       </div>
+
+                      {activeAgent.type === 'custom' ? (
+                        <div>
+                          <label className="mb-1 block text-[12px] text-muted-foreground">
+                            Custom Type
+                            <span className="ml-1 text-[10px] opacity-60">(registrado en backend)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={activeAgent.custom_type}
+                            onChange={(e) => updateAgent(activeAgent.id, { custom_type: e.target.value })}
+                            disabled={loading || saving}
+                            placeholder="ej: slack_notifier"
+                            className="h-8 w-full rounded-md border border-border bg-background px-2 text-[12px] text-foreground placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-60"
+                          />
+                        </div>
+                      ) : null}
 
                       {/* Prompt (only for LLM) */}
                       {activeAgent.type === 'llm' ? (
@@ -976,6 +1398,55 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                             })}
                           </div>
                         )}
+
+                        {activeAgent.sub_agents.length > 0 ? (
+                          <div className="mt-2 rounded-md border border-border bg-background/60 p-2">
+                            <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                              Orden de ejecución
+                            </p>
+                            <div className="space-y-1">
+                              {activeAgent.sub_agents.map((subId, index) => {
+                                const move = (direction: -1 | 1) => {
+                                  const target = index + direction
+                                  if (target < 0 || target >= activeAgent.sub_agents.length) return
+                                  const next = [...activeAgent.sub_agents]
+                                  const [item] = next.splice(index, 1)
+                                  next.splice(target, 0, item)
+                                  updateAgent(activeAgent.id, { sub_agents: next })
+                                }
+
+                                return (
+                                  <div
+                                    key={`${subId}-${index}`}
+                                    className="flex items-center justify-between gap-2 rounded border border-border px-2 py-1 text-[11px] text-muted-foreground"
+                                  >
+                                    <span className="truncate">
+                                      {index + 1}. {subId}
+                                    </span>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => move(-1)}
+                                        disabled={index === 0 || loading || saving}
+                                        className="inline-flex h-5 w-5 items-center justify-center rounded border border-border text-[10px] hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        ↑
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => move(1)}
+                                        disabled={index === activeAgent.sub_agents.length - 1 || loading || saving}
+                                        className="inline-flex h-5 w-5 items-center justify-center rounded border border-border text-[10px] hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        ↓
+                                      </button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
 
                       {/* Output key (optional) */}
@@ -1010,6 +1481,11 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                           <p>
                             <strong>Parallel:</strong> Ejecuta sub-agents simultáneamente. Ideal para recopilar
                             información de múltiples fuentes. Combina resultados con un agente posterior.
+                          </p>
+                        ) : activeAgent.type === 'custom' ? (
+                          <p>
+                            <strong>Custom:</strong> Instancia una implementación registrada en backend por su
+                            <code>custom_type</code>. Útil para integrar lógica Python específica.
                           </p>
                         ) : (
                           <p>
