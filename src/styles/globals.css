@@ -120,11 +120,16 @@
 
 /* ── Mountain Vista Parallax — Night Mode ────────────────────────────── */
 
-@keyframes parallax_fg {
-  0%   { background-position: 2765px 100%; }
-  100% { background-position: 550px 100%; }
+/*
+ * GPU-composited scroll: animates transform instead of background-position.
+ * Inner div is 200% wide → translateX(-50%) = one full viewport scroll = seamless loop.
+ */
+@keyframes parallax_scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
 }
 
+/* Bikes use background-position (no-repeat sprites, only 2 small elements) */
 @keyframes parallax_bike {
   0%   { background-position: -300px 100%; }
   100% { background-position: 2000px 100%; }
@@ -135,6 +140,7 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
+  contain: paint; /* isolate repaints to this subtree */
   /* Night sky — deep blue-black gradient */
   background: linear-gradient(
     to bottom,
@@ -193,19 +199,40 @@
   pointer-events: none;
 }
 
+/* Single filter wrapper — applied once for all 8 layers instead of per-layer */
+.parallax-wrapper {
+  position: absolute;
+  inset: 0;
+  filter: brightness(0.22) saturate(0.55) hue-rotate(205deg);
+}
+
+/* Position container only — no background, no animation, no filter */
 .parallax-layer {
   position: absolute;
   bottom: 0;
   left: 0;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+}
+
+/*
+ * Animated element. 200% wide so translateX(-50%) = one viewport = seamless repeat-x loop.
+ * will-change promotes to GPU compositor layer — animation runs off main thread.
+ */
+.parallax-inner {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 200%;
+  height: 100%;
   background-repeat: repeat-x;
   background-position: 0 100%;
-  animation-name: parallax_fg;
+  will-change: transform;
+  animation-name: parallax_scroll;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
-  /* Night tint: darken + cool blue shift */
-  filter: brightness(0.22) saturate(0.55) hue-rotate(205deg);
+  backface-visibility: hidden;
 }
 
 .hero-content {
@@ -234,7 +261,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .parallax-layer {
+  .parallax-inner {
     animation: none;
   }
 }

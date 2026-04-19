@@ -24,15 +24,23 @@ const MountainVistaParallax = ({ title = '', subtitle = '' }: MountainVistaParal
     return layersData
       .map((layer) => {
         const url = `${BASE_URL}/${layer.image}.png`
+        const isBike = layer.noRepeat
         return `
           .${layer.className} {
+            z-index: ${layer.zIndex};
+            ${layer.bottom ? `bottom: ${layer.bottom};` : ''}
+          }
+          .${layer.className} .parallax-inner {
             background-image: url(${url});
             animation-duration: ${layer.speed};
             background-size: auto ${layer.size};
-            z-index: ${layer.zIndex};
-            ${layer.animation ? `animation-name: ${layer.animation};` : ''}
-            ${layer.bottom ? `bottom: ${layer.bottom};` : ''}
-            ${layer.noRepeat ? 'background-repeat: no-repeat;' : ''}
+            ${isBike ? `
+              background-repeat: no-repeat;
+              width: 100%;
+              animation-name: parallax_bike;
+              background-position: -300px 100%;
+              will-change: auto;
+            ` : ''}
           }
         `
       })
@@ -47,9 +55,13 @@ const MountainVistaParallax = ({ title = '', subtitle = '' }: MountainVistaParal
     >
       <style>{dynamicStyles}</style>
 
-      {layersData.map((layer) => (
-        <div key={layer.className} className={`parallax-layer ${layer.className}`} />
-      ))}
+      <div className="parallax-wrapper">
+        {layersData.map((layer) => (
+          <div key={layer.className} className={`parallax-layer ${layer.className}`}>
+            <div className="parallax-inner" />
+          </div>
+        ))}
+      </div>
 
       {(title || subtitle) && (
         <div className="hero-content">
