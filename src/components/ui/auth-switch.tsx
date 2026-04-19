@@ -213,7 +213,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
             {leftCards.map((card) => (
               <motion.div
                 key={card.id}
-                className="flex w-[192px] items-start gap-2.5 rounded-xl border border-white/10 bg-white/8 px-3 py-2.5 shadow-md backdrop-blur-md"
+                className="flex w-[192px] items-start gap-2.5 rounded-xl border border-white/10 bg-zinc-900/75 px-3 py-2.5 shadow-md"
                 initial={{ opacity: 0, x: -24 }}
                 animate={{ opacity: 1, x: 0, y: [0, card.floatY, 0] }}
                 transition={{
@@ -261,7 +261,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
             {rightCards.map((card) => (
               <motion.div
                 key={card.id}
-                className="flex w-[192px] items-start gap-2.5 rounded-xl border border-white/10 bg-white/8 px-3 py-2.5 shadow-md backdrop-blur-md"
+                className="flex w-[192px] items-start gap-2.5 rounded-xl border border-white/10 bg-zinc-900/75 px-3 py-2.5 shadow-md"
                 initial={{ opacity: 0, x: 24 }}
                 animate={{ opacity: 1, x: 0, y: [0, card.floatY, 0] }}
                 transition={{

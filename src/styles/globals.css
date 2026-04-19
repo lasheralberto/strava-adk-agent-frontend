@@ -129,11 +129,7 @@
   to   { transform: translateX(-50%); }
 }
 
-/* Bikes use background-position (no-repeat sprites, only 2 small elements) */
-@keyframes parallax_bike {
-  0%   { background-position: -300px 100%; }
-  100% { background-position: 2000px 100%; }
-}
+/* parallax_bike removed — background-position animation runs on main thread */
 
 .hero-container {
   position: relative;
@@ -152,7 +148,7 @@
   );
 }
 
-/* Starfield layer */
+/* Starfield — reduced to 6 gradients for performance */
 .hero-container::before {
   content: '';
   position: absolute;
@@ -161,20 +157,11 @@
   pointer-events: none;
   background-image:
     radial-gradient(1px 1px at  8% 10%, rgba(255,255,255,0.75) 0%, transparent 100%),
-    radial-gradient(1px 1px at 22%  7%, rgba(255,255,255,0.55) 0%, transparent 100%),
     radial-gradient(2px 2px at 35% 14%, rgba(200,220,255,0.80) 0%, transparent 100%),
-    radial-gradient(1px 1px at 48%  6%, rgba(255,255,255,0.60) 0%, transparent 100%),
     radial-gradient(1px 1px at 62% 18%, rgba(255,255,255,0.50) 0%, transparent 100%),
     radial-gradient(2px 2px at 74%  9%, rgba(210,225,255,0.70) 0%, transparent 100%),
-    radial-gradient(1px 1px at 87%  5%, rgba(255,255,255,0.65) 0%, transparent 100%),
-    radial-gradient(1px 1px at 13% 28%, rgba(255,255,255,0.40) 0%, transparent 100%),
     radial-gradient(1px 1px at 28% 32%, rgba(255,255,255,0.35) 0%, transparent 100%),
-    radial-gradient(1px 1px at 53% 25%, rgba(255,255,255,0.45) 0%, transparent 100%),
-    radial-gradient(1px 1px at 78% 30%, rgba(255,255,255,0.55) 0%, transparent 100%),
-    radial-gradient(2px 2px at 91% 20%, rgba(200,215,255,0.65) 0%, transparent 100%),
-    radial-gradient(1px 1px at  4% 38%, rgba(255,255,255,0.30) 0%, transparent 100%),
-    radial-gradient(1px 1px at 42% 40%, rgba(255,255,255,0.40) 0%, transparent 100%),
-    radial-gradient(1px 1px at 96% 35%, rgba(255,255,255,0.45) 0%, transparent 100%);
+    radial-gradient(1px 1px at 91% 20%, rgba(200,215,255,0.65) 0%, transparent 100%);
 }
 
 /* Moon */
@@ -199,16 +186,21 @@
   pointer-events: none;
 }
 
-/* Single filter wrapper — applied once for all 8 layers instead of per-layer */
+/* No CSS filter — uses an overlay div (.parallax-tint) instead for night tint.
+ * The original filter: brightness(0.22) saturate(0.55) hue-rotate(205deg) was
+ * recalculated every frame across all layers — the single biggest GPU cost. */
 .parallax-wrapper {
   position: absolute;
   inset: 0;
-  filter: brightness(0.22) saturate(0.55) hue-rotate(205deg);
 }
 
-.hero-container--low-power .parallax-wrapper {
-  filter: none;
-  opacity: 0.62;
+/* Dark blue overlay — cheap single-rect fill replaces the 3-function filter */
+.parallax-tint {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 10, 30, 0.80);
+  pointer-events: none;
+  z-index: 100;
 }
 
 /* Position container only — no background, no animation, no filter */
@@ -244,10 +236,7 @@
   animation-play-state: paused;
 }
 
-.hero-container--low-power::after {
-  box-shadow: none;
-  opacity: 0.78;
-}
+
 
 .hero-content {
   position: relative;
