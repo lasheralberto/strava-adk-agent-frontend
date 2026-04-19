@@ -206,6 +206,11 @@
   filter: brightness(0.22) saturate(0.55) hue-rotate(205deg);
 }
 
+.hero-container--low-power .parallax-wrapper {
+  filter: none;
+  opacity: 0.62;
+}
+
 /* Position container only — no background, no animation, no filter */
 .parallax-layer {
   position: absolute;
@@ -233,6 +238,15 @@
   animation-timing-function: linear;
   animation-iteration-count: infinite;
   backface-visibility: hidden;
+}
+
+.hero-container--paused .parallax-inner {
+  animation-play-state: paused;
+}
+
+.hero-container--low-power::after {
+  box-shadow: none;
+  opacity: 0.78;
 }
 
 .hero-content {

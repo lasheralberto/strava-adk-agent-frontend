@@ -171,7 +171,7 @@ function buildAssistantMessage(content: string, tag = 'Respuesta'): ChatMessage 
   return {
     id: Date.now() + Math.floor(Math.random() * 1000),
     role: 'assistant',
-    title: 'Toontracks',
+    title: 'Athly',
     content,
     tag,
   }
@@ -197,7 +197,7 @@ function updateAssistantMessage(
     {
       id: messageId,
       role: 'assistant',
-      title: 'Toontracks',
+      title: 'Athly',
       content,
       tag,
     },
@@ -367,7 +367,7 @@ function updateAssistantStructuredBlocks(
     {
       id: messageId,
       role: 'assistant',
-      title: 'Toontracks',
+      title: 'Athly',
       content: '',
       tag,
       structured: {
@@ -1371,9 +1371,12 @@ function App() {
         <section className="glass-panel flex h-full w-full flex-col overflow-hidden">
           <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-3 sm:gap-3 sm:px-6">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-              <h1 className="truncate text-title-2 font-semibold tracking-tight text-foreground">
-                Toontracks
-              </h1>
+              <div className="min-w-0">
+                <h1 className="truncate text-title-2 font-semibold tracking-tight text-foreground">
+                  Athly
+                </h1>
+                <p className="hidden text-[11px] text-muted-foreground sm:block">Your AI coach</p>
+              </div>
               <AnimatePresence mode="wait">
                 {authSession ? (
                   <motion.span

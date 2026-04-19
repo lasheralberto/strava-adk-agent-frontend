@@ -1,9 +1,20 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 
 // ── Layer configuration ───────────────────────────────────────────────────
 const BASE_URL = 'https://s3-us-west-2.amazonaws.com/s.cdpn.io/24650'
 
-const layersData = [
+type LayerConfig = {
+  className: string
+  speed: string
+  size: string
+  zIndex: number
+  image: string
+  animation?: 'parallax_scroll' | 'parallax_bike'
+  bottom?: string
+  noRepeat?: boolean
+}
+
+const layersData: LayerConfig[] = [
   { className: 'layer-6', speed: '120s', size: '222px', zIndex: 1, image: '6' },
   { className: 'layer-5', speed: '95s',  size: '311px', zIndex: 1, image: '5' },
   { className: 'layer-4', speed: '75s',  size: '468px', zIndex: 1, image: '4' },
@@ -14,17 +25,59 @@ const layersData = [
   { className: 'layer-1', speed: '20s',  size: '136px', zIndex: 5, image: '1' },
 ]
 
+const LOW_POWER_LAYER_CLASSES = new Set(['layer-6', 'layer-4', 'layer-2', 'layer-1'])
+const MOBILE_BREAKPOINT_PX = 1024
+
+function detectLowPowerMode(): boolean {
+  if (typeof window === 'undefined') return false
+
+  const nav = navigator as Navigator & { deviceMemory?: number }
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const lowCoreCount = typeof navigator.hardwareConcurrency === 'number' && navigator.hardwareConcurrency <= 4
+  const lowMemory = typeof nav.deviceMemory === 'number' && nav.deviceMemory <= 4
+  const coarsePointer = window.matchMedia('(pointer: coarse)').matches
+  const smallViewport = window.innerWidth < MOBILE_BREAKPOINT_PX
+
+  return prefersReducedMotion || lowCoreCount || lowMemory || (coarsePointer && smallViewport)
+}
+
 interface MountainVistaParallaxProps {
   title?: string
   subtitle?: string
 }
 
 const MountainVistaParallax = ({ title = '', subtitle = '' }: MountainVistaParallaxProps) => {
+  const [isLowPower, setIsLowPower] = useState(() => detectLowPowerMode())
+  const [isPaused, setIsPaused] = useState(false)
+
+  useEffect(() => {
+    const evaluateMode = () => setIsLowPower(detectLowPowerMode())
+    evaluateMode()
+
+    window.addEventListener('resize', evaluateMode, { passive: true })
+    return () => window.removeEventListener('resize', evaluateMode)
+  }, [])
+
+  useEffect(() => {
+    const syncVisibility = () => setIsPaused(document.hidden)
+    syncVisibility()
+
+    document.addEventListener('visibilitychange', syncVisibility)
+    return () => document.removeEventListener('visibilitychange', syncVisibility)
+  }, [])
+
+  const activeLayers = useMemo(
+    () => (isLowPower ? layersData.filter((layer) => LOW_POWER_LAYER_CLASSES.has(layer.className)) : layersData),
+    [isLowPower],
+  )
+
   const dynamicStyles = useMemo(() => {
-    return layersData
+    return activeLayers
       .map((layer) => {
         const url = `${BASE_URL}/${layer.image}.png`
         const isBike = layer.noRepeat
+        const animationName = layer.animation ?? 'parallax_scroll'
+
         return `
           .${layer.className} {
             z-index: ${layer.zIndex};
@@ -33,6 +86,7 @@ const MountainVistaParallax = ({ title = '', subtitle = '' }: MountainVistaParal
           .${layer.className} .parallax-inner {
             background-image: url(${url});
             animation-duration: ${layer.speed};
+            animation-name: ${animationName};
             background-size: auto ${layer.size};
             ${isBike ? `
               background-repeat: no-repeat;
@@ -45,18 +99,26 @@ const MountainVistaParallax = ({ title = '', subtitle = '' }: MountainVistaParal
         `
       })
       .join('\n')
-  }, [])
+  }, [activeLayers])
+
+  const containerClassName = [
+    'hero-container',
+    isLowPower ? 'hero-container--low-power' : '',
+    isPaused ? 'hero-container--paused' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <section
-      className="hero-container"
+      className={containerClassName}
       aria-label="Animated parallax mountain landscape at night"
       aria-hidden="true"
     >
       <style>{dynamicStyles}</style>
 
       <div className="parallax-wrapper">
-        {layersData.map((layer) => (
+        {activeLayers.map((layer) => (
           <div key={layer.className} className={`parallax-layer ${layer.className}`}>
             <div className="parallax-inner" />
           </div>

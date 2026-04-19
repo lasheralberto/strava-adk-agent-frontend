@@ -15,7 +15,6 @@ import {
   ArrowUp,
   Bot,
   Plus,
-  Save,
   X,
 } from 'lucide-react'
 import { parse as parseToml, stringify as stringifyToml } from 'smol-toml'
@@ -434,6 +433,8 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   const triggerRef = useRef<HTMLButtonElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   const selectedAgentIdRef = useRef(selectedAgentId)
+  const isDefinitionFromApi = useRef<false | 'skip-next' | true>(false)
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const canAddAgent = definition.agents.length < MAX_AGENTS
 
@@ -475,6 +476,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
       setVersion(typeof payload.version === 'number' ? payload.version : 0)
       setIsDefaultDefinition(Boolean(payload.is_default))
+      isDefinitionFromApi.current = 'skip-next'
       setDefinition(parsed)
 
       const preferred = parsed.agents.some((a) => a.id === selectedAgentIdRef.current)
@@ -567,7 +569,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
       name: editorDraft.name.trim() || editorDraft.id,
       output_key: editorDraft.output_key.trim(),
     })
-    setNotice('Agente actualizado. Guarda para persistir.')
+    setNotice('Agente actualizado.')
     setTimeout(() => setNotice(null), 2000)
     closeEditor()
   }, [closeEditor, editorDraft, replaceAgent])
@@ -589,7 +591,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     setActiveAndNotify(candidateId)
     setEditorDraft({ ...newAgent, sub_agents: [] })
     setEditorOpen(true)
-    setNotice('Agente agregado. Guarda para persistir.')
+    setNotice('Agente agregado.')
     setTimeout(() => setNotice(null), 2500)
   }, [canAddAgent, definition.agents, setActiveAndNotify])
 
@@ -618,7 +620,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
         closeEditor()
       }
 
-      setNotice('Agente eliminado. Guarda para persistir.')
+      setNotice('Agente eliminado.')
       setTimeout(() => setNotice(null), 2200)
     },
     [activeAgentId, closeEditor, editorDraft?.id, orderedAgents, setActiveAndNotify],
@@ -645,7 +647,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     })
 
     if (moved) {
-      setNotice('Orden actualizado. Guarda para persistir.')
+      setNotice('Orden actualizado.')
       setTimeout(() => setNotice(null), 1800)
     }
   }, [])
@@ -723,6 +725,22 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
       setSaving(false)
     }
   }, [athleteId, serializeCurrent, validateTomlContent, version])
+
+  // ── Auto-save on definition change ────────────────────────────────
+
+  useEffect(() => {
+    if (isDefinitionFromApi.current === false) return
+    if (isDefinitionFromApi.current === 'skip-next') {
+      isDefinitionFromApi.current = true
+      return
+    }
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(() => { void handleSave() }, 900)
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [definition])
 
   const disabled = athleteId === null || athleteId <= 0 || !apiBaseUrl
 
@@ -811,15 +829,9 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     Nuevo
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={saving || loading || definition.agents.length === 0}
-                    className="inline-flex h-8 items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 text-[12px] font-medium text-primary hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <Save className={cn('h-3.5 w-3.5', saving && 'animate-pulse')} />
-                    {saving ? 'Guardando...' : 'Guardar'}
-                  </button>
+                  {saving ? (
+                    <span className="text-[12px] text-muted-foreground animate-pulse">Guardando...</span>
+                  ) : null}
 
                   <button
                     ref={closeBtnRef}
@@ -844,6 +856,14 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
               ) : null}
 
               {/* ── Body: sidebar + canvas ── */}
+              {loading ? (
+                <div className="flex flex-1 items-center justify-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary" />
+                    <p className="text-[13px] text-muted-foreground">Cargando definición de agentes...</p>
+                  </div>
+                </div>
+              ) : (
               <div className="grid flex-1 grid-cols-1 overflow-y-auto md:grid-cols-[260px_1fr]">
                 {/* ── Sidebar ── */}
                 <aside className="flex flex-col border-b border-border p-3 md:border-b-0 md:border-r md:overflow-y-auto">
@@ -971,6 +991,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                   </div>
                 </section>
               </div>
+              )}
             </motion.aside>
 
             <AnimatePresence>
