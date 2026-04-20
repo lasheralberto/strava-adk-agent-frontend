@@ -1,13 +1,13 @@
 import { memo } from 'react'
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
-import { Bot, Target } from 'lucide-react'
+import { Bot, Globe, Target } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
 export type AgentNodeData = {
   agentId: string
   name: string
-  type: 'llm' | 'consensus'
+  type: 'llm' | 'consensus' | 'api'
   promptPreview: string
   subAgentsCount: number
 }
@@ -17,17 +17,20 @@ export type AgentNodeType = Node<AgentNodeData, 'agent'>
 const TYPE_META: Record<AgentNodeData['type'], { label: string; color: string; icon: typeof Bot }> = {
   llm: { label: 'LLM', color: 'text-blue-500', icon: Bot },
   consensus: { label: 'Consensus', color: 'text-emerald-500', icon: Target },
+  api: { label: 'API', color: 'text-violet-500', icon: Globe },
 }
 
 function AgentNode({ data, selected }: NodeProps<AgentNodeType>) {
   const meta = TYPE_META[data.type]
   const Icon = meta.icon
+  const isApi = data.type === 'api'
 
   return (
     <div
       className={cn(
         'w-[260px] rounded-lg border bg-popover text-popover-foreground transition-[border-color] duration-120',
         selected ? 'border-primary/60' : 'border-border',
+        isApi && 'border-violet-500/40',
       )}
     >
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
@@ -44,25 +47,32 @@ function AgentNode({ data, selected }: NodeProps<AgentNodeType>) {
       <div className="space-y-2 px-3 py-2 text-[11px] text-muted-foreground">
         {data.type === 'llm' ? (
           <p className="line-clamp-2">{data.promptPreview}</p>
+        ) : data.type === 'api' ? (
+          <>
+            <p className="line-clamp-2">{data.promptPreview}</p>
+            <p className="text-[10px] text-violet-500/80">Haz clic para ver el código curl</p>
+          </>
         ) : (
           <p>Integra {data.subAgentsCount} output_keys y produce la respuesta final.</p>
         )}
         <div className="flex items-center justify-between gap-2 text-[10px]">
           <span>entrada</span>
-          <span>salida</span>
+          {!isApi && <span>salida</span>}
         </div>
       </div>
 
       <Handle
         type="target"
-        position={Position.Left}
+        position={isApi ? Position.Top : Position.Left}
         className="!h-3 !w-3 !rounded-full !border-2 !border-border !bg-muted"
       />
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!h-3 !w-3 !rounded-full !border-2 !border-primary/50 !bg-primary/20"
-      />
+      {!isApi && (
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="!h-3 !w-3 !rounded-full !border-2 !border-primary/50 !bg-primary/20"
+        />
+      )}
     </div>
   )
 }
