@@ -1,4 +1,5 @@
-import { Activity, BarChart2, Brain, TrendingUp, Zap } from 'lucide-react'
+import { useState } from 'react'
+import { Activity, BarChart2, Brain, Check, Copy, TrendingUp, Zap } from 'lucide-react'
 import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { GradientBars } from '@/components/ui/gradient-bars-background'
@@ -142,6 +143,180 @@ function PhoneMockup() {
         </div>
       </div>
     </div>
+  )
+}
+
+// ── Pain point section ────────────────────────────────────────────────────
+const PAIN_POINTS = [
+  {
+    icon: Zap,
+    title: 'Extrae sin esfuerzo',
+    body: 'Synca con Strava automáticamente. Tus actividades llegan solas, cada día.',
+  },
+  {
+    icon: Brain,
+    title: 'Analiza en profundidad',
+    body: 'Agentes especializados detectan carga, patrones de recuperación y PRs ocultos.',
+  },
+  {
+    icon: TrendingUp,
+    title: 'Te conoce mejor cada día',
+    body: 'Con cada sesión construye tu perfil deportivo. Un entrenador que nunca para.',
+  },
+] as const
+
+function PainPointSection() {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.55, ease: 'easeOut' }}
+      className="w-full max-w-2xl mt-16 px-2"
+      aria-labelledby="pain-point-heading"
+    >
+      <div className="mb-8 text-center">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#FC4C02]/60">
+          Por qué Athly
+        </p>
+        <h2
+          id="pain-point-heading"
+          className="text-[22px] font-bold leading-tight tracking-tight text-white sm:text-[26px]"
+        >
+          Hacemos el trabajo sucio.
+        </h2>
+        <p className="mx-auto mt-3 max-w-md text-[13px] leading-relaxed text-white/40">
+          La mayoría de atletas tiene datos valiosos en Strava que nunca aprovecha.
+          Athly los extrae, los analiza y actúa como tu segundo cerebro deportivo —
+          cuanto más entrenas, más sabe de ti.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {PAIN_POINTS.map((point, i) => (
+          <motion.div
+            key={point.title}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.62 + i * 0.1, ease: 'easeOut' }}
+            className="rounded-lg border border-white/10 bg-white/[0.03] p-4"
+          >
+            <div className="mb-3 flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/5">
+              <point.icon className="h-3.5 w-3.5 text-[#FC4C02]" aria-hidden="true" />
+            </div>
+            <div className="mb-1 text-[13px] font-semibold text-white">{point.title}</div>
+            <div className="text-[11px] leading-relaxed text-white/40">{point.body}</div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.section>
+  )
+}
+
+// ── API CLI demo section ──────────────────────────────────────────────────
+const API_STEPS = [
+  { label: 'Tu App', sub: 'cualquier cliente HTTP' },
+  { label: 'Agentes', sub: 'diseña tu pipeline' },
+  { label: 'API', sub: 'obtén tu análisis' },
+] as const
+
+function ApiCliSection() {
+  const [copied, setCopied] = useState(false)
+
+  const apiBase =
+    (typeof import.meta !== 'undefined'
+      ? (import.meta.env?.VITE_GCLOUD_ENDPOINT ?? '')
+      : ''
+    ).trim().replace(/\/$/, '') || 'https://api.athly.app'
+
+  const curlCommand =
+    `curl "${apiBase}/v1/ask?question=¿Cuánto corrí esta semana?&strava_athlete_id=YOUR_ID" \\\n  -H "Authorization: Bearer YOUR_STRAVA_TOKEN"`
+
+  const handleCopy = () => {
+    void navigator.clipboard.writeText(curlCommand).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.65, ease: 'easeOut' }}
+      className="w-full max-w-2xl mt-14 px-2"
+      aria-label="Integración por API"
+    >
+      {/* Flow steps */}
+      <div className="mb-6 flex items-center justify-center gap-2 sm:gap-4">
+        {API_STEPS.map((step, i) => (
+          <div key={step.label} className="flex items-center gap-2 sm:gap-4">
+            <div className="flex flex-col items-center gap-1">
+              <div className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-[13px] font-semibold text-white">
+                {step.label}
+              </div>
+              <span className="text-[10px] text-white/35">{step.sub}</span>
+            </div>
+            {i < API_STEPS.length - 1 ? (
+              <span className="mb-4 text-[18px] leading-none text-white/20" aria-hidden="true">
+                →
+              </span>
+            ) : null}
+          </div>
+        ))}
+      </div>
+
+      {/* Terminal */}
+      <div className="overflow-hidden rounded-xl border border-white/10 bg-zinc-950/80">
+        {/* Title bar */}
+        <div className="flex items-center justify-between border-b border-white/10 bg-zinc-900/60 px-4 py-2.5">
+          <div className="flex items-center gap-3">
+            <div className="flex gap-1.5" aria-hidden="true">
+              <span className="h-2.5 w-2.5 rounded-full bg-red-500/60" />
+              <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
+              <span className="h-2.5 w-2.5 rounded-full bg-green-500/60" />
+            </div>
+            <span className="text-[11px] font-mono text-white/35">GET /v1/ask</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-white/35 transition-colors hover:bg-white/5 hover:text-white/65"
+            aria-label="Copiar comando curl"
+          >
+            {copied ? (
+              <Check className="h-3 w-3 text-emerald-400" aria-hidden="true" />
+            ) : (
+              <Copy className="h-3 w-3" aria-hidden="true" />
+            )}
+            {copied ? 'Copiado' : 'Copiar'}
+          </button>
+        </div>
+
+        {/* Command */}
+        <pre className="overflow-x-auto px-4 py-4 font-mono text-[12px] leading-relaxed" aria-label="Ejemplo de llamada curl">
+          <span className="select-none text-white/25">$ </span>
+          <span className="text-[#FC4C02]">curl</span>
+          <span className="text-white/60"> &quot;{apiBase}</span>
+          <span className="text-violet-400">/v1/ask</span>
+          <span className="text-white/35">?question=</span>
+          <span className="text-emerald-400">¿Cuánto corrí esta semana?</span>
+          <span className="text-white/35">&amp;strava_athlete_id=</span>
+          <span className="text-yellow-400">YOUR_ID</span>
+          <span className="text-white/60">&quot; \{'\n'}</span>
+          <span className="select-none text-white/25">{'  '}</span>
+          <span className="text-white/45">-H </span>
+          <span className="text-white/60">&quot;Authorization: Bearer </span>
+          <span className="text-yellow-400">YOUR_STRAVA_TOKEN</span>
+          <span className="text-white/60">&quot;</span>
+        </pre>
+
+        {/* Response preview */}
+        <div className="border-t border-white/10 px-4 py-3">
+          <span className="mb-1.5 block text-[10px] font-mono text-white/25">// respuesta</span>
+          <pre className="font-mono text-[11px] leading-relaxed text-white/45">{`{\n  "response": "Esta semana corriste 42 km en 4 sesiones. Ritmo medio: 4:58/km..."\n}`}</pre>
+        </div>
+      </div>
+    </motion.section>
   )
 }
 
@@ -301,6 +476,12 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
             ))}
           </div>
         </div>
+
+        {/* Pain point */}
+        <PainPointSection />
+
+        {/* API CLI demo */}
+        <ApiCliSection />
 
       </main>
     </div>
