@@ -214,25 +214,155 @@ function PainPointSection() {
 
 // ── API CLI demo section ──────────────────────────────────────────────────
 const API_STEPS = [
-  { label: 'Tu App', sub: 'cualquier cliente HTTP' },
-  { label: 'Agentes', sub: 'diseña tu pipeline' },
-  { label: 'API', sub: 'obtén tu análisis' },
-] as const
+  { label: 'Tu App', sub: 'cualquier cliente HTTP', accent: false },
+  { label: 'Agentes', sub: 'diseña tu pipeline', accent: true },
+  { label: 'API', sub: 'obtén tu análisis', accent: false },
+]
+
+type Token = { t: string; c?: string }
+type CodeLine = Token[]
+type ApiTab = 'curl' | 'fetch' | 'python'
+
+function buildCurlLines(apiBase: string): CodeLine[] {
+  return [
+    [
+      { t: '$ ', c: 'select-none text-white/25' },
+      { t: 'curl', c: 'text-[#FC4C02]' },
+      { t: ' -G \\', c: 'text-white/40' },
+    ],
+    [
+      { t: '    "', c: 'text-white/45' },
+      { t: apiBase, c: 'text-white/30' },
+      { t: '/v1/ask', c: 'text-violet-400' },
+      { t: '" \\', c: 'text-white/45' },
+    ],
+    [
+      { t: '    --data-urlencode ', c: 'text-white/40' },
+      { t: '"question=', c: 'text-white/50' },
+      { t: '¿Cuánto corrí esta semana?', c: 'text-emerald-400' },
+      { t: '" \\', c: 'text-white/45' },
+    ],
+    [
+      { t: '    --data-urlencode ', c: 'text-white/40' },
+      { t: '"strava_athlete_id=', c: 'text-white/50' },
+      { t: 'YOUR_ATHLETE_ID', c: 'text-yellow-400' },
+      { t: '" \\', c: 'text-white/45' },
+    ],
+    [
+      { t: '    -H ', c: 'text-white/40' },
+      { t: '"Authorization: Bearer ', c: 'text-white/50' },
+      { t: 'YOUR_STRAVA_TOKEN', c: 'text-yellow-400' },
+      { t: '"', c: 'text-white/45' },
+    ],
+  ]
+}
+
+const FETCH_LINES: CodeLine[] = [
+  [
+    { t: 'const ', c: 'text-violet-400' },
+    { t: 'params ', c: 'text-white/65' },
+    { t: '= ', c: 'text-white/40' },
+    { t: 'new ', c: 'text-violet-400' },
+    { t: 'URLSearchParams', c: 'text-[#FC4C02]' },
+    { t: '({', c: 'text-white/50' },
+  ],
+  [
+    { t: '  question: ', c: 'text-white/45' },
+    { t: '"¿Cuánto corrí esta semana?"', c: 'text-emerald-400' },
+    { t: ',', c: 'text-white/35' },
+  ],
+  [
+    { t: '  strava_athlete_id: ', c: 'text-white/45' },
+    { t: '"YOUR_ATHLETE_ID"', c: 'text-yellow-400' },
+    { t: ',', c: 'text-white/35' },
+  ],
+  [{ t: '});', c: 'text-white/50' }],
+  [],
+  [
+    { t: 'const ', c: 'text-violet-400' },
+    { t: 'res ', c: 'text-white/65' },
+    { t: '= ', c: 'text-white/40' },
+    { t: 'await ', c: 'text-violet-400' },
+    { t: 'fetch', c: 'text-[#FC4C02]' },
+    { t: '(`${', c: 'text-white/35' },
+    { t: 'BASE_URL', c: 'text-violet-400' },
+    { t: '}/v1/ask?${', c: 'text-white/35' },
+    { t: 'params', c: 'text-white/65' },
+    { t: '}`, {', c: 'text-white/35' },
+  ],
+  [
+    { t: '  headers: { Authorization: ', c: 'text-white/45' },
+    { t: '`Bearer ${', c: 'text-white/35' },
+    { t: 'token', c: 'text-yellow-400' },
+    { t: '}`', c: 'text-white/35' },
+    { t: ' },', c: 'text-white/45' },
+  ],
+  [{ t: '});', c: 'text-white/50' }],
+]
+
+const PYTHON_LINES: CodeLine[] = [
+  [
+    { t: 'import ', c: 'text-violet-400' },
+    { t: 'requests', c: 'text-white/65' },
+  ],
+  [],
+  [
+    { t: 'r ', c: 'text-white/65' },
+    { t: '= requests.', c: 'text-white/40' },
+    { t: 'get', c: 'text-[#FC4C02]' },
+    { t: '(', c: 'text-white/50' },
+  ],
+  [
+    { t: '  f"', c: 'text-white/40' },
+    { t: '{BASE_URL}', c: 'text-violet-400' },
+    { t: '/v1/ask",', c: 'text-white/45' },
+  ],
+  [{ t: '  params={', c: 'text-white/50' }],
+  [
+    { t: '    "question": ', c: 'text-white/45' },
+    { t: '"¿Cuánto corrí esta semana?"', c: 'text-emerald-400' },
+    { t: ',', c: 'text-white/35' },
+  ],
+  [
+    { t: '    "strava_athlete_id": ', c: 'text-white/45' },
+    { t: '"YOUR_ATHLETE_ID"', c: 'text-yellow-400' },
+    { t: ',', c: 'text-white/35' },
+  ],
+  [{ t: '  },', c: 'text-white/50' }],
+  [
+    { t: '  headers={', c: 'text-white/50' },
+    { t: '"Authorization"', c: 'text-white/45' },
+    { t: ': ', c: 'text-white/35' },
+    { t: 'f"Bearer {', c: 'text-white/40' },
+    { t: 'token', c: 'text-yellow-400' },
+    { t: '}"', c: 'text-white/40' },
+    { t: '},', c: 'text-white/50' },
+  ],
+  [{ t: ')', c: 'text-white/50' }],
+]
+
+const COPY_TEXT: Record<ApiTab, (base: string) => string> = {
+  curl: (b) =>
+    `curl -G \\\n    "${b}/v1/ask" \\\n    --data-urlencode "question=¿Cuánto corrí esta semana?" \\\n    --data-urlencode "strava_athlete_id=YOUR_ATHLETE_ID" \\\n    -H "Authorization: Bearer YOUR_STRAVA_TOKEN"`,
+  fetch: () =>
+    `const params = new URLSearchParams({\n  question: "¿Cuánto corrí esta semana?",\n  strava_athlete_id: "YOUR_ATHLETE_ID",\n});\nconst res = await fetch(\`\${BASE_URL}/v1/ask?\${params}\`, {\n  headers: { Authorization: \`Bearer \${token}\` },\n});`,
+  python: () =>
+    `import requests\n\nr = requests.get(\n  f"{BASE_URL}/v1/ask",\n  params={\n    "question": "¿Cuánto corrí esta semana?",\n    "strava_athlete_id": "YOUR_ATHLETE_ID",\n  },\n  headers={"Authorization": f"Bearer {token}"},\n)`,
+}
 
 function ApiCliSection() {
+  const [tab, setTab] = useState<ApiTab>('curl')
   const [copied, setCopied] = useState(false)
 
   const apiBase =
-    (typeof import.meta !== 'undefined'
-      ? (import.meta.env?.VITE_GCLOUD_ENDPOINT ?? '')
-      : ''
-    ).trim().replace(/\/$/, '') || 'https://api.athly.app'
+    (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '') ||
+    'https://api.athly.app'
 
-  const curlCommand =
-    `curl "${apiBase}/v1/ask?question=¿Cuánto corrí esta semana?&strava_athlete_id=YOUR_ID" \\\n  -H "Authorization: Bearer YOUR_STRAVA_TOKEN"`
+  const lines =
+    tab === 'curl' ? buildCurlLines(apiBase) : tab === 'fetch' ? FETCH_LINES : PYTHON_LINES
 
   const handleCopy = () => {
-    void navigator.clipboard.writeText(curlCommand).then(() => {
+    void navigator.clipboard.writeText(COPY_TEXT[tab](apiBase)).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -251,13 +381,20 @@ function ApiCliSection() {
         {API_STEPS.map((step, i) => (
           <div key={step.label} className="flex items-center gap-2 sm:gap-4">
             <div className="flex flex-col items-center gap-1">
-              <div className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-[13px] font-semibold text-white">
+              <div
+                className={cn(
+                  'rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors',
+                  step.accent
+                    ? 'border-[#FC4C02]/40 bg-[#FC4C02]/10 text-white'
+                    : 'border-white/10 bg-white/5 text-white/65',
+                )}
+              >
                 {step.label}
               </div>
-              <span className="text-[10px] text-white/35">{step.sub}</span>
+              <span className="text-[10px] text-white/30">{step.sub}</span>
             </div>
             {i < API_STEPS.length - 1 ? (
-              <span className="mb-4 text-[18px] leading-none text-white/20" aria-hidden="true">
+              <span className="mb-4 text-[15px] leading-none text-white/20" aria-hidden="true">
                 →
               </span>
             ) : null}
@@ -268,20 +405,38 @@ function ApiCliSection() {
       {/* Terminal */}
       <div className="overflow-hidden rounded-xl border border-white/10 bg-zinc-950/80">
         {/* Title bar */}
-        <div className="flex items-center justify-between border-b border-white/10 bg-zinc-900/60 px-4 py-2.5">
+        <div className="flex items-center justify-between border-b border-white/10 bg-zinc-900/60 px-4 py-2">
           <div className="flex items-center gap-3">
             <div className="flex gap-1.5" aria-hidden="true">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-500/60" />
-              <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
-              <span className="h-2.5 w-2.5 rounded-full bg-green-500/60" />
+              <span className="h-2.5 w-2.5 rounded-full bg-red-500/55" />
+              <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/55" />
+              <span className="h-2.5 w-2.5 rounded-full bg-green-500/55" />
             </div>
-            <span className="text-[11px] font-mono text-white/35">GET /v1/ask</span>
+            {/* Language tabs */}
+            <div className="flex items-center gap-0.5 rounded-md bg-white/5 p-0.5">
+              {(['curl', 'fetch', 'python'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTab(t)}
+                  className={cn(
+                    'rounded px-2.5 py-1 font-mono text-[10px] transition-colors',
+                    tab === t
+                      ? 'bg-white/10 text-white/80'
+                      : 'text-white/30 hover:text-white/55',
+                  )}
+                  aria-pressed={tab === t}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
           <button
             type="button"
             onClick={handleCopy}
             className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-white/35 transition-colors hover:bg-white/5 hover:text-white/65"
-            aria-label="Copiar comando curl"
+            aria-label="Copiar código"
           >
             {copied ? (
               <Check className="h-3 w-3 text-emerald-400" aria-hidden="true" />
@@ -292,27 +447,29 @@ function ApiCliSection() {
           </button>
         </div>
 
-        {/* Command */}
-        <pre className="overflow-x-auto px-4 py-4 font-mono text-[12px] leading-relaxed" aria-label="Ejemplo de llamada curl">
-          <span className="select-none text-white/25">$ </span>
-          <span className="text-[#FC4C02]">curl</span>
-          <span className="text-white/60"> &quot;{apiBase}</span>
-          <span className="text-violet-400">/v1/ask</span>
-          <span className="text-white/35">?question=</span>
-          <span className="text-emerald-400">¿Cuánto corrí esta semana?</span>
-          <span className="text-white/35">&amp;strava_athlete_id=</span>
-          <span className="text-yellow-400">YOUR_ID</span>
-          <span className="text-white/60">&quot; \{'\n'}</span>
-          <span className="select-none text-white/25">{'  '}</span>
-          <span className="text-white/45">-H </span>
-          <span className="text-white/60">&quot;Authorization: Bearer </span>
-          <span className="text-yellow-400">YOUR_STRAVA_TOKEN</span>
-          <span className="text-white/60">&quot;</span>
+        {/* Code */}
+        <pre
+          className="px-4 py-4 font-mono text-[12px] leading-[1.75]"
+          aria-label="Ejemplo de código"
+        >
+          {lines.map((line, li) =>
+            line.length === 0 ? (
+              <div key={li} className="h-3" aria-hidden="true" />
+            ) : (
+              <div key={li}>
+                {line.map((tok, ti) => (
+                  <span key={ti} className={tok.c}>
+                    {tok.t}
+                  </span>
+                ))}
+              </div>
+            ),
+          )}
         </pre>
 
-        {/* Response preview */}
+        {/* Response */}
         <div className="border-t border-white/10 px-4 py-3">
-          <span className="mb-1.5 block text-[10px] font-mono text-white/25">// respuesta</span>
+          <span className="mb-1.5 block font-mono text-[10px] text-white/25">// respuesta</span>
           <pre className="font-mono text-[11px] leading-relaxed text-white/45">{`{\n  "response": "Esta semana corriste 42 km en 4 sesiones. Ritmo medio: 4:58/km..."\n}`}</pre>
         </div>
       </div>
