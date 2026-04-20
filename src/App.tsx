@@ -1583,17 +1583,6 @@ function App() {
           </div>
 
           <footer className="border-t border-border/70 px-2 py-2 sm:px-4 sm:py-3 lg:px-6">
-            <div className="mb-2 flex items-center justify-end">
-              <button
-                onClick={handleViewAgentLogs}
-                disabled={logsLoading || requestStatus !== 'idle' || !authSession}
-                aria-label={logsLoading ? 'Cargando logs de agentes' : 'Ver logs de agentes'}
-                className="inline-flex h-7 items-center justify-center gap-1 rounded-md border border-border bg-background px-2 text-[12px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-muted-foreground/50"
-              >
-                <GitBranch className={`h-3.5 w-3.5 ${logsLoading ? 'animate-pulse' : ''}`} aria-hidden="true" />
-                <span>{logsLoading ? 'Logs…' : 'Ver logs'}</span>
-              </button>
-            </div>
             <RuixenPromptBox
               onSend={handleSend}
               placeholder={
