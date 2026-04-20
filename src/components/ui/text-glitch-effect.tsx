@@ -63,7 +63,7 @@ export function TextGlitch({ text, hoverText, href, className = "", delay = 0 }:
         setDisplayHoverText(
           target
             .split("")
-            .map((letter, index) => {
+            .map((_letter, index) => {
               if (index < iteration) return target[index]
               return LETTERS[Math.floor(Math.random() * 26)]
             })

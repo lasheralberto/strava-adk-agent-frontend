@@ -67,26 +67,10 @@ export default function RuixenPromptBox({
               }
             }}
             className={cn(
-              "min-h-[44px] sm:min-h-[52px] max-h-[160px] sm:max-h-[200px] w-full resize-none border-none bg-transparent py-2.5 sm:py-3 pr-11 text-sm text-foreground",
-              modelOptions.length > 0 ? "pl-3.5 sm:pl-4 pb-9" : "pl-3.5 sm:pl-4",
+              "min-h-[44px] sm:min-h-[52px] max-h-[160px] sm:max-h-[200px] w-full resize-none border-none bg-transparent py-2.5 sm:py-3 pr-11 pl-3.5 sm:pl-4 text-sm text-foreground",
               "placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0",
             )}
           />
-
-          {modelOptions.length > 0 && (
-            <div className="absolute bottom-2.5 left-3">
-              <select
-                value={selectedModel}
-                onChange={(e) => onModelChange?.(e.target.value)}
-                disabled={disabled}
-                className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed"
-              >
-                {modelOptions.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-            </div>
-          )}
 
           <div className="absolute bottom-2.5 right-3">
             <motion.button
@@ -112,6 +96,21 @@ export default function RuixenPromptBox({
             </motion.button>
           </div>
         </div>
+
+        {modelOptions.length > 0 && (
+          <div className="mt-1.5 flex justify-end pr-1">
+            <select
+              value={selectedModel}
+              onChange={(e) => onModelChange?.(e.target.value)}
+              disabled={disabled}
+              className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed"
+            >
+              {modelOptions.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
     </div>
   );
