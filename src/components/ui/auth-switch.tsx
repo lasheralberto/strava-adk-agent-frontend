@@ -3,6 +3,7 @@ import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import MountainVistaParallax from '@/components/ui/mountain-vista-bg'
 import btnStravaConnect from '@/assets/btn_strava_connect_with_orange.png'
+import { GooeyText } from '@/components/ui/gooey-text-morphing'
 
 interface AuthSwitchProps {
   onLogin: () => void
@@ -196,11 +197,15 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: 'easeOut' }}
         >
-          <h1 className="text-display font-bold tracking-tight text-white drop-shadow-lg">
-            Tu entrenamiento.
-            <br />
-            Analizado por IA.
-          </h1>
+          <div className="relative h-24 w-full drop-shadow-lg">
+            <GooeyText
+              texts={["Rendimiento", "Recuperación", "Carga", "Progreso", "Análisis"]}
+              morphTime={1.2}
+              cooldownTime={2.5}
+              className="h-24 w-full"
+              textClassName="font-bold tracking-tight"
+            />
+          </div>
           <p className="mx-auto mt-3 max-w-xs text-sm text-white/60">
             Conecta Strava y consulta en lenguaje natural tu rendimiento, carga y recuperación.
           </p>
