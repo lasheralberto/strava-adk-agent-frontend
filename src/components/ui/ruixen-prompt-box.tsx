@@ -13,10 +13,13 @@ const SEND_TAP_SCALE = 0.88;
 const SEND_SPRING = { type: "spring" as const, stiffness: 500, damping: 22 };
 
 type RuixenPromptBoxProps = {
-  onSend?: (payload: { message: string; transform: string | null }) => void;
+  onSend?: (payload: { message: string; transform: string | null; model: string }) => void;
   placeholder?: string;
   disabled?: boolean;
   loading?: boolean;
+  modelOptions?: string[];
+  selectedModel?: string;
+  onModelChange?: (model: string) => void;
 };
 
 export default function RuixenPromptBox({
@@ -24,6 +27,9 @@ export default function RuixenPromptBox({
   placeholder = "Escribe un mensaje...",
   disabled = false,
   loading = false,
+  modelOptions = [],
+  selectedModel = "",
+  onModelChange,
 }: RuixenPromptBoxProps) {
   const [input, setInput] = useState("");
 
@@ -36,7 +42,7 @@ export default function RuixenPromptBox({
     const trimmedInput = input.trim();
     if (!trimmedInput || disabled) return;
 
-    onSend?.({ message: trimmedInput, transform: null });
+    onSend?.({ message: trimmedInput, transform: null, model: selectedModel });
     setInput("");
     adjustHeight(true);
   };
@@ -61,10 +67,26 @@ export default function RuixenPromptBox({
               }
             }}
             className={cn(
-              "min-h-[44px] sm:min-h-[52px] max-h-[160px] sm:max-h-[200px] w-full resize-none border-none bg-transparent py-2.5 sm:py-3 pl-3.5 sm:pl-4 pr-11 text-sm text-foreground",
+              "min-h-[44px] sm:min-h-[52px] max-h-[160px] sm:max-h-[200px] w-full resize-none border-none bg-transparent py-2.5 sm:py-3 pr-11 text-sm text-foreground",
+              modelOptions.length > 0 ? "pl-3.5 sm:pl-4 pb-9" : "pl-3.5 sm:pl-4",
               "placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0",
             )}
           />
+
+          {modelOptions.length > 0 && (
+            <div className="absolute bottom-2.5 left-3">
+              <select
+                value={selectedModel}
+                onChange={(e) => onModelChange?.(e.target.value)}
+                disabled={disabled}
+                className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed"
+              >
+                {modelOptions.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="absolute bottom-2.5 right-3">
             <motion.button

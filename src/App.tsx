@@ -100,6 +100,8 @@ const internalPipelineToken = (import.meta.env.VITE_INTERNAL_PIPELINE_TOKEN ?? '
 const stravaScope = (import.meta.env.VITE_STRAVA_SCOPE ?? 'read,activity:read_all,profile:read_all').trim()
 const sessionStorageAuthKey = 'strava_oauth_session_v1'
 const DEFAULT_AGENT_ID = 'wiki_research_chat'
+const MODEL_OPTIONS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash']
+const DEFAULT_MODEL = MODEL_OPTIONS[0]
 const RESERVED_AGENT_IDS = new Set([
   'intent_router',
   'plan_react_planner',
@@ -467,6 +469,7 @@ function App() {
   const [lastSyncStatus, setLastSyncStatus] = useState<'success' | 'failed' | 'queued' | null>(null)
   const [activitiesRefreshKey, setActivitiesRefreshKey] = useState(0)
   const [selectedAgentId, setSelectedAgentId] = useState(DEFAULT_AGENT_ID)
+  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
@@ -882,7 +885,7 @@ function App() {
   }
 
 
-  const handleSend = async ({ message, transform }: { message: string; transform: string | null }) => {
+  const handleSend = async ({ message, transform, model }: { message: string; transform: string | null; model: string }) => {
     const isSending = requestStatus !== 'idle'
     const trimmedMessage = message.trim()
     if ((!trimmedMessage && !transform) || isSending) {
@@ -952,6 +955,7 @@ function App() {
             stream: true,
             athlete_id: activeSession.athlete?.id,
             agent_id: selectedAgentId,
+            model: model || DEFAULT_MODEL,
           }),
         })
       }
@@ -1376,6 +1380,9 @@ function App() {
               }
               disabled={requestStatus !== 'idle' || !authSession || authPending}
               loading={requestStatus !== 'idle'}
+              modelOptions={MODEL_OPTIONS}
+              selectedModel={selectedModel}
+              onModelChange={setSelectedModel}
             />
           </footer>
         </section>
