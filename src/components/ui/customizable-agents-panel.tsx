@@ -129,7 +129,7 @@ function normalizeAgentId(value: string, fallback: string): string {
 
 function promptPreview(prompt: string, maxLen = 60): string {
   const compact = prompt.replace(/\s+/g, ' ').trim()
-  if (!compact) return 'Sin prompt'
+  if (!compact) return 'No prompt'
   if (compact.length <= maxLen) return compact
   return `${compact.slice(0, maxLen - 3)}...`
 }
@@ -365,9 +365,9 @@ function buildFlowGraph(agents: AgentEntry[]): { nodes: FlowNode[]; edges: Edge[
       position: { x: centerX, y: consensusY },
       data: {
         agentId: 'consensus_final_answer',
-        name: 'Consenso Final',
+        name: 'Final Consensus',
         type: 'consensus',
-        promptPreview: `Sintesis tras ${CONSENSUS_ROUNDS} rondas`,
+        promptPreview: `Synthesis after ${CONSENSUS_ROUNDS} rounds`,
         subAgentsCount: ordered.length,
       },
     })
@@ -378,9 +378,9 @@ function buildFlowGraph(agents: AgentEntry[]): { nodes: FlowNode[]; edges: Edge[
       position: { x: centerX, y: apiY },
       data: {
         agentId: 'api_public_endpoint',
-        name: 'API Pública',
+        name: 'Public API',
         type: 'api',
-        promptPreview: 'GET /v1/ask — endpoint expuesto para usuarios',
+        promptPreview: 'GET /v1/ask — endpoint exposed to users',
         subAgentsCount: 0,
       },
     })
@@ -397,7 +397,7 @@ function buildFlowGraph(agents: AgentEntry[]): { nodes: FlowNode[]; edges: Edge[
         source: sourceAgent.id,
         target: targetAgent.id,
         type: 'smoothstep',
-        label: i === ordered.length - 1 ? 'cierra ronda' : 'itera',
+        label: i === ordered.length - 1 ? 'closes round' : 'iterates',
         style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.6 },
         labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
         markerEnd: { type: MarkerType.ArrowClosed },
@@ -426,7 +426,7 @@ function buildFlowGraph(agents: AgentEntry[]): { nodes: FlowNode[]; edges: Edge[
       source: '__consensus__',
       target: '__api_endpoint__',
       type: 'smoothstep',
-      label: 'respuesta final',
+      label: 'final response',
       style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.6, strokeDasharray: '6 3' },
       labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
       markerEnd: { type: MarkerType.ArrowClosed },
@@ -520,7 +520,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
       if (preferred) setActiveAndNotify(preferred)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar la definición.')
+      setError(err instanceof Error ? err.message : 'Could not load definition.')
     } finally {
       setLoading(false)
     }
@@ -604,14 +604,14 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
       name: editorDraft.name.trim() || editorDraft.id,
       output_key: editorDraft.output_key.trim(),
     })
-    setNotice('Agente actualizado.')
+    setNotice('Agent updated.')
     setTimeout(() => setNotice(null), 2000)
     closeEditor()
   }, [closeEditor, editorDraft, replaceAgent])
 
   const handleAddAgent = useCallback(() => {
     if (!canAddAgent) {
-      setError(`Máximo ${MAX_AGENTS} agentes.`)
+      setError(`Maximum ${MAX_AGENTS} agents.`)
       return
     }
 
@@ -626,7 +626,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     setActiveAndNotify(candidateId)
     setEditorDraft({ ...newAgent, sub_agents: [] })
     setEditorOpen(true)
-    setNotice('Agente agregado.')
+    setNotice('Agent added.')
     setTimeout(() => setNotice(null), 2500)
   }, [canAddAgent, definition.agents, setActiveAndNotify])
 
@@ -634,7 +634,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     (agentId: string) => {
       const remaining = orderedAgents.filter((a) => a.id !== agentId)
       if (remaining.length === 0) {
-        setError('Debe existir al menos un agente.')
+        setError('At least one agent must exist.')
         return
       }
 
@@ -655,7 +655,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
         closeEditor()
       }
 
-      setNotice('Agente eliminado.')
+      setNotice('Agent deleted.')
       setTimeout(() => setNotice(null), 2200)
     },
     [activeAgentId, closeEditor, editorDraft?.id, orderedAgents, setActiveAndNotify],
@@ -682,7 +682,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     })
 
     if (moved) {
-      setNotice('Orden actualizado.')
+      setNotice('Order updated.')
       setTimeout(() => setNotice(null), 1800)
     }
   }, [])
@@ -694,7 +694,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   const validateTomlContent = useCallback(
     async (tomlContent: string): Promise<void> => {
       if (!apiBaseUrl || athleteId === null || athleteId <= 0) {
-        throw new Error('Atleta inválido para validar definición.')
+        throw new Error('Invalid athlete to validate definition.')
       }
 
       const res = await fetch(`${apiBaseUrl}/agent-definition/${athleteId}/validate`, {
@@ -722,7 +722,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
   const handleSave = useCallback(async () => {
     if (!apiBaseUrl || athleteId === null || athleteId <= 0) {
-      setError('No hay atleta activo.')
+      setError('No active athlete.')
       return
     }
 
@@ -752,10 +752,10 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
       setVersion(typeof payload.version === 'number' ? payload.version : version + 1)
       setIsDefaultDefinition(false)
-      setNotice('Definición guardada.')
+      setNotice('Definition saved.')
       setTimeout(() => setNotice(null), 2500)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo guardar.')
+      setError(err instanceof Error ? err.message : 'Could not save.')
     } finally {
       setSaving(false)
     }
@@ -805,11 +805,11 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
         disabled={disabled}
         aria-expanded={open}
         aria-controls="customizable-agents-drawer"
-        aria-label="Gestionar agentes"
+        aria-label="Manage agents"
         className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Bot className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden sm:inline">Diseñar agentes</span>
+        <span className="hidden sm:inline">Design agents</span>
       </button>
 
       <AnimatePresence>
@@ -869,18 +869,18 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background px-2 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    Nuevo
+                    New
                   </button>
 
                   {saving ? (
-                    <span className="text-[12px] text-muted-foreground animate-pulse">Guardando...</span>
+                    <span className="text-[12px] text-muted-foreground animate-pulse">Saving...</span>
                   ) : null}
 
                   <button
                     ref={closeBtnRef}
                     type="button"
                     onClick={closePanel}
-                    aria-label="Cerrar panel"
+                    aria-label="Close panel"
                     className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <X className="h-4 w-4" />
@@ -903,7 +903,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                 <div className="flex flex-1 items-center justify-center">
                   <div className="flex flex-col items-center gap-3">
                     <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary" />
-                    <p className="text-[13px] text-muted-foreground">Cargando definición de agentes...</p>
+                    <p className="text-[13px] text-muted-foreground">Loading agent definition...</p>
                   </div>
                 </div>
               ) : (
@@ -913,7 +913,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                   {/* Agent list */}
                   <section className="rounded-md border border-border bg-background/40 p-2">
                     <div className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Agentes
+                      Agents
                     </div>
 
                     <div className="space-y-1">
@@ -955,7 +955,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                                 onClick={() => handleMoveAgent(item.id, -1)}
                                 disabled={orderedAgents[0]?.id === item.id}
                                 className="inline-flex h-6 w-6 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                                aria-label="Mover arriba"
+                                aria-label="Move up"
                               >
                                 <ArrowUp className="h-3.5 w-3.5" />
                               </button>
@@ -964,7 +964,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                                 onClick={() => handleMoveAgent(item.id, 1)}
                                 disabled={orderedAgents[orderedAgents.length - 1]?.id === item.id}
                                 className="inline-flex h-6 w-6 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                                aria-label="Mover abajo"
+                                aria-label="Move down"
                               >
                                 <ArrowDown className="h-3.5 w-3.5" />
                               </button>
@@ -973,7 +973,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                                 onClick={() => openEditorFor(item.id)}
                                 className="inline-flex h-6 items-center rounded border border-border px-2 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
                               >
-                                Editar
+                                Edit
                               </button>
                               <button
                                 type="button"
@@ -981,7 +981,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                                 disabled={orderedAgents.length <= 1}
                                 className="inline-flex h-6 items-center rounded border border-destructive/40 px-2 text-[10px] text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
                               >
-                                Borrar
+                                Delete
                               </button>
                             </div>
                           </div>
@@ -995,7 +995,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                 <section className="flex flex-col p-3 md:p-4">
                   <div className="rounded-md border border-border bg-background/40 p-3">
                     <div className="mb-2 text-[12px] text-muted-foreground">
-                      Flujo automatico: los agentes iteran entre si durante {CONSENSUS_ROUNDS} rondas y luego pasan sus output_key al nodo de consenso final.
+                      Automatic flow: agents iterate among themselves for {CONSENSUS_ROUNDS} rounds and then pass their output_key to the final consensus node.
                     </div>
                     <div className="h-[52vh] min-h-[320px] overflow-hidden rounded-md border border-border bg-background md:h-[62vh] md:min-h-[420px]">
                       <ReactFlow
@@ -1032,15 +1032,15 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
                       <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
                         <span className="inline-block h-2 w-4 rounded-sm bg-primary" />
-                        Iteracion entre agentes
+                        Agent iteration
                       </span>
                       <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
                         <span className="inline-block h-2 w-4 rounded-sm border border-success bg-transparent" />
-                        Salida por output_key al consenso
+                        Output via output_key to consensus
                       </span>
                       <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
                         <Globe className="h-2.5 w-2.5 text-violet-500" />
-                        API publica — clic para ver curl
+                        Public API — click to see curl
                       </span>
                     </div>
                   </div>
@@ -1052,7 +1052,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
             <AnimatePresence>
               {curlPanelOpen ? (() => {
                 const curlSnippet = `curl -X GET \\
-  "${apiBaseUrl}/v1/ask?question=¿Cuánto corrí esta semana?&strava_athlete_id=YOUR_ATHLETE_ID" \\
+  "${apiBaseUrl}/v1/ask?question=How+much+did+I+run+this+week?&strava_athlete_id=YOUR_ATHLETE_ID" \\
   -H "Authorization: Bearer YOUR_STRAVA_ACCESS_TOKEN" \\
   -H "Accept: application/json"`
                 return (
@@ -1073,7 +1073,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         key="curl-panel"
                         role="dialog"
                         aria-modal="true"
-                        aria-label="Código curl para API pública"
+                        aria-label="Curl code for public API"
                         initial={
                           reduceMotion
                             ? { opacity: 0 }
@@ -1096,7 +1096,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                           <div className="flex items-center gap-2">
                             <Globe className="h-4 w-4 text-violet-500" aria-hidden="true" />
                             <div>
-                              <h3 className="text-[15px] font-semibold text-foreground">API Pública</h3>
+                              <h3 className="text-[15px] font-semibold text-foreground">Public API</h3>
                               <p className="text-[11px] text-muted-foreground">GET {apiBaseUrl}/v1/ask</p>
                             </div>
                           </div>
@@ -1104,7 +1104,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                             type="button"
                             onClick={() => setCurlPanelOpen(false)}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-                            aria-label="Cerrar panel curl"
+                            aria-label="Close curl panel"
                           >
                             <X className="h-4 w-4" />
                           </button>
@@ -1112,13 +1112,13 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
                         <div className="space-y-4">
                           <p className="text-[12px] text-muted-foreground">
-                            Endpoint público que devuelve la misma respuesta que <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">/chat</code>. No requiere token interno — usa tu Strava access token en el header <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">Authorization</code>.
+                            Public endpoint that returns the same response as <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">/chat</code>. No internal token required — use your Strava access token in the <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">Authorization</code> header.
                           </p>
 
                           <div>
                             <div className="mb-1.5 flex items-center justify-between">
                               <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Ejemplo curl
+                                Curl example
                               </span>
                               <button
                                 type="button"
@@ -1126,9 +1126,9 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                                 className="inline-flex h-6 items-center gap-1 rounded border border-border px-2 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
                               >
                                 {curlCopied ? (
-                                  <><Check className="h-3 w-3 text-success" /> Copiado</>
+                                  <><Check className="h-3 w-3 text-success" /> Copied</>
                                 ) : (
-                                  <><Copy className="h-3 w-3" /> Copiar</>
+                                  <><Copy className="h-3 w-3" /> Copy</>
                                 )}
                               </button>
                             </div>
@@ -1138,25 +1138,25 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                           </div>
 
                           <div className="rounded-md border border-border bg-background/60 p-3 text-[11px] text-muted-foreground space-y-1.5">
-                            <p className="font-semibold text-foreground text-[12px]">Parámetros</p>
+                            <p className="font-semibold text-foreground text-[12px]">Parameters</p>
                             <div className="grid grid-cols-[1fr_2fr] gap-x-3 gap-y-1">
                               <span className="font-mono text-violet-500">question</span>
-                              <span>Pregunta al agente (query param, requerido)</span>
+                              <span>Question to the agent (query param, required)</span>
                               <span className="font-mono text-violet-500">strava_athlete_id</span>
-                              <span>ID del atleta Strava (query param, requerido)</span>
+                              <span>Strava athlete ID (query param, required)</span>
                               <span className="font-mono text-violet-500">model</span>
-                              <span>Modelo LLM (query param, opcional)</span>
+                              <span>LLM model (query param, optional)</span>
                               <span className="font-mono text-violet-500">top_k</span>
-                              <span>Resultados wiki a recuperar (query param, opcional)</span>
+                              <span>Wiki results to retrieve (query param, optional)</span>
                               <span className="font-mono text-violet-500">Authorization</span>
-                              <span>Bearer YOUR_STRAVA_ACCESS_TOKEN (header, requerido)</span>
+                              <span>Bearer YOUR_STRAVA_ACCESS_TOKEN (header, required)</span>
                             </div>
                           </div>
 
                           <div className="rounded-md border border-border bg-background/60 p-3 text-[11px] text-muted-foreground">
-                            <p className="font-semibold text-foreground text-[12px] mb-1">Respuesta</p>
+                            <p className="font-semibold text-foreground text-[12px] mb-1">Response</p>
                             <pre className="font-mono text-[10px] leading-relaxed">{`{
-  "response": "Esta semana corriste 42 km...",
+  "response": "This week you ran 42 km...",
   "tool_calls": [...],
   "structured": { ... }
 }`}</pre>
@@ -1188,7 +1188,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                       key="agent-editor"
                       role="dialog"
                       aria-modal="true"
-                      aria-label="Editar agente"
+                      aria-label="Edit agent"
                       initial={
                         reduceMotion
                           ? { opacity: 0 }
@@ -1209,14 +1209,14 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     >
                     <header className="mb-3 flex items-center justify-between gap-3">
                       <div>
-                        <h3 className="text-[15px] font-semibold text-foreground">Editar agente</h3>
+                        <h3 className="text-[15px] font-semibold text-foreground">Edit agent</h3>
                         <p className="text-[11px] text-muted-foreground">{editorDraft.id}</p>
                       </div>
                       <button
                         type="button"
                         onClick={closeEditor}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-                        aria-label="Cerrar edición"
+                        aria-label="Close editor"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -1224,12 +1224,12 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
                     <div className="space-y-3">
                       <div>
-                        <label className="mb-1 block text-[12px] text-muted-foreground">Nombre</label>
+                        <label className="mb-1 block text-[12px] text-muted-foreground">Name</label>
                         <input
                           type="text"
                           value={editorDraft.name}
                           onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, name: event.target.value } : cur))}
-                          placeholder="Ej: Analista de entreno"
+                          placeholder="E.g.: Training Analyst"
                           className="h-9 w-full rounded-md border border-border bg-background px-2 text-[13px] text-foreground"
                         />
                       </div>
@@ -1241,19 +1241,19 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                           onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, prompt: event.target.value } : cur))}
                           rows={7}
                           spellCheck={false}
-                          placeholder="Escribe instrucciones sencillas para este agente..."
+                          placeholder="Write simple instructions for this agent..."
                           className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground"
                         />
                       </div>
 
                       <div>
-                        <label className="mb-1 block text-[12px] text-muted-foreground">Modelo</label>
+                        <label className="mb-1 block text-[12px] text-muted-foreground">Model</label>
                         <select
                           value={editorDraft.model}
                           onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, model: event.target.value } : cur))}
                           className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
                         >
-                          <option value="">Modelo por defecto (env)</option>
+                          <option value="">Default model (env)</option>
                           {MODEL_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
                               {opt.label}
@@ -1263,12 +1263,12 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                       </div>
 
                       <div>
-                        <label className="mb-1 block text-[12px] text-muted-foreground">Descripcion</label>
+                        <label className="mb-1 block text-[12px] text-muted-foreground">Description</label>
                         <input
                           type="text"
                           value={editorDraft.description}
                           onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, description: event.target.value } : cur))}
-                          placeholder="Descripcion corta"
+                          placeholder="Short description"
                           className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
                         />
                       </div>
@@ -1279,11 +1279,11 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                           type="text"
                           value={editorDraft.output_key}
                           onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, output_key: event.target.value } : cur))}
-                          placeholder="ej: research_result"
+                          placeholder="e.g.: research_result"
                           className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
                         />
                         <p className="mt-1 text-[11px] text-muted-foreground">
-                          Si lo dejas vacio, se usa automaticamente: {`${editorDraft.id}_output`}.
+                          If left empty, automatically set to: {`${editorDraft.id}_output`}.
                         </p>
                       </div>
                     </div>
@@ -1294,14 +1294,14 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         onClick={closeEditor}
                         className="inline-flex h-8 items-center rounded-md border border-border px-3 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground"
                       >
-                        Cancelar
+                        Cancel
                       </button>
                       <button
                         type="button"
                         onClick={saveEditor}
                         className="inline-flex h-8 items-center rounded-md border border-primary/40 bg-primary/10 px-3 text-[12px] font-medium text-primary hover:bg-primary/15"
                       >
-                        Aplicar cambios
+                        Apply changes
                       </button>
                     </footer>
                     </motion.section>

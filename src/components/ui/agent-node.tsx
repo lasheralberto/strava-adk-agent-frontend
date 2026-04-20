@@ -50,14 +50,14 @@ function AgentNode({ data, selected }: NodeProps<AgentNodeType>) {
         ) : data.type === 'api' ? (
           <>
             <p className="line-clamp-2">{data.promptPreview}</p>
-            <p className="text-[10px] text-violet-500/80">Haz clic para ver el código curl</p>
+            <p className="text-[10px] text-violet-500/80">Click to see curl code</p>
           </>
         ) : (
-          <p>Integra {data.subAgentsCount} output_keys y produce la respuesta final.</p>
+          <p>Integrates {data.subAgentsCount} output_keys and produces the final response.</p>
         )}
         <div className="flex items-center justify-between gap-2 text-[10px]">
-          <span>entrada</span>
-          {!isApi && <span>salida</span>}
+          <span>input</span>
+          {!isApi && <span>output</span>}
         </div>
       </div>
 
