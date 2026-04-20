@@ -85,7 +85,7 @@ function PhoneMockup() {
       {/* App header */}
       <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-3 py-2">
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-semibold text-zinc-100">Toontracks</span>
+          <span className="text-[11px] font-semibold text-zinc-100">Athly</span>
           <span className="inline-flex items-center gap-1 rounded-[3px] bg-emerald-500/15 px-1.5 py-0.5 text-[8px] font-medium text-emerald-400">
             <span className="h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
             Conectado
@@ -161,7 +161,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
       <nav className="relative z-10 flex items-center justify-between px-6 py-4 sm:px-10">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-white/60" />
-          <span className="text-sm font-semibold tracking-tight text-white">Toontracks</span>
+          <span className="text-sm font-semibold tracking-tight text-white">Athly</span>
         </div>
         <button
           onClick={onLogin}
