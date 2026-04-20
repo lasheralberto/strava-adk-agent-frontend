@@ -3,7 +3,6 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   CircleCheck,
-  GitBranch,
   LogIn,
   Moon,
   RefreshCw,
@@ -79,44 +78,7 @@ type ChatApiPayload = {
   structured?: StructuredApiPayload
 }
 
-type AgentToolCallLog = {
-  agent?: string
-  tool?: string
-  args?: string
-}
 
-type AgentAttemptLog = {
-  attempt?: number
-  retry?: boolean
-  succeeded?: boolean
-  session_id?: string
-  agent_chain?: string[]
-  tool_calls?: AgentToolCallLog[]
-}
-
-type AgentConversationLog = {
-  conversation_id?: string
-  created_at?: string
-  response_format?: string
-  stream?: boolean
-  success?: boolean
-  attempt_count?: number
-  retry_used?: boolean
-  agent_chain?: string[]
-  tool_calls?: AgentToolCallLog[]
-  attempts?: AgentAttemptLog[]
-}
-
-type AgentConversationLogsPayload = {
-  athlete_id?: string
-  page?: number
-  page_size?: number
-  total_conversations?: number
-  total_pages?: number
-  has_next?: boolean
-  has_previous?: boolean
-  conversations?: AgentConversationLog[]
-}
 
 type StravaAthlete = {
   id?: number
@@ -421,116 +383,6 @@ function getDefaultRedirectUri(): string {
   return `${window.location.origin}/`
 }
 
-function formatConversationLogDate(isoTimestamp: string | undefined): string {
-  if (!isoTimestamp) {
-    return 'Sin fecha'
-  }
-
-  const parsedDate = new Date(isoTimestamp)
-  if (Number.isNaN(parsedDate.getTime())) {
-    return isoTimestamp
-  }
-
-  return parsedDate.toLocaleString('es-ES', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function formatAgentChain(agentChain: string[] | undefined): string {
-  if (!Array.isArray(agentChain) || agentChain.length === 0) {
-    return 'sin agentes detectados'
-  }
-
-  return agentChain.join(' -> ')
-}
-
-function summarizeToolCalls(toolCalls: AgentToolCallLog[] | undefined, maxItems = 4): string {
-  if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
-    return 'sin tools'
-  }
-
-  const summarized = toolCalls.slice(0, maxItems).map((toolCall) => {
-    const agentName = (toolCall.agent ?? '').trim()
-    const toolName = (toolCall.tool ?? '').trim() || 'tool'
-    return agentName ? `${agentName}.${toolName}` : toolName
-  })
-
-  if (toolCalls.length > maxItems) {
-    summarized.push(`+${toolCalls.length - maxItems} más`)
-  }
-
-  return summarized.join(', ')
-}
-
-function buildAgentLogsMarkdown(payload: AgentConversationLogsPayload): string {
-  const page = Number.isFinite(payload.page) ? Number(payload.page) : 1
-  const totalPages = Number.isFinite(payload.total_pages) ? Number(payload.total_pages) : 0
-  const totalConversations = Number.isFinite(payload.total_conversations)
-    ? Number(payload.total_conversations)
-    : 0
-  const conversations = Array.isArray(payload.conversations) ? payload.conversations : []
-
-  if (conversations.length === 0) {
-    return [
-      '### Logs de agentes',
-      '',
-      `No hay conversaciones registradas para este atleta.`,
-    ].join('\n')
-  }
-
-  const lines: string[] = [
-    '### Logs de agentes',
-    '',
-    `Página ${page}${totalPages > 0 ? ` de ${totalPages}` : ''} · ${totalConversations} conversaciones registradas`,
-    '',
-  ]
-
-  conversations.forEach((conversation, index) => {
-    const attemptCount = Number.isFinite(conversation.attempt_count)
-      ? Number(conversation.attempt_count)
-      : Array.isArray(conversation.attempts)
-      ? conversation.attempts.length
-      : 0
-
-    const attemptSummary = Array.isArray(conversation.attempts)
-      ? conversation.attempts
-          .slice(0, 2)
-          .map((attempt) => {
-            const attemptId = Number.isFinite(attempt.attempt) ? Number(attempt.attempt) : 0
-            const retryLabel = attempt.retry ? ' (retry)' : ''
-            const attemptChain = formatAgentChain(attempt.agent_chain)
-            return `intento ${attemptId}${retryLabel}: ${attemptChain}`
-          })
-          .join(' | ')
-      : ''
-
-    lines.push(`**${index + 1}. ${formatConversationLogDate(conversation.created_at)}**`)
-    lines.push(`- Estado: ${conversation.success ? 'éxito' : 'fallo'}`)
-    lines.push(`- Cadena: ${formatAgentChain(conversation.agent_chain)}`)
-    lines.push(
-      `- Intentos: ${attemptCount}${conversation.retry_used ? ' (con retry)' : ''}${conversation.stream ? ' · streaming' : ''}`,
-    )
-    lines.push(`- Tools: ${summarizeToolCalls(conversation.tool_calls)}`)
-
-    if (attemptSummary) {
-      lines.push(`- Detalle: ${attemptSummary}`)
-    }
-
-    lines.push('')
-  })
-
-  if (payload.has_next) {
-    lines.push('_Pulsa "Ver logs" otra vez para cargar la siguiente página._')
-  } else if (totalPages > 1) {
-    lines.push('_Pulsa "Ver logs" otra vez para volver a la página 1._')
-  }
-
-  return lines.join('\n')
-}
 
 function isTokenExpired(expiresAt: number): boolean {
   const now = Math.floor(Date.now() / 1000)
@@ -615,8 +467,6 @@ function App() {
   const [lastSyncStatus, setLastSyncStatus] = useState<'success' | 'failed' | 'queued' | null>(null)
   const [activitiesRefreshKey, setActivitiesRefreshKey] = useState(0)
   const [selectedAgentId, setSelectedAgentId] = useState(DEFAULT_AGENT_ID)
-  const [logsLoading, setLogsLoading] = useState(false)
-  const [logsPage, setLogsPage] = useState(1)
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
@@ -1031,72 +881,6 @@ function App() {
     }
   }
 
-  const handleViewAgentLogs = useCallback(async () => {
-    if (logsLoading || requestStatus !== 'idle') {
-      return
-    }
-
-    if (!apiBaseUrl) {
-      setMessages((currentMessages) => [
-        ...currentMessages,
-        buildAssistantMessage('No se pudo abrir el endpoint de logs.', 'Logs de agentes'),
-      ])
-      return
-    }
-
-    const athleteId = authSessionRef.current?.athlete?.id
-    if (!athleteId) {
-      setMessages((currentMessages) => [
-        ...currentMessages,
-        buildAssistantMessage('No hay athlete_id activo para consultar logs.', 'Logs de agentes'),
-      ])
-      return
-    }
-
-    const assistantMessageId = Date.now() + Math.floor(Math.random() * 1000)
-    setLogsLoading(true)
-    setMessages((currentMessages) =>
-      updateAssistantMessage(
-        currentMessages,
-        assistantMessageId,
-        `Cargando logs de agentes (página ${logsPage})...`,
-        'Logs de agentes',
-      ),
-    )
-
-    try {
-      const searchParams = new URLSearchParams({
-        page: String(logsPage),
-        page_size: '5',
-      })
-
-      const response = await fetch(
-        `${apiBaseUrl}/agent-definition-logs/${athleteId}?${searchParams.toString()}`,
-      )
-
-      if (!response.ok) {
-        const backendError = await readBackendErrorMessage(response)
-        throw new Error(backendError)
-      }
-
-      const payload = (await response.json()) as AgentConversationLogsPayload
-      const markdown = buildAgentLogsMarkdown(payload)
-
-      setMessages((currentMessages) =>
-        updateAssistantMessage(currentMessages, assistantMessageId, markdown, 'Logs de agentes'),
-      )
-
-      const resolvedPage = Number.isFinite(payload.page) ? Number(payload.page) : logsPage
-      setLogsPage(payload.has_next ? resolvedPage + 1 : 1)
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'No se pudieron cargar los logs.'
-      setMessages((currentMessages) =>
-        updateAssistantMessage(currentMessages, assistantMessageId, errorMessage, 'Logs de agentes'),
-      )
-    } finally {
-      setLogsLoading(false)
-    }
-  }, [logsLoading, logsPage, requestStatus])
 
   const handleSend = async ({ message, transform }: { message: string; transform: string | null }) => {
     const isSending = requestStatus !== 'idle'
