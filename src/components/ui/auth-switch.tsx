@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { GradientBars } from '@/components/ui/gradient-bars-background'
 import btnStravaConnect from '@/assets/btn_strava_connect_with_orange.png'
-import { GooeyText } from '@/components/ui/gooey-text-morphing'
+import { TextGlitch } from '@/components/ui/text-glitch-effect'
 
 interface AuthSwitchProps {
   onLogin: () => void
@@ -132,7 +132,7 @@ function PhoneMockup() {
 
       {/* Prompt bar */}
       <div className="shrink-0 border-t border-zinc-800 px-2.5 py-2.5">
-        <div className="flex items-center gap-2 rounded-xl bg-zinc-800 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-2">
           <span className="flex-1 text-[9.5px] text-zinc-600">
             Pregúntame sobre tu entrenamiento...
           </span>
@@ -166,27 +166,30 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
         <button
           onClick={onLogin}
           disabled={isPending}
-          className="transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-not-allowed disabled:opacity-50 rounded-sm"
+          className="overflow-hidden rounded-md transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Conectar con Strava"
         >
           {isPending ? (
-            <span className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#FC4C02] px-3 text-[12px] font-semibold text-white">
+            <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[#FC4C02] px-4 text-[12px] font-semibold text-white">
               <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
-              Conectando...
+              Connecting...
             </span>
           ) : (
-            <img
-              src={btnStravaConnect}
-              alt="Conectar con Strava"
-              className="h-8 w-auto"
-            />
+            <span className="inline-flex h-8 items-center gap-2 rounded-md bg-[#FC4C02] px-4 text-[12px] font-semibold text-white">
+              <img
+                src={btnStravaConnect}
+                alt=""
+                className="h-5 w-auto"
+              />
+              Connect with Strava
+            </span>
           )}
         </button>
       </nav>
 
       {/* Error banner */}
       {error && (
-        <div className="relative z-10 mx-6 mb-2 rounded-lg border border-red-400/30 bg-red-950/60 px-4 py-2 text-xs text-red-300 backdrop-blur-sm sm:mx-10">
+        <div className="relative z-10 mx-6 mb-2 rounded-md border border-red-400/30 bg-red-950/60 px-4 py-2 text-xs text-red-300 backdrop-blur-sm sm:mx-10">
           {error}
         </div>
       )}
@@ -194,19 +197,19 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
       {/* Hero */}
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pb-16 pt-8 sm:px-10">
         {/* Headline */}
-        <div className="mb-12 text-center">
-          <div className="relative h-24 w-full drop-shadow-lg">
-            <GooeyText
-              texts={["Rendimiento", "Recuperación", "Carga", "Progreso", "Análisis"]}
-              morphTime={1.2}
-              cooldownTime={2.5}
-              className="h-24 w-full"
-              textClassName="font-bold tracking-tight"
-            />
-          </div>
-          <p className="mx-auto mt-3 max-w-xs text-sm text-white/60">
-            Conecta Strava y consulta en lenguaje natural tu rendimiento, carga y recuperación.
-          </p>
+        <div className="mb-12 w-full px-6 sm:px-10">
+          <TextGlitch
+            text="Tu rendimiento,"
+            hoverText="Tu rendimiento,"
+            delay={0}
+            className="text-[6vw]"
+          />
+          <TextGlitch
+            text="sin filtros ni complicaciones."
+            hoverText="sin filtros ni complicaciones."
+            delay={0.2}
+            className="text-[4.2vw]"
+          />
         </div>
 
         {/* Phone + floating cards */}
@@ -216,7 +219,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
             {leftCards.map((card) => (
               <motion.div
                 key={card.id}
-                className="flex w-[192px] items-start gap-2.5 rounded-xl border border-white/10 bg-zinc-900/75 px-3 py-2.5 shadow-md"
+                className="flex w-[192px] items-start gap-2.5 rounded-md border border-white/10 bg-zinc-900/75 px-3 py-2.5 shadow-md"
                 initial={{ opacity: 0, x: -24 }}
                 animate={{ opacity: 1, x: 0, y: [0, card.floatY, 0] }}
                 transition={{
@@ -232,7 +235,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
               >
                 <div
                   className={cn(
-                    'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5',
+                    'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/5',
                     iconTone[card.tone],
                   )}
                 >
@@ -264,7 +267,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
             {rightCards.map((card) => (
               <motion.div
                 key={card.id}
-                className="flex w-[192px] items-start gap-2.5 rounded-xl border border-white/10 bg-zinc-900/75 px-3 py-2.5 shadow-md"
+                className="flex w-[192px] items-start gap-2.5 rounded-md border border-white/10 bg-zinc-900/75 px-3 py-2.5 shadow-md"
                 initial={{ opacity: 0, x: 24 }}
                 animate={{ opacity: 1, x: 0, y: [0, card.floatY, 0] }}
                 transition={{
@@ -280,7 +283,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
               >
                 <div
                   className={cn(
-                    'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5',
+                    'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/5',
                     iconTone[card.tone],
                   )}
                 >
