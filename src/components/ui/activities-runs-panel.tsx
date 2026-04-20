@@ -2,14 +2,6 @@ import { AnimatePresence, motion } from 'motion/react'
 import { ListChecks, RefreshCw, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
 const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '')
@@ -48,6 +40,7 @@ const STATUS_LABELS: Record<string, string> = {
   queued: 'En cola',
   running: 'Procesando',
   success: 'Indexada',
+  partial_success: 'Parcial',
   failed: 'Fallida',
 }
 
@@ -55,6 +48,8 @@ function statusClasses(status: ActivityRunStatus | undefined): string {
   switch (status) {
     case 'success':
       return 'border-success/40 bg-success/10 text-success'
+    case 'partial_success':
+      return 'border-warning/40 bg-warning/10 text-warning'
     case 'failed':
       return 'border-destructive/40 bg-destructive/10 text-destructive'
     case 'running':
@@ -70,6 +65,8 @@ function statusDotClass(status: ActivityRunStatus | undefined): string {
   switch (status) {
     case 'success':
       return 'bg-success'
+    case 'partial_success':
+      return 'bg-warning'
     case 'failed':
       return 'bg-destructive'
     case 'running':
@@ -94,7 +91,7 @@ function formatDate(value: string | undefined): string {
 
 function formatDistance(meters: number | undefined): string {
   if (typeof meters !== 'number' || !Number.isFinite(meters) || meters <= 0) {
-    return '—'
+    return ''
   }
   const km = meters / 1000
   return `${km.toFixed(km >= 10 ? 1 : 2)} km`
@@ -102,7 +99,7 @@ function formatDistance(meters: number | undefined): string {
 
 function formatDuration(seconds: number | undefined): string {
   if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) {
-    return '—'
+    return ''
   }
   const total = Math.round(seconds)
   const h = Math.floor(total / 3600)
@@ -111,6 +108,14 @@ function formatDuration(seconds: number | undefined): string {
   if (h > 0) return `${h}h ${m.toString().padStart(2, '0')}m`
   if (m > 0) return `${m}m ${s.toString().padStart(2, '0')}s`
   return `${s}s`
+}
+
+function sortByDateDesc(runs: ActivityRun[]): ActivityRun[] {
+  return [...runs].sort((a, b) => {
+    const da = a.start_date ? new Date(a.start_date).getTime() : 0
+    const db = b.start_date ? new Date(b.start_date).getTime() : 0
+    return db - da
+  })
 }
 
 export function ActivitiesRunsPanel({ athleteId, refreshKey = 0 }: Props) {
@@ -134,7 +139,7 @@ export function ActivitiesRunsPanel({ athleteId, refreshKey = 0 }: Props) {
       const headers: Record<string, string> = {}
       if (internalPipelineToken) headers['X-Internal-Token'] = internalPipelineToken
       const res = await fetch(
-        `${apiBaseUrl}/pipeline/indexed-activities?athlete_id=${athleteId}&limit=20`,
+        `${apiBaseUrl}/pipeline/indexed-activities?athlete_id=${athleteId}&limit=100`,
         { headers, signal: controller.signal },
       )
       if (!res.ok) {
@@ -168,7 +173,6 @@ export function ActivitiesRunsPanel({ athleteId, refreshKey = 0 }: Props) {
     }
   }, [athleteId])
 
-  // Esc to close; focus close button on open; restore focus to trigger on close.
   useEffect(() => {
     if (!open) return
     closeBtnRef.current?.focus()
@@ -189,6 +193,8 @@ export function ActivitiesRunsPanel({ athleteId, refreshKey = 0 }: Props) {
   }, [open])
 
   if (!athleteId) return null
+
+  const sortedRuns = sortByDateDesc(runs)
 
   return (
     <>
@@ -230,17 +236,23 @@ export function ActivitiesRunsPanel({ athleteId, refreshKey = 0 }: Props) {
               transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
               className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[min(92vw,32rem)] flex-col border-l border-border bg-popover text-popover-foreground shadow-2xl"
             >
+              {/* Header */}
               <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <ListChecks className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <div className="flex items-center gap-2 min-w-0">
+                  <ListChecks className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                   <h2
                     id="activities-drawer-title"
                     className="text-[15px] font-semibold text-foreground"
                   >
                     Actividades indexadas
                   </h2>
+                  {!loading && runs.length > 0 && (
+                    <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      {runs.length}
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                   <button
                     type="button"
                     onClick={fetchRuns}
@@ -265,15 +277,32 @@ export function ActivitiesRunsPanel({ athleteId, refreshKey = 0 }: Props) {
                 </div>
               </header>
 
+              {/* Body */}
               <div className="flex-1 overflow-y-auto">
-                {error ? (
+                {loading && runs.length === 0 ? (
+                  <ul className="divide-y divide-border">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <li key={i} className="px-4 py-3 space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="h-3.5 w-2/3 rounded bg-muted animate-pulse" />
+                          <div className="h-5 w-14 rounded-sm bg-muted animate-pulse" />
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="h-3 w-12 rounded bg-muted animate-pulse" />
+                          <div className="h-3 w-20 rounded bg-muted animate-pulse" />
+                          <div className="h-3 w-10 rounded bg-muted animate-pulse" />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : error ? (
                   <div
                     role="alert"
                     className="m-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive"
                   >
                     {error}
                   </div>
-                ) : runs.length === 0 && !loading ? (
+                ) : sortedRuns.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center gap-2 px-6 py-10 text-center">
                     <p className="text-[15px] text-foreground">Sin actividades indexadas</p>
                     <p className="text-[13px] text-muted-foreground">
@@ -281,57 +310,61 @@ export function ActivitiesRunsPanel({ athleteId, refreshKey = 0 }: Props) {
                     </p>
                   </div>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Actividad</TableHead>
-                        <TableHead className="hidden sm:table-cell">Deporte</TableHead>
-                        <TableHead className="hidden md:table-cell">Fecha</TableHead>
-                        <TableHead className="hidden md:table-cell">Distancia</TableHead>
-                        <TableHead className="hidden lg:table-cell">Tiempo</TableHead>
-                        <TableHead className="text-right">Estado</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {runs.map((run) => {
-                        const status = (run.status ?? 'unknown') as ActivityRunStatus
-                        const label = STATUS_LABELS[status] ?? status
-                        return (
-                          <TableRow key={String(run.activity_id)}>
-                            <TableCell className="max-w-[14rem] truncate font-medium text-foreground">
+                  <ul className="divide-y divide-border" aria-label="Lista de actividades indexadas">
+                    {sortedRuns.map((run) => {
+                      const status = (run.status ?? 'unknown') as ActivityRunStatus
+                      const label = STATUS_LABELS[status] ?? status
+                      const sport = run.sport_type || run.type
+                      const dist = formatDistance(run.distance)
+                      const dur = formatDuration(run.moving_time)
+                      const date = formatDate(run.start_date)
+
+                      return (
+                        <li key={String(run.activity_id)} className="px-4 py-3">
+                          {/* Row 1: name + status */}
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="flex-1 truncate text-[13px] font-medium text-foreground leading-snug">
                               {run.name || `Actividad ${run.activity_id}`}
-                            </TableCell>
-                            <TableCell className="hidden text-muted-foreground sm:table-cell">
-                              {run.sport_type || run.type || '—'}
-                            </TableCell>
-                            <TableCell className="hidden text-muted-foreground md:table-cell">
-                              {formatDate(run.start_date)}
-                            </TableCell>
-                            <TableCell className="hidden text-muted-foreground md:table-cell">
-                              {formatDistance(run.distance)}
-                            </TableCell>
-                            <TableCell className="hidden text-muted-foreground lg:table-cell">
-                              {formatDuration(run.moving_time)}
-                            </TableCell>
-                            <TableCell className="text-right">
+                            </span>
+                            <span
+                              className={cn(
+                                'shrink-0 inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium',
+                                statusClasses(status),
+                              )}
+                            >
                               <span
-                                className={cn(
-                                  'inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[12px] font-medium',
-                                  statusClasses(status),
-                                )}
-                              >
-                                <span
-                                  aria-hidden="true"
-                                  className={cn('h-1.5 w-1.5 rounded-full', statusDotClass(status))}
-                                />
-                                {label}
+                                aria-hidden="true"
+                                className={cn('h-1.5 w-1.5 rounded-full', statusDotClass(status))}
+                              />
+                              {label}
+                            </span>
+                          </div>
+
+                          {/* Row 2: meta chips */}
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                            {sport && (
+                              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                                {sport}
                               </span>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
+                            )}
+                            <span className="text-[12px] text-muted-foreground">{date}</span>
+                            {dist && (
+                              <>
+                                <span className="text-muted-foreground/40 text-[11px]">·</span>
+                                <span className="text-[12px] text-muted-foreground">{dist}</span>
+                              </>
+                            )}
+                            {dur && (
+                              <>
+                                <span className="text-muted-foreground/40 text-[11px]">·</span>
+                                <span className="text-[12px] text-muted-foreground">{dur}</span>
+                              </>
+                            )}
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
                 )}
               </div>
             </motion.aside>
