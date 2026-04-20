@@ -1,7 +1,7 @@
 import { Activity, BarChart2, Brain, TrendingUp, Zap } from 'lucide-react'
 import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
-import MountainVistaParallax from '@/components/ui/mountain-vista-bg'
+import { GradientBars } from '@/components/ui/gradient-bars-background'
 import btnStravaConnect from '@/assets/btn_strava_connect_with_orange.png'
 import { GooeyText } from '@/components/ui/gooey-text-morphing'
 
@@ -148,11 +148,14 @@ function PhoneMockup() {
 // ── Main component ────────────────────────────────────────────────────────
 export default function AuthSwitch({ onLogin, isPending, error, className }: AuthSwitchProps) {
   return (
-    <div className={cn('relative min-h-screen flex flex-col overflow-hidden', className)}>
-      {/* Parallax night background */}
-      <div className="absolute inset-0 z-0">
-        <MountainVistaParallax />
-      </div>
+    <div className={cn('relative min-h-screen flex flex-col overflow-hidden bg-[rgb(10,10,10)]', className)}>
+      {/* Gradient bars background */}
+      <GradientBars
+        numBars={13}
+        gradientFrom="rgb(255, 60, 0)"
+        gradientTo="transparent"
+        animationDuration={2.4}
+      />
 
       {/* Nav */}
       <nav className="relative z-10 flex items-center justify-between px-6 py-4 sm:px-10">
@@ -191,12 +194,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
       {/* Hero */}
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pb-16 pt-8 sm:px-10">
         {/* Headline */}
-        <motion.div
-          className="mb-12 text-center"
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
-        >
+        <div className="mb-12 text-center">
           <div className="relative h-24 w-full drop-shadow-lg">
             <GooeyText
               texts={["Rendimiento", "Recuperación", "Carga", "Progreso", "Análisis"]}
@@ -209,7 +207,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
           <p className="mx-auto mt-3 max-w-xs text-sm text-white/60">
             Conecta Strava y consulta en lenguaje natural tu rendimiento, carga y recuperación.
           </p>
-        </motion.div>
+        </div>
 
         {/* Phone + floating cards */}
         <div className="flex items-center justify-center gap-6 lg:gap-10">
