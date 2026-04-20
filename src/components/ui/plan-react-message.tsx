@@ -87,7 +87,7 @@ export function PlanReactMessage({ blocks, fallbackText, isActive = false }: Pla
         </div>
       )}
 
-      {(answerText || (!thinkingBlocks.length && fallbackText)) && (
+      {(answerText || fallbackText) && (
         <div className="markdown-body text-sm mt-2">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {answerText || fallbackText || ''}
