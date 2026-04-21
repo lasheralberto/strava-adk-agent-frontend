@@ -57,8 +57,9 @@ const AGENT_TYPE_META: Record<AgentType, { label: string; icon: typeof Bot; colo
 }
 
 const MODEL_OPTIONS = [
-  { value: 'openai/gpt-5-mini', label: 'GPT-5 Mini' },
-  { value: 'gemini/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
 ] as const
 
 type AgentDefinitionResponse = {
@@ -289,7 +290,7 @@ function definitionToToml(definition: DesignerDefinition): string {
     id: item.id,
     name: item.name,
     type: 'llm',
-    model: item.model || '',
+    model: item.model || MODEL_OPTIONS[0].value,
     description: item.description || '',
     prompt: item.prompt || '',
     custom_type: '',
@@ -309,7 +310,7 @@ function emptyAgent(id: string, order: number): AgentEntry {
     id,
     name: id,
     type: 'llm',
-    model: '',
+    model: MODEL_OPTIONS[0].value,
     description: '',
     prompt: '',
     custom_type: '',
@@ -1259,7 +1260,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                           onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, model: event.target.value } : cur))}
                           className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
                         >
-                          <option value="">Default model (env)</option>
                           {MODEL_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
                               {opt.label}
