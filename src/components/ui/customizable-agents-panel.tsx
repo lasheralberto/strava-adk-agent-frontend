@@ -5,8 +5,10 @@ import {
   Background,
   Controls,
   MarkerType,
+  applyNodeChanges,
   type Edge,
   type Node,
+  type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
@@ -479,6 +481,12 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   )
 
   const flowGraph = useMemo(() => buildFlowGraph(orderedAgents), [orderedAgents])
+  const [flowNodes, setFlowNodes] = useState(() => flowGraph.nodes)
+  useEffect(() => { setFlowNodes(flowGraph.nodes) }, [flowGraph.nodes])
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => setFlowNodes((nds) => applyNodeChanges(changes, nds) as FlowNode[]),
+    [],
+  )
 
   const setActiveAndNotify = useCallback(
     (agentId: string) => {
@@ -996,8 +1004,9 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     </div>
                     <div className="h-[52vh] min-h-[320px] overflow-hidden rounded-md border border-border bg-background md:h-[62vh] md:min-h-[420px]">
                       <ReactFlow
-                        nodes={flowGraph.nodes}
+                        nodes={flowNodes}
                         edges={flowGraph.edges}
+                        onNodesChange={onNodesChange}
                         nodeTypes={flowNodeTypes}
                         fitView
                         nodesDraggable={true}
