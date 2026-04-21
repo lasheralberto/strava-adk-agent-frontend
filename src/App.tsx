@@ -2,8 +2,10 @@ import { startTransition, useCallback, useEffect, useRef, useState } from 'react
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
+  ChevronDown,
   CircleCheck,
   LogIn,
+  LogOut,
   Moon,
   RefreshCw,
   ShieldAlert,
@@ -479,10 +481,23 @@ function App() {
     if (stored) return stored === 'dark'
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const userMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     authSessionRef.current = authSession
   }, [authSession])
+
+  useEffect(() => {
+    if (!userMenuOpen) return
+    const handle = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [userMenuOpen])
 
   const clearAuthSession = useCallback((message?: string) => {
     authSessionRef.current = null
@@ -1240,13 +1255,41 @@ function App() {
                       </button>
                     )
                   })()}
-                  <button
-                    onClick={handleLogout}
-                    aria-label="Cerrar sesión"
-                    className="inline-flex h-8 items-center justify-center rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    Salir
-                  </button>
+                  <div className="relative" ref={userMenuRef}>
+                    <button
+                      onClick={() => setUserMenuOpen((o) => !o)}
+                      aria-label="Menú de usuario"
+                      aria-expanded={userMenuOpen}
+                      className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                        {(authSession.athlete?.firstname?.[0] ?? '').toUpperCase()}{(authSession.athlete?.lastname?.[0] ?? '').toUpperCase()}
+                      </span>
+                      <span className="hidden max-w-[120px] truncate sm:inline">
+                        {authSession.athlete?.firstname} {authSession.athlete?.lastname}
+                      </span>
+                      <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    </button>
+                    {userMenuOpen && (
+                      <div className="absolute right-0 top-full z-50 mt-1 min-w-[160px] overflow-hidden rounded-md border border-border bg-background shadow-md">
+                        <button
+                          onClick={() => setIsDark((d) => !d)}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          {isDark ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}
+                          {isDark ? 'Tema claro' : 'Tema oscuro'}
+                        </button>
+                        <div className="h-px bg-border" />
+                        <button
+                          onClick={() => { setUserMenuOpen(false); handleLogout(); }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          <LogOut className="h-4 w-4" aria-hidden="true" />
+                          Salir
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </>
               ) : (
                 <button
@@ -1261,18 +1304,20 @@ function App() {
                   </span>
                 </button>
               )}
-              <button
-                onClick={() => setIsDark((d) => !d)}
-                aria-label={isDark ? 'Activar tema claro' : 'Activar tema oscuro'}
-                aria-pressed={isDark}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {isDark ? (
-                  <Sun className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Moon className="h-4 w-4" aria-hidden="true" />
-                )}
-              </button>
+              {!authSession && (
+                <button
+                  onClick={() => setIsDark((d) => !d)}
+                  aria-label={isDark ? 'Activar tema claro' : 'Activar tema oscuro'}
+                  aria-pressed={isDark}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {isDark ? (
+                    <Sun className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Moon className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </button>
+              )}
             </div>
           </header>
 
