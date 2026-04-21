@@ -944,9 +944,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                                   <span className={cn('shrink-0 text-[10px] font-medium', meta.color)}>{meta.label}</span>
                                 </div>
                                 <div className="truncate text-[10px] text-muted-foreground">{promptPreview(item.prompt, 46)}</div>
-                                <div className="truncate text-[10px] text-muted-foreground/90">
-                                  output_key: {resolveOutputKey(item)}
-                                </div>
                               </div>
                             </button>
                             <div className="mt-1 flex items-center gap-1">
@@ -995,7 +992,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                 <section className="flex flex-col p-3 md:p-4">
                   <div className="rounded-md border border-border bg-background/40 p-3">
                     <div className="mb-2 text-[12px] text-muted-foreground">
-                      Automatic flow: agents iterate among themselves for {CONSENSUS_ROUNDS} rounds and then pass their output_key to the final consensus node.
+                      Automatic flow: agents iterate among themselves for {CONSENSUS_ROUNDS} rounds and then pass their outputs to the final consensus node.
                     </div>
                     <div className="h-[52vh] min-h-[320px] overflow-hidden rounded-md border border-border bg-background md:h-[62vh] md:min-h-[420px]">
                       <ReactFlow
@@ -1003,7 +1000,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         edges={flowGraph.edges}
                         nodeTypes={flowNodeTypes}
                         fitView
-                        nodesDraggable={false}
+                        nodesDraggable={true}
                         nodesConnectable={false}
                         edgesFocusable
                         elementsSelectable
@@ -1036,7 +1033,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                       </span>
                       <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
                         <span className="inline-block h-2 w-4 rounded-sm border border-success bg-transparent" />
-                        Output via output_key to consensus
+                        Output to consensus
                       </span>
                       <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
                         <Globe className="h-2.5 w-2.5 text-violet-500" />
@@ -1273,19 +1270,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         />
                       </div>
 
-                      <div>
-                        <label className="mb-1 block text-[12px] text-muted-foreground">Output key</label>
-                        <input
-                          type="text"
-                          value={editorDraft.output_key}
-                          onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, output_key: event.target.value } : cur))}
-                          placeholder="e.g.: research_result"
-                          className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
-                        />
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          If left empty, automatically set to: {`${editorDraft.id}_output`}.
-                        </p>
-                      </div>
                     </div>
 
                     <footer className="mt-4 flex items-center justify-end gap-2">
