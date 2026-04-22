@@ -6,11 +6,16 @@ import {
   CircleCheck,
   LogIn,
   LogOut,
+  Menu,
   Moon,
   RefreshCw,
   ShieldAlert,
   Sun,
 } from 'lucide-react'
+import { nanoid } from 'nanoid'
+import { ChatSidebar } from '@/components/ui/chat-sidebar'
+import { useChatSessions } from '@/hooks/use-chat-sessions'
+import type { ChatSessionMessage } from '@/types/chat-sessions'
 import { AnimatePresence, MotionConfig, motion, type Variants } from 'motion/react'
 import AuthSwitch from '@/components/ui/auth-switch'
 import RuixenPromptBox from '@/components/ui/ruixen-prompt-box'
@@ -475,6 +480,7 @@ function App() {
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
+  const finalAssistantContentRef = useRef<{ content: string; tag: string; structured?: import('@/types/plan-react').StructuredChatContent } | null>(null)
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined') return false
     const stored = localStorage.getItem('theme')
@@ -483,6 +489,19 @@ function App() {
   })
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  const {
+    sessions,
+    loadingSessions,
+    loadSessions,
+    createSession,
+    loadSessionMessages,
+    addMessage,
+    deleteSession,
+    clearSessions,
+  } = useChatSessions()
 
   useEffect(() => {
     authSessionRef.current = authSession
@@ -748,6 +767,15 @@ function App() {
     }
   }, [authSession, fetchSavedAgentId])
 
+  useEffect(() => {
+    if (authSession?.athlete?.id) {
+      loadSessions(authSession.athlete.id)
+    } else {
+      clearSessions()
+      setCurrentSessionId(null)
+    }
+  }, [authSession, loadSessions, clearSessions])
+
   const handleStartStravaLogin = async () => {
     if (!apiBaseUrl || authPending) {
       return
@@ -785,6 +813,9 @@ function App() {
   const handleLogout = () => {
     setAuthError(null)
     clearAuthSession()
+    clearSessions()
+    setCurrentSessionId(null)
+    setMessages([])
   }
 
   const handleRunDailyPipeline = async () => {
@@ -900,8 +931,45 @@ function App() {
   }
 
 
+  const handleNewSession = useCallback(() => {
+    setMessages([])
+    setCurrentSessionId(null)
+    setSidebarOpen(false)
+  }, [])
+
+  const handleSelectSession = useCallback(async (sessionId: string) => {
+    const athleteId = authSessionRef.current?.athlete?.id
+    if (!athleteId) return
+
+    const loaded: ChatSessionMessage[] = await loadSessionMessages(athleteId, sessionId)
+    const restored: ChatMessage[] = loaded.map((m) => ({
+      id: new Date(m.createdAt).getTime() + Math.floor(Math.random() * 1000),
+      role: m.role,
+      title: m.role === 'user' ? 'Tu' : 'Athly',
+      content: m.content,
+      tag: m.tag,
+      structured: m.structured,
+    }))
+
+    setMessages(restored)
+    setCurrentSessionId(sessionId)
+    setSidebarOpen(false)
+  }, [loadSessionMessages])
+
+  const handleDeleteSession = useCallback(async (sessionId: string) => {
+    const athleteId = authSessionRef.current?.athlete?.id
+    if (!athleteId) return
+
+    await deleteSession(athleteId, sessionId)
+    if (currentSessionId === sessionId) {
+      setMessages([])
+      setCurrentSessionId(null)
+    }
+  }, [deleteSession, currentSessionId])
+
   const handleSend = async ({ message, transform, model }: { message: string; transform: string | null; model: string }) => {
     const isSending = requestStatus !== 'idle'
+    finalAssistantContentRef.current = null
     const trimmedMessage = message.trim()
     if ((!trimmedMessage && !transform) || isSending) {
       return
@@ -920,6 +988,29 @@ function App() {
     startTransition(() => {
       setMessages((currentMessages) => [...currentMessages, userMessage])
     })
+
+    // Create session on first message
+    const athleteId = authSession?.athlete?.id
+    let activeSessionId = currentSessionId
+    if (athleteId && !activeSessionId) {
+      const newSessionId = nanoid()
+      const sessionTitle = composedMessage.slice(0, 20)
+      activeSessionId = newSessionId
+      setCurrentSessionId(newSessionId)
+      await createSession(athleteId, newSessionId, sessionTitle)
+    }
+
+    // Persist user message
+    if (athleteId && activeSessionId) {
+      await addMessage({
+        athleteId,
+        sessionId: activeSessionId,
+        messageId: String(userMessage.id),
+        role: 'user',
+        content: userMessage.content,
+        tag: userMessage.tag,
+      })
+    }
 
     if (!authSession) {
       setMessages((currentMessages) => [
@@ -1046,6 +1137,8 @@ function App() {
 
           return nextMessages
         })
+        const nonStreamFinalText = (payload.response ?? '').trim() || 'El backend respondio sin contenido.'
+        finalAssistantContentRef.current = { content: nonStreamFinalText, tag: transform ?? 'Respuesta' }
         return
       }
 
@@ -1144,14 +1237,30 @@ function App() {
       setMessages((currentMessages) =>
         updateAssistantMessage(currentMessages, assistantMessageId, finalText, transform ?? 'Respuesta'),
       )
+      finalAssistantContentRef.current = { content: finalText, tag: transform ?? 'Respuesta' }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error inesperado al contactar el backend.'
       setMessages((currentMessages) =>
         updateAssistantMessage(currentMessages, assistantMessageId, message, 'Error'),
       )
+      finalAssistantContentRef.current = { content: message, tag: 'Error' }
     } finally {
       setRequestStatus('idle')
       setActiveAssistantMessageId(null)
+      // Persist final assistant message to Firestore
+      if (athleteId && activeSessionId && finalAssistantContentRef.current) {
+        const { content, tag, structured } = finalAssistantContentRef.current
+        void addMessage({
+          athleteId,
+          sessionId: activeSessionId,
+          messageId: String(assistantMessageId),
+          role: 'assistant',
+          content,
+          tag,
+          structured,
+        })
+        finalAssistantContentRef.current = null
+      }
     }
   }
 
@@ -1171,9 +1280,26 @@ function App() {
     <MotionConfig reducedMotion="user">
     <div className="chat-shell h-screen overflow-hidden bg-background text-foreground">
       <main className="flex h-full w-full">
-        <section className="glass-panel flex h-full w-full flex-col overflow-hidden">
+        <ChatSidebar
+          sessions={sessions}
+          currentSessionId={currentSessionId}
+          loading={loadingSessions}
+          isOpen={sidebarOpen}
+          onNewSession={handleNewSession}
+          onSelectSession={handleSelectSession}
+          onDeleteSession={handleDeleteSession}
+          onClose={() => setSidebarOpen(false)}
+        />
+        <section className="glass-panel flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-3 sm:gap-3 sm:px-6">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Abrir historial de sesiones"
+                className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
+              >
+                <Menu className="h-4 w-4" aria-hidden="true" />
+              </button>
               <div className="min-w-0">
                 <h1 className="truncate text-title-2 font-semibold tracking-tight text-foreground">
                   Athly
