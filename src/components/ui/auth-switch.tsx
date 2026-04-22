@@ -485,13 +485,22 @@ function ApiCliSection() {
 // ── Main component ────────────────────────────────────────────────────────
 export default function AuthSwitch({ onLogin, isPending, error, className }: AuthSwitchProps) {
   return (
-    <div className={cn('relative min-h-screen flex flex-col overflow-hidden bg-[rgb(10,10,10)]', className)}>
+    <div className={cn('relative min-h-screen flex flex-col overflow-hidden bg-[rgb(7,13,32)]', className)}>
       {/* Gradient bars background */}
       <GradientBars
         numBars={13}
-        gradientFrom="rgb(255, 60, 0)"
+        gradientFrom="hsl(var(--primary))"
         gradientTo="transparent"
         animationDuration={2.4}
+      />
+
+      {/* Soft white halo for depth on top of animated bars */}
+      <div
+        className="pointer-events-none absolute inset-0 z-[1]"
+        style={{
+          background:
+            'radial-gradient(circle at 50% 32%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.08) 20%, rgba(255, 255, 255, 0) 52%)',
+        }}
       />
 
       {/* Nav */}
