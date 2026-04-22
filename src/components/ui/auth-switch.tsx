@@ -504,33 +504,33 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
       />
 
       {/* Nav */}
-      <nav className="relative z-10 flex items-center justify-between px-6 py-4 sm:px-10">
+      <nav className="relative z-10 flex flex-col items-center gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-3">
         <div className="flex shrink-0 items-center">
           <img
             src={athlyLogo}
             alt="Athly"
-            className="h-24 w-auto max-w-none object-contain"
+            className="h-8 w-auto max-w-none object-contain"
           />
         </div>
         <button
           onClick={onLogin}
           disabled={isPending}
-          className="overflow-hidden rounded-md transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-not-allowed disabled:opacity-50"
+          className="overflow-hidden rounded-full transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Conectar con Strava"
         >
           {isPending ? (
-            <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[#FC4C02] px-4 text-[12px] font-semibold text-white">
+            <span className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-[#FC4C02] px-4 text-sm font-semibold leading-none text-white">
               <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
-              Connecting...
+              <span className="leading-none">Connecting...</span>
             </span>
           ) : (
-            <span className="inline-flex h-8 items-center gap-2 rounded-md bg-[#FC4C02] px-4 text-[12px] font-semibold text-white">
+            <span className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-[#FC4C02] px-4 text-sm font-semibold leading-none text-white">
               <img
                 src={btnStravaConnect}
                 alt=""
-                className="h-5 w-auto"
+                className="h-4 w-auto shrink-0"
               />
-              Connect with Strava
+              <span className="leading-none">Connect with Strava</span>
             </span>
           )}
         </button>
