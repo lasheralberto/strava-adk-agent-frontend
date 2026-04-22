@@ -30,6 +30,7 @@ import {
   type StructuredChatContent,
 } from '@/types/plan-react'
 import { parse as parseToml } from 'smol-toml'
+import athlyLogo from '@/assets/athly_logo.png'
 import './styles/chat.css'
 
 // ── Animation constants ───────────────────────────────────────────────────────
@@ -1554,10 +1555,11 @@ function App() {
                 <Menu className="h-4 w-4" aria-hidden="true" />
               </button>
               <div className="min-w-0">
-                <h1 className="truncate text-title-2 font-semibold tracking-tight text-foreground">
-                  Athly
-                </h1>
-                <p className="hidden text-[11px] text-muted-foreground sm:block">Your AI coach</p>
+                <img
+                  src={athlyLogo}
+                  alt="Athly"
+                  className="h-7 w-auto max-w-[120px] object-contain sm:h-8"
+                />
               </div>
 
             </div>

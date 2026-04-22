@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Activity, BarChart2, Brain, Check, Copy, TrendingUp, Zap } from 'lucide-react'
+import { BarChart2, Brain, Check, Copy, TrendingUp, Zap } from 'lucide-react'
 import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { GradientBars } from '@/components/ui/gradient-bars-background'
+import athlyLogo from '@/assets/athly_logo.png'
 import btnStravaConnect from '@/assets/btn_strava_connect_with_orange.png'
 import { TextGlitch } from '@/components/ui/text-glitch-effect'
 
@@ -86,7 +87,11 @@ function PhoneMockup() {
       {/* App header */}
       <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-3 py-2">
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-semibold text-zinc-100">Athly</span>
+          <img
+            src={athlyLogo}
+            alt="Athly"
+            className="h-[11px] w-auto max-w-[48px] object-contain"
+          />
           <span className="inline-flex items-center gap-1 rounded-[3px] bg-emerald-500/15 px-1.5 py-0.5 text-[8px] font-medium text-emerald-400">
             <span className="h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
             Conectado
@@ -491,9 +496,12 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
 
       {/* Nav */}
       <nav className="relative z-10 flex items-center justify-between px-6 py-4 sm:px-10">
-        <div className="flex items-center gap-2">
-          <Activity className="h-4 w-4 text-white/60" />
-          <span className="text-sm font-semibold tracking-tight text-white">Athly</span>
+        <div className="flex items-center">
+          <img
+            src={athlyLogo}
+            alt="Athly"
+            className="h-8 w-auto max-w-[140px] object-contain"
+          />
         </div>
         <button
           onClick={onLogin}
