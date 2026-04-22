@@ -3,13 +3,11 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   ChevronDown,
-  CircleCheck,
   LogIn,
   LogOut,
   Menu,
   Moon,
   RefreshCw,
-  ShieldAlert,
   Sun,
 } from 'lucide-react'
 import { nanoid } from 'nanoid'
@@ -1332,35 +1330,7 @@ function App() {
                 </h1>
                 <p className="hidden text-[11px] text-muted-foreground sm:block">Your AI coach</p>
               </div>
-              <AnimatePresence mode="wait">
-                {authSession ? (
-                  <motion.span
-                    key="connected"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: BADGE_DURATION_S, ease: 'linear' }}
-                    role="status"
-                    className="inline-flex items-center gap-1 rounded-sm border border-success/40 bg-success/10 px-2 py-0.5 text-[12px] font-medium text-success"
-                  >
-                    <CircleCheck className="h-3 w-3" aria-hidden="true" />
-                    <span className="hidden sm:inline">Conectado</span>
-                  </motion.span>
-                ) : (
-                  <motion.span
-                    key="disconnected"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: BADGE_DURATION_S, ease: 'linear' }}
-                    role="status"
-                    className="inline-flex items-center gap-1 rounded-sm border border-warning/40 bg-warning/10 px-2 py-0.5 text-[12px] font-medium text-warning"
-                  >
-                    <ShieldAlert className="h-3 w-3" aria-hidden="true" />
-                    <span className="hidden sm:inline">Sin login</span>
-                  </motion.span>
-                )}
-              </AnimatePresence>
+
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {authSession ? (
