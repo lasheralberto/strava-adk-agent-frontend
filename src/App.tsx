@@ -519,6 +519,7 @@ function App() {
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
   const [usage, setUsage] = useState<UsageSnapshot | null>(null)
   const [usageLoading, setUsageLoading] = useState(false)
+  const [upgradePending, setUpgradePending] = useState(false)
   const [planBadgeOpen, setPlanBadgeOpen] = useState(false)
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
@@ -935,7 +936,61 @@ function App() {
     setUsage(null)
     setPlanBadgeOpen(false)
     setUsageLoading(false)
+    setUpgradePending(false)
   }
+
+  const handleUpgradePlan = useCallback(async () => {
+    const athleteId = authSessionRef.current?.athlete?.id
+    if (!athleteId) {
+      toasts.warning('No hay una sesión activa para actualizar el plan.')
+      return
+    }
+
+    const currentPlanId = (usage?.plan?.id ?? usage?.planId ?? '').trim().toLowerCase()
+    if (currentPlanId !== 'free') {
+      return
+    }
+
+    if (!apiBaseUrl) {
+      toasts.error('El servicio no está disponible en este momento.')
+      return
+    }
+
+    setUpgradePending(true)
+
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (internalPipelineToken) {
+        headers['X-Internal-Token'] = internalPipelineToken
+      }
+
+      const response = await fetch(`${apiBaseUrl}/usage/${athleteId}/plan`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ plan_id: 'pro' }),
+      })
+
+      if (!response.ok) {
+        let backendError = await readBackendErrorMessage(response)
+        if (!internalPipelineToken && (response.status === 401 || response.status === 403)) {
+          backendError = 'Upgrade no disponible en este entorno.'
+        }
+        throw new Error(backendError)
+      }
+
+      const payload = (await response.json()) as UsageSnapshot
+      setUsage(payload)
+      setPlanBadgeOpen(false)
+      setUserMenuOpen(false)
+      toasts.success('Plan actualizado a Pro.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo actualizar el plan.'
+      toasts.error(message)
+    } finally {
+      setUpgradePending(false)
+      void fetchUsage(athleteId)
+    }
+  }, [apiBaseUrl, fetchUsage, internalPipelineToken, toasts, usage?.plan?.id, usage?.planId])
 
   const handleRunDailyPipeline = async () => {
     if (pipelineStatus === 'running' || lastSyncStatus === 'queued') return
@@ -1459,6 +1514,8 @@ function App() {
   }
 
   const hasUsageRemaining = usage ? usage.usageMessagesRemaining > 0 : true
+  const currentPlanId = (usage?.plan?.id ?? usage?.planId ?? '').trim().toLowerCase()
+  const isFreePlan = currentPlanId === 'free'
 
   if (!authSession) {
     return (
@@ -1557,6 +1614,34 @@ function App() {
                                 <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} aria-hidden="true" />
                                 {syncing ? 'Sincronizando…' : lastSyncStatus === 'failed' ? 'Reintentar sync' : 'Sincronizar'}
                               </button>
+                              <div className="h-px bg-border" />
+                              <div className="px-3 py-2">
+                                <div className="flex items-center justify-between gap-2 text-[12px]">
+                                  <span className="text-muted-foreground">Plan actual</span>
+                                  {usageLoading ? (
+                                    <span
+                                      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/70 bg-background"
+                                      aria-label="Cargando información de plan"
+                                    >
+                                      <Spinner size={9} color="hsl(var(--muted-foreground) / 0.85)" />
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex max-w-[120px] truncate rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                      {usage?.plan?.name ?? usage?.planId ?? '—'}
+                                    </span>
+                                  )}
+                                </div>
+                                {isFreePlan ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleUpgradePlan()}
+                                    disabled={upgradePending || usageLoading}
+                                    className="mt-2 inline-flex h-7 w-full items-center justify-center rounded-md border border-primary/40 bg-primary/10 text-[12px] font-medium text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {upgradePending ? 'Actualizando…' : 'Upgrade'}
+                                  </button>
+                                ) : null}
+                              </div>
                               <div className="h-px bg-border" />
                               <button
                                 onClick={() => setIsDark((d) => !d)}
@@ -1759,9 +1844,21 @@ function App() {
                             <div className="space-y-2.5">
                               <div>
                                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Plan activo</p>
-                                <p className="text-sm font-semibold text-foreground">
-                                  {usage.plan?.name ?? usage.planId}
-                                </p>
+                                <div className="mt-0.5 flex items-center justify-between gap-2">
+                                  <p className="truncate text-sm font-semibold text-foreground">
+                                    {usage.plan?.name ?? usage.planId}
+                                  </p>
+                                  {isFreePlan ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleUpgradePlan()}
+                                      disabled={upgradePending || usageLoading}
+                                      className="inline-flex h-6 shrink-0 items-center justify-center rounded-md border border-primary/40 bg-primary/10 px-2 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      {upgradePending ? 'Actualizando…' : 'Upgrade'}
+                                    </button>
+                                  ) : null}
+                                </div>
                                 {usage.plan?.description ? (
                                   <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
                                     {usage.plan.description}
