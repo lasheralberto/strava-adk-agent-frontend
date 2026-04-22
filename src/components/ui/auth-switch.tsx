@@ -496,11 +496,11 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
 
       {/* Nav */}
       <nav className="relative z-10 flex items-center justify-between px-6 py-4 sm:px-10">
-        <div className="flex items-center">
+        <div className="flex shrink-0 items-center">
           <img
             src={athlyLogo}
             alt="Athly"
-            className="h-14 w-auto max-w-[300px] object-contain"
+            className="h-24 w-auto max-w-none object-contain"
           />
         </div>
         <button

@@ -1554,11 +1554,11 @@ function App() {
               >
                 <Menu className="h-4 w-4" aria-hidden="true" />
               </button>
-              <div className="min-w-0">
+              <div className="shrink-0">
                 <img
                   src={athlyLogo}
                   alt="Athly"
-                  className="h-10 w-auto max-w-[220px] object-contain sm:h-11"
+                  className="h-24 w-auto max-w-none object-contain sm:h-28"
                 />
               </div>
 
