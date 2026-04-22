@@ -90,7 +90,7 @@ function PhoneMockup() {
           <img
             src={athlyLogo}
             alt="Athly"
-            className="h-[16px] w-auto max-w-[74px] object-contain"
+            className="h-[18px] w-auto max-w-[90px] object-contain"
           />
           <span className="inline-flex items-center gap-1 rounded-[3px] bg-emerald-500/15 px-1.5 py-0.5 text-[8px] font-medium text-emerald-400">
             <span className="h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
@@ -500,7 +500,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
           <img
             src={athlyLogo}
             alt="Athly"
-            className="h-12 w-auto max-w-[240px] object-contain"
+            className="h-14 w-auto max-w-[300px] object-contain"
           />
         </div>
         <button

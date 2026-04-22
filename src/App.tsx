@@ -1558,7 +1558,7 @@ function App() {
                 <img
                   src={athlyLogo}
                   alt="Athly"
-                  className="h-9 w-auto max-w-[180px] object-contain sm:h-10"
+                  className="h-10 w-auto max-w-[220px] object-contain sm:h-11"
                 />
               </div>
 
