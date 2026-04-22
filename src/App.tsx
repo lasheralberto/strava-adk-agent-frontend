@@ -35,7 +35,6 @@ const MSG_SLIDE_Y_PX = 10
 const MSG_SLIDE_X_USER_PX = 8
 const MSG_SPRING = { type: 'spring' as const, stiffness: 360, damping: 28, mass: 0.8 }
 const MSG_EXIT_DURATION_S = 0.12
-const BADGE_DURATION_S = 0.18
 const BANNER_DURATION_S = 0.2
 const EMPTY_STATE_DURATION_S = 0.35
 
