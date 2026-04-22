@@ -489,6 +489,7 @@ function App() {
   })
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
+  const initialSyncDoneRef = useRef(false)
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -776,6 +777,19 @@ function App() {
     }
   }, [authSession, loadSessions, clearSessions])
 
+  const handleRunDailyPipelineRef = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    if (authSession?.athlete?.id && !initialSyncDoneRef.current) {
+      initialSyncDoneRef.current = true
+      // small delay so session state settles before sync starts
+      const t = setTimeout(() => handleRunDailyPipelineRef.current?.(), 500)
+      return () => clearTimeout(t)
+    }
+    if (!authSession) {
+      initialSyncDoneRef.current = false
+    }
+  }, [authSession])
+
   const handleStartStravaLogin = async () => {
     if (!apiBaseUrl || authPending) {
       return
@@ -930,6 +944,8 @@ function App() {
     }
   }
 
+  // keep ref in sync so the startup useEffect can call it without stale closure
+  handleRunDailyPipelineRef.current = handleRunDailyPipeline
 
   const handleNewSession = useCallback(() => {
     setMessages([])
@@ -1359,72 +1375,67 @@ function App() {
                     selectedAgentId={selectedAgentId}
                     onAgentChange={setSelectedAgentId}
                   />
-                  {(() => {
-                    const syncing = pipelineStatus === 'running' || lastSyncStatus === 'queued'
-                    const syncLabel = syncing
-                      ? 'Sincronizando actividades'
-                      : lastSyncStatus === 'failed'
-                      ? 'Último sync fallido — reintentar'
-                      : lastSyncStatus === 'success'
-                      ? 'Sincronizar — último sync correcto'
-                      : 'Sincronizar actividades'
-                    const syncTone =
-                      syncing
-                        ? 'border-warning/40 bg-warning/10 text-warning hover:bg-warning/15'
-                        : lastSyncStatus === 'failed'
-                        ? 'border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/15'
-                        : lastSyncStatus === 'success'
-                        ? 'border-success/40 bg-success/10 text-success hover:bg-success/15'
-                        : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
-                    return (
-                      <button
-                        onClick={handleRunDailyPipeline}
-                        disabled={syncing}
-                        aria-label={syncLabel}
-                        className={`inline-flex h-8 items-center justify-center gap-1 rounded-md border px-2 text-[13px] transition-colors duration-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed ${syncTone}`}
-                      >
-                        <RefreshCw
-                          className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`}
-                          aria-hidden="true"
-                        />
-                        <span className="hidden sm:inline">{syncing ? 'Sync…' : 'Sync'}</span>
-                      </button>
-                    )
-                  })()}
                   <div className="relative" ref={userMenuRef}>
-                    <button
-                      onClick={() => setUserMenuOpen((o) => !o)}
-                      aria-label="Menú de usuario"
-                      aria-expanded={userMenuOpen}
-                      className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
-                        {(authSession.athlete?.firstname?.[0] ?? '').toUpperCase()}{(authSession.athlete?.lastname?.[0] ?? '').toUpperCase()}
-                      </span>
-                      <span className="hidden max-w-[120px] truncate sm:inline">
-                        {authSession.athlete?.firstname} {authSession.athlete?.lastname}
-                      </span>
-                      <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
-                    </button>
-                    {userMenuOpen && (
-                      <div className="absolute right-0 top-full z-50 mt-1 min-w-[160px] overflow-hidden rounded-md border border-border bg-background shadow-md">
-                        <button
-                          onClick={() => setIsDark((d) => !d)}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        >
-                          {isDark ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}
-                          {isDark ? 'Tema claro' : 'Tema oscuro'}
-                        </button>
-                        <div className="h-px bg-border" />
-                        <button
-                          onClick={() => { setUserMenuOpen(false); handleLogout(); }}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        >
-                          <LogOut className="h-4 w-4" aria-hidden="true" />
-                          Salir
-                        </button>
-                      </div>
-                    )}
+                    {(() => {
+                      const syncing = pipelineStatus === 'running' || lastSyncStatus === 'queued'
+                      const syncIconColor = syncing
+                        ? 'text-warning'
+                        : lastSyncStatus === 'failed'
+                        ? 'text-destructive'
+                        : lastSyncStatus === 'success'
+                        ? 'text-success'
+                        : 'text-muted-foreground'
+                      return (
+                        <>
+                          <button
+                            onClick={() => setUserMenuOpen((o) => !o)}
+                            aria-label="Menú de usuario"
+                            aria-expanded={userMenuOpen}
+                            className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <RefreshCw
+                              className={`h-3.5 w-3.5 shrink-0 ${syncIconColor} ${syncing ? 'animate-spin' : ''}`}
+                              aria-hidden="true"
+                            />
+                            <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                              {(authSession.athlete?.firstname?.[0] ?? '').toUpperCase()}{(authSession.athlete?.lastname?.[0] ?? '').toUpperCase()}
+                            </span>
+                            <span className="hidden max-w-[120px] truncate sm:inline">
+                              {authSession.athlete?.firstname} {authSession.athlete?.lastname}
+                            </span>
+                            <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
+                          </button>
+                          {userMenuOpen && (
+                            <div className="absolute right-0 top-full z-50 mt-1 min-w-[160px] overflow-hidden rounded-md border border-border bg-background shadow-md">
+                              <button
+                                onClick={() => { setUserMenuOpen(false); handleRunDailyPipeline() }}
+                                disabled={syncing}
+                                className={`flex w-full items-center gap-2 px-3 py-2 text-[13px] transition-colors hover:bg-muted disabled:cursor-not-allowed ${syncIconColor}`}
+                              >
+                                <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} aria-hidden="true" />
+                                {syncing ? 'Sincronizando…' : lastSyncStatus === 'failed' ? 'Reintentar sync' : 'Sincronizar'}
+                              </button>
+                              <div className="h-px bg-border" />
+                              <button
+                                onClick={() => setIsDark((d) => !d)}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                              >
+                                {isDark ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}
+                                {isDark ? 'Tema claro' : 'Tema oscuro'}
+                              </button>
+                              <div className="h-px bg-border" />
+                              <button
+                                onClick={() => { setUserMenuOpen(false); handleLogout(); }}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                              >
+                                <LogOut className="h-4 w-4" aria-hidden="true" />
+                                Salir
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
                 </>
               ) : (
