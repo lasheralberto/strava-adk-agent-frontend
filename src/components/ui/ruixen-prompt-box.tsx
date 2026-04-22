@@ -20,6 +20,7 @@ type RuixenPromptBoxProps = {
   modelOptions?: string[];
   selectedModel?: string;
   onModelChange?: (model: string) => void;
+  modelLeftSlot?: React.ReactNode;
 };
 
 export default function RuixenPromptBox({
@@ -30,6 +31,7 @@ export default function RuixenPromptBox({
   modelOptions = [],
   selectedModel = "",
   onModelChange,
+  modelLeftSlot,
 }: RuixenPromptBoxProps) {
   const [input, setInput] = useState("");
 
@@ -97,18 +99,21 @@ export default function RuixenPromptBox({
           </div>
         </div>
 
-        {modelOptions.length > 0 && (
-          <div className="mt-1.5 flex justify-end pr-1">
-            <select
-              value={selectedModel}
-              onChange={(e) => onModelChange?.(e.target.value)}
-              disabled={disabled}
-              className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed"
-            >
-              {modelOptions.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
+        {(modelOptions.length > 0 || modelLeftSlot) && (
+          <div className="mt-1.5 flex items-center justify-end gap-2 pr-1">
+            {modelLeftSlot}
+            {modelOptions.length > 0 ? (
+              <select
+                value={selectedModel}
+                onChange={(e) => onModelChange?.(e.target.value)}
+                disabled={disabled}
+                className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed"
+              >
+                {modelOptions.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            ) : null}
           </div>
         )}
       </div>

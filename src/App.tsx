@@ -1705,95 +1705,6 @@ function App() {
           </div>
 
           <footer className="border-t border-border/70 px-2 py-2 sm:px-4 sm:py-3 lg:px-6">
-            {authSession ? (
-              <div className="mx-auto mb-2 flex max-w-3xl items-center justify-end gap-2 px-1">
-                {usageLoading ? (
-                  <span
-                    className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border/70 bg-background"
-                    aria-label="Cargando información de plan"
-                  >
-                    <Spinner size={10} color="hsl(var(--muted-foreground) / 0.85)" />
-                  </span>
-                ) : null}
-
-                {usage ? (
-                  <div ref={planBadgeRef} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setPlanBadgeOpen((open) => !open)}
-                      aria-expanded={planBadgeOpen}
-                      aria-haspopup="dialog"
-                      className="inline-flex h-7 max-w-[240px] items-center gap-1.5 rounded-full border border-border bg-background px-3 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <span className="truncate">Plan {usage.plan?.name ?? usage.planId}</span>
-                      <ChevronDown
-                        className={`h-3 w-3 shrink-0 transition-transform ${planBadgeOpen ? 'rotate-180' : ''}`}
-                        aria-hidden="true"
-                      />
-                    </button>
-
-                    <AnimatePresence>
-                      {planBadgeOpen ? (
-                        <motion.div
-                          key="plan-usage-popover"
-                          initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 4, scale: 0.98 }}
-                          transition={{ duration: 0.14, ease: 'easeOut' }}
-                          role="dialog"
-                          aria-label="Detalle de plan y uso"
-                          className="absolute bottom-full right-0 z-50 mb-2 w-[280px] rounded-xl border border-border bg-background p-3 shadow-md"
-                        >
-                          <div className="space-y-2.5">
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Plan activo</p>
-                              <p className="text-sm font-semibold text-foreground">
-                                {usage.plan?.name ?? usage.planId}
-                              </p>
-                              {usage.plan?.description ? (
-                                <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                                  {usage.plan.description}
-                                </p>
-                              ) : null}
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-2 rounded-md bg-muted/50 p-2">
-                              <div className="text-center">
-                                <p className="text-[10px] text-muted-foreground">Usados</p>
-                                <p className="text-sm font-semibold text-foreground">{usage.usageMessagesUsed}</p>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-[10px] text-muted-foreground">Límite</p>
-                                <p className="text-sm font-semibold text-foreground">{usage.usageMessagesDailyMax}</p>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-[10px] text-muted-foreground">Restan</p>
-                                <p className="text-sm font-semibold text-foreground">{usage.usageMessagesRemaining}</p>
-                              </div>
-                            </div>
-
-                            <div className="rounded-md border border-border/70 px-2 py-1.5 text-[11px] text-muted-foreground">
-                              Renueva: {formatUsageDate(usage.usagePeriodEndsAt)}
-                            </div>
-
-                            {usage.plan?.features?.length ? (
-                              <div className="rounded-md border border-border/70 px-2 py-1.5">
-                                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Incluye</p>
-                                <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-muted-foreground">
-                                  {usage.plan.features.slice(0, 4).map((feature) => (
-                                    <li key={feature}>{feature}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ) : null}
-                          </div>
-                        </motion.div>
-                      ) : null}
-                    </AnimatePresence>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
             <RuixenPromptBox
               onSend={handleSend}
               placeholder={
@@ -1808,6 +1719,93 @@ function App() {
               modelOptions={MODEL_OPTIONS}
               selectedModel={selectedModel}
               onModelChange={setSelectedModel}
+              modelLeftSlot={
+                authSession ? (
+                  usageLoading ? (
+                    <span
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border/70 bg-background"
+                      aria-label="Cargando información de plan"
+                    >
+                      <Spinner size={10} color="hsl(var(--muted-foreground) / 0.85)" />
+                    </span>
+                  ) : usage ? (
+                    <div ref={planBadgeRef} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setPlanBadgeOpen((open) => !open)}
+                        aria-expanded={planBadgeOpen}
+                        aria-haspopup="dialog"
+                        className="inline-flex h-7 max-w-[240px] items-center gap-1.5 rounded-full border border-border bg-background px-3 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <span className="truncate">Plan {usage.plan?.name ?? usage.planId}</span>
+                        <ChevronDown
+                          className={`h-3 w-3 shrink-0 transition-transform ${planBadgeOpen ? 'rotate-180' : ''}`}
+                          aria-hidden="true"
+                        />
+                      </button>
+
+                      <AnimatePresence>
+                        {planBadgeOpen ? (
+                          <motion.div
+                            key="plan-usage-popover"
+                            initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                            transition={{ duration: 0.14, ease: 'easeOut' }}
+                            role="dialog"
+                            aria-label="Detalle de plan y uso"
+                            className="absolute bottom-full right-0 z-50 mb-2 w-[280px] rounded-xl border border-border bg-background p-3 shadow-md"
+                          >
+                            <div className="space-y-2.5">
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Plan activo</p>
+                                <p className="text-sm font-semibold text-foreground">
+                                  {usage.plan?.name ?? usage.planId}
+                                </p>
+                                {usage.plan?.description ? (
+                                  <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                                    {usage.plan.description}
+                                  </p>
+                                ) : null}
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-2 rounded-md bg-muted/50 p-2">
+                                <div className="text-center">
+                                  <p className="text-[10px] text-muted-foreground">Usados</p>
+                                  <p className="text-sm font-semibold text-foreground">{usage.usageMessagesUsed}</p>
+                                </div>
+                                <div className="text-center">
+                                  <p className="text-[10px] text-muted-foreground">Límite</p>
+                                  <p className="text-sm font-semibold text-foreground">{usage.usageMessagesDailyMax}</p>
+                                </div>
+                                <div className="text-center">
+                                  <p className="text-[10px] text-muted-foreground">Restan</p>
+                                  <p className="text-sm font-semibold text-foreground">{usage.usageMessagesRemaining}</p>
+                                </div>
+                              </div>
+
+                              <div className="rounded-md border border-border/70 px-2 py-1.5 text-[11px] text-muted-foreground">
+                                Renueva: {formatUsageDate(usage.usagePeriodEndsAt)}
+                              </div>
+
+                              {usage.plan?.features?.length ? (
+                                <div className="rounded-md border border-border/70 px-2 py-1.5">
+                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Incluye</p>
+                                  <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-muted-foreground">
+                                    {usage.plan.features.slice(0, 4).map((feature) => (
+                                      <li key={feature}>{feature}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ) : null}
+                            </div>
+                          </motion.div>
+                        ) : null}
+                      </AnimatePresence>
+                    </div>
+                  ) : null
+                ) : null
+              }
             />
           </footer>
         </section>
