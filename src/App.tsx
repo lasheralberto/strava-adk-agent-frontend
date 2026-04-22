@@ -943,7 +943,7 @@ function App() {
 
     const loaded: ChatSessionMessage[] = await loadSessionMessages(athleteId, sessionId)
     const restored: ChatMessage[] = loaded.map((m) => ({
-      id: new Date(m.createdAt).getTime() + Math.floor(Math.random() * 1000),
+      id: Number(m.messageId),
       role: m.role,
       title: m.role === 'user' ? 'Tu' : 'Athly',
       content: m.content,
@@ -989,6 +989,28 @@ function App() {
       setMessages((currentMessages) => [...currentMessages, userMessage])
     })
 
+    if (!authSession) {
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        buildAssistantMessage(
+          'Inicia sesión con Strava para comenzar.',
+          'Autenticación requerida',
+        ),
+      ])
+      return
+    }
+
+    if (!apiBaseUrl) {
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        buildAssistantMessage(
+          'El servicio no está disponible en este momento. Inténtalo de nuevo más tarde.',
+          'Error',
+        ),
+      ])
+      return
+    }
+
     // Create session on first message
     const athleteId = authSession?.athlete?.id
     let activeSessionId = currentSessionId
@@ -1012,28 +1034,6 @@ function App() {
       })
     }
 
-    if (!authSession) {
-      setMessages((currentMessages) => [
-        ...currentMessages,
-        buildAssistantMessage(
-          'Inicia sesión con Strava para comenzar.',
-          'Autenticación requerida',
-        ),
-      ])
-      return
-    }
-
-    if (!apiBaseUrl) {
-      setMessages((currentMessages) => [
-        ...currentMessages,
-        buildAssistantMessage(
-          'El servicio no está disponible en este momento. Inténtalo de nuevo más tarde.',
-          'Error',
-        ),
-      ])
-      return
-    }
-
     const assistantMessageId = Date.now() + 1
     setRequestStatus('requesting')
     setActiveAssistantMessageId(assistantMessageId)
@@ -1045,6 +1045,7 @@ function App() {
       }
 
       let streamedResponse = ''
+      let accumulatedBlocks: PlanReactBlock[] = []
 
       setMessages((currentMessages) =>
         updateAssistantMessage(currentMessages, assistantMessageId, '', transform ?? 'Streaming'),
@@ -1138,7 +1139,11 @@ function App() {
           return nextMessages
         })
         const nonStreamFinalText = (payload.response ?? '').trim() || 'El backend respondio sin contenido.'
-        finalAssistantContentRef.current = { content: nonStreamFinalText, tag: transform ?? 'Respuesta' }
+        finalAssistantContentRef.current = {
+          content: nonStreamFinalText,
+          tag: transform ?? 'Respuesta',
+          structured: structuredBlocks.length > 0 ? { format: 'plan_react_v1', blocks: structuredBlocks } : undefined,
+        }
         return
       }
 
@@ -1190,6 +1195,7 @@ function App() {
                   transform ?? 'Streaming',
                 ),
               )
+              accumulatedBlocks = mergeStructuredBlocks(accumulatedBlocks, structuredBlocks)
 
               const finalAnswerBlocks = structuredBlocks.filter(
                 (structuredBlock) => structuredBlock.section === 'final_answer',
@@ -1237,7 +1243,11 @@ function App() {
       setMessages((currentMessages) =>
         updateAssistantMessage(currentMessages, assistantMessageId, finalText, transform ?? 'Respuesta'),
       )
-      finalAssistantContentRef.current = { content: finalText, tag: transform ?? 'Respuesta' }
+      finalAssistantContentRef.current = {
+        content: finalText,
+        tag: transform ?? 'Respuesta',
+        structured: accumulatedBlocks.length > 0 ? { format: 'plan_react_v1', blocks: accumulatedBlocks } : undefined,
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error inesperado al contactar el backend.'
       setMessages((currentMessages) =>
