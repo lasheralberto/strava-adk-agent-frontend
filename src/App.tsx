@@ -18,6 +18,7 @@ import { AnimatePresence, MotionConfig, motion, type Variants } from 'motion/rea
 import AuthSwitch from '@/components/ui/auth-switch'
 import RuixenPromptBox from '@/components/ui/ruixen-prompt-box'
 import { BouncingDots } from '@/components/ui/bouncing-dots'
+import { useToasts } from '@/components/ui/toast'
 import { PlanReactMessage } from '@/components/ui/plan-react-message'
 import { ActivitiesRunsPanel } from '@/components/ui/activities-runs-panel'
 import { CustomizableAgentsPanel } from '@/components/ui/customizable-agents-panel'
@@ -80,6 +81,29 @@ type ChatApiPayload = {
   response?: string
   tool_calls?: Array<Record<string, unknown>>
   structured?: StructuredApiPayload
+}
+
+type UsagePlan = {
+  id: string
+  name: string
+  usageMessagesDailyMax: number
+  renewMessagesUsageEvery: string
+  description: string
+  features: string[]
+}
+
+type UsageSnapshot = {
+  athleteId: number
+  planId: string
+  plan?: UsagePlan
+  usageMessagesUsed: number
+  usageMessagesRemaining: number
+  usageMessagesDailyMax: number
+  renewMessagesUsageEvery?: string
+  usagePeriodStartedAt?: string
+  usagePeriodEndsAt?: string
+  usageLastMessageAt?: string | null
+  usageMessagesTotal?: number
 }
 
 
@@ -474,10 +498,12 @@ function App() {
   const [activitiesRefreshKey, setActivitiesRefreshKey] = useState(0)
   const [selectedAgentId, setSelectedAgentId] = useState(DEFAULT_AGENT_ID)
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
+  const [usage, setUsage] = useState<UsageSnapshot | null>(null)
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
   const finalAssistantContentRef = useRef<{ content: string; tag: string; structured?: import('@/types/plan-react').StructuredChatContent } | null>(null)
+  const toasts = useToasts()
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined') return false
     const stored = localStorage.getItem('theme')
@@ -723,6 +749,22 @@ function App() {
     }
   }, [apiBaseUrl])
 
+  const fetchUsage = useCallback(
+    async (athleteId: number) => {
+      if (!apiBaseUrl || !athleteId) return
+
+      try {
+        const response = await fetch(`${apiBaseUrl}/usage/${athleteId}`)
+        if (!response.ok) return
+        const payload = (await response.json()) as UsageSnapshot
+        setUsage(payload)
+      } catch {
+        // silently ignore usage read failures
+      }
+    },
+    [apiBaseUrl],
+  )
+
   useEffect(() => {
     if (authSession?.athlete?.id) {
       fetchIndexingStatus()
@@ -730,6 +772,14 @@ function App() {
       setLastSyncStatus(null)
     }
   }, [authSession, fetchIndexingStatus])
+
+  useEffect(() => {
+    if (authSession?.athlete?.id) {
+      fetchUsage(authSession.athlete.id)
+    } else {
+      setUsage(null)
+    }
+  }, [authSession, fetchUsage])
 
   const fetchSavedAgentId = useCallback(async () => {
     const athleteId = authSessionRef.current?.athlete?.id
@@ -827,6 +877,7 @@ function App() {
     clearSessions()
     setCurrentSessionId(null)
     setMessages([])
+    setUsage(null)
   }
 
   const handleRunDailyPipeline = async () => {
@@ -883,6 +934,7 @@ function App() {
 
       const pollRunStatus = async (): Promise<void> => {
         if (Date.now() - pollStart > POLL_TIMEOUT_MS) {
+          toasts.error('La sincronizacion excedio el tiempo esperado.')
           setLastSyncStatus('failed')
           setPipelineStatus('error')
           setTimeout(() => setPipelineStatus('idle'), 3000)
@@ -901,6 +953,7 @@ function App() {
             const runStatus = pollData.runs?.[0]?.status
 
             if (runStatus === 'success') {
+              toasts.success('Sincronizacion completada.')
               setLastSyncStatus('success')
               setPipelineStatus('success')
               setActivitiesRefreshKey((k) => k + 1)
@@ -909,12 +962,14 @@ function App() {
             }
 
             if (runStatus === 'skipped') {
+              toasts.message({ text: 'No hay actividades nuevas para sincronizar.' })
               setLastSyncStatus(null)
               setPipelineStatus('idle')
               return
             }
 
             if (runStatus === 'failed' || runStatus === 'partial_failure') {
+              toasts.error('La sincronizacion fallo. Intenta de nuevo en unos minutos.')
               setLastSyncStatus('failed')
               setPipelineStatus('error')
               setTimeout(() => setPipelineStatus('idle'), 3000)
@@ -934,6 +989,7 @@ function App() {
       setTimeout(pollRunStatus, POLL_INTERVAL_MS)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error ejecutando pipeline.'
+      toasts.error(message)
       setAuthError(message)
       setLastSyncStatus('failed')
       setPipelineStatus('error')
@@ -988,6 +1044,17 @@ function App() {
       return
     }
 
+    if (usage && usage.usageMessagesRemaining <= 0) {
+      const planLabel = usage.plan?.name ?? usage.planId
+      const limitMessage = `Has alcanzado tu limite diario de mensajes (${usage.usageMessagesUsed}/${usage.usageMessagesDailyMax}) en el plan ${planLabel}.`
+      toasts.warning(limitMessage)
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        buildAssistantMessage(limitMessage, 'Limite de uso'),
+      ])
+      return
+    }
+
     const composedMessage = trimmedMessage || `Aplicar transformacion: ${transform}`
     const requestMessage = buildRequestMessage(composedMessage, transform)
     const userMessage: ChatMessage = {
@@ -1003,6 +1070,7 @@ function App() {
     })
 
     if (!authSession) {
+      toasts.warning('Inicia sesion con Strava para comenzar.')
       setMessages((currentMessages) => [
         ...currentMessages,
         buildAssistantMessage(
@@ -1014,6 +1082,7 @@ function App() {
     }
 
     if (!apiBaseUrl) {
+      toasts.error('El servicio no esta disponible en este momento.')
       setMessages((currentMessages) => [
         ...currentMessages,
         buildAssistantMessage(
@@ -1050,6 +1119,7 @@ function App() {
     const assistantMessageId = Date.now() + 1
     setRequestStatus('requesting')
     setActiveAssistantMessageId(assistantMessageId)
+    let chatErrorToastShown = false
 
     try {
       let session = await ensureValidStravaSession()
@@ -1087,6 +1157,20 @@ function App() {
           error?: string
           details?: string
           message?: string
+          usage?: UsageSnapshot
+        }
+
+        if (response.status === 429 && errorPayload.error === 'usage_limit_exceeded') {
+          if (errorPayload.usage) {
+            setUsage(errorPayload.usage)
+          }
+          const usagePayload = errorPayload.usage
+          const limitMessage = usagePayload
+            ? `Has alcanzado tu limite diario (${usagePayload.usageMessagesUsed}/${usagePayload.usageMessagesDailyMax}).`
+            : 'Has alcanzado tu limite diario de mensajes.'
+          toasts.warning(limitMessage)
+          chatErrorToastShown = true
+          throw new Error(limitMessage)
         }
 
         if (response.status === 404 && errorPayload.error === 'wiki_not_found') {
@@ -1112,7 +1196,31 @@ function App() {
 
           response = await sendChatRequest(session)
           if (!response.ok) {
-            backendError = await readBackendErrorMessage(response)
+            const retriedErrorPayload = (await response.json().catch(() => ({}))) as {
+              error?: string
+              details?: string
+              message?: string
+              usage?: UsageSnapshot
+            }
+
+            if (response.status === 429 && retriedErrorPayload.error === 'usage_limit_exceeded') {
+              if (retriedErrorPayload.usage) {
+                setUsage(retriedErrorPayload.usage)
+              }
+              const usagePayload = retriedErrorPayload.usage
+              const limitMessage = usagePayload
+                ? `Has alcanzado tu limite diario (${usagePayload.usageMessagesUsed}/${usagePayload.usageMessagesDailyMax}).`
+                : 'Has alcanzado tu limite diario de mensajes.'
+              toasts.warning(limitMessage)
+              chatErrorToastShown = true
+              throw new Error(limitMessage)
+            }
+
+            backendError =
+              retriedErrorPayload.error ??
+              retriedErrorPayload.details ??
+              retriedErrorPayload.message ??
+              'No se pudo obtener respuesta del backend.'
             if (isAuthorizationFailure(response.status, backendError)) {
               const message = 'La sesion de Strava no pudo renovarse. Autoriza de nuevo.'
               clearAuthSession(message)
@@ -1263,6 +1371,9 @@ function App() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error inesperado al contactar el backend.'
+      if (!chatErrorToastShown) {
+        toasts.error(message)
+      }
       setMessages((currentMessages) =>
         updateAssistantMessage(currentMessages, assistantMessageId, message, 'Error'),
       )
@@ -1284,8 +1395,13 @@ function App() {
         })
         finalAssistantContentRef.current = null
       }
+      if (athleteId) {
+        void fetchUsage(athleteId)
+      }
     }
   }
+
+  const hasUsageRemaining = usage ? usage.usageMessagesRemaining > 0 : true
 
   if (!authSession) {
     return (
@@ -1532,14 +1648,26 @@ function App() {
           </div>
 
           <footer className="border-t border-border/70 px-2 py-2 sm:px-4 sm:py-3 lg:px-6">
+            {usage ? (
+              <div className="mb-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground">
+                <span className="truncate">
+                  Plan {usage.plan?.name ?? usage.planId}
+                </span>
+                <span>
+                  Mensajes hoy {usage.usageMessagesUsed}/{usage.usageMessagesDailyMax} · Restan {usage.usageMessagesRemaining}
+                </span>
+              </div>
+            ) : null}
             <RuixenPromptBox
               onSend={handleSend}
               placeholder={
                 authSession
-                  ? 'Preguntame por ritmo, carga, series, recuperacion o segmentos'
+                  ? hasUsageRemaining
+                    ? 'Preguntame por ritmo, carga, series, recuperacion o segmentos'
+                    : 'Limite diario alcanzado, espera la renovacion de tu plan para seguir chateando'
                   : 'Inicia sesion con Strava para habilitar el chat'
               }
-              disabled={requestStatus !== 'idle' || !authSession || authPending}
+              disabled={requestStatus !== 'idle' || !authSession || authPending || !hasUsageRemaining}
               loading={requestStatus !== 'idle'}
               modelOptions={MODEL_OPTIONS}
               selectedModel={selectedModel}
