@@ -1,4 +1,5 @@
 import { X, Plus, MessageSquare } from 'lucide-react'
+import athlyLogo from '@/assets/athly_logo.png'
 import { AnimatePresence, motion } from 'motion/react'
 import type { ChatSession } from '@/types/chat-sessions'
 
@@ -85,7 +86,10 @@ function SidebarContent({
 }: Omit<ChatSidebarProps, 'isOpen' | 'onClose'>) {
   return (
     <div className="flex h-full flex-col">
-      <div className="px-3 pb-2 pt-3">
+      <div className="flex items-center justify-center px-3 pb-2 pt-4">
+        <img src={athlyLogo} alt="Athly" className="h-10 w-auto object-contain" />
+      </div>
+      <div className="px-3 pb-2 pt-2">
         <button
           onClick={onNewSession}
           className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
