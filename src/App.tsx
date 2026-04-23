@@ -30,6 +30,7 @@ import {
   type StructuredChatContent,
 } from '@/types/plan-react'
 import { parse as parseToml } from 'smol-toml'
+import { useLocale } from '@/hooks/use-locale'
 import './styles/chat.css'
 
 // ── Animation constants ───────────────────────────────────────────────────────
@@ -506,6 +507,7 @@ function formatUsageDate(isoString?: string): string {
 }
 
 function App() {
+  const { t } = useLocale()
   const [messages, setMessages] = useState(initialMessages)
   const [requestStatus, setRequestStatus] = useState<RequestStatus>('idle')
   const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<number | null>(null)
@@ -1407,7 +1409,7 @@ function App() {
       if (!isEventStream) {
         const payload = (await response.json()) as ChatApiPayload
         const structuredBlocks = parseStructuredBlocks(payload)
-        const finalText = (payload.response ?? '').trim() || 'El backend respondio sin contenido.'
+        const finalText = (payload.response ?? '').trim() || t.chat.backendEmpty
         setMessages((currentMessages) => {
           let nextMessages = updateAssistantMessage(
             currentMessages,
@@ -1427,7 +1429,7 @@ function App() {
 
           return nextMessages
         })
-        const nonStreamFinalText = (payload.response ?? '').trim() || 'El backend respondio sin contenido.'
+        const nonStreamFinalText = (payload.response ?? '').trim() || t.chat.backendEmpty
         finalAssistantContentRef.current = {
           content: nonStreamFinalText,
           tag: transform ?? 'Respuesta',
@@ -1528,7 +1530,7 @@ function App() {
         }
       }
 
-      const finalText = streamedResponse.trim() || 'El backend respondio sin contenido.'
+      const finalText = streamedResponse.trim() || t.chat.backendEmpty
       setMessages((currentMessages) =>
         updateAssistantMessage(currentMessages, assistantMessageId, finalText, transform ?? 'Respuesta'),
       )
@@ -1538,7 +1540,7 @@ function App() {
         structured: accumulatedBlocks.length > 0 ? { format: 'plan_react_v1', blocks: accumulatedBlocks } : undefined,
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Error inesperado al contactar el backend.'
+      const message = error instanceof Error ? error.message : t.chat.unexpectedError
       if (!chatErrorToastShown) {
         toasts.error(message)
       }
@@ -1604,7 +1606,7 @@ function App() {
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <button
                 onClick={() => setSidebarOpen(true)}
-                aria-label="Abrir historial de sesiones"
+                aria-label={t.header.openSessions}
                 className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
               >
                 <Menu className="h-4 w-4" aria-hidden="true" />
@@ -1638,7 +1640,7 @@ function App() {
                         <>
                           <button
                             onClick={() => setUserMenuOpen((o) => !o)}
-                            aria-label="Menú de usuario"
+                            aria-label={t.header.userMenu}
                             aria-expanded={userMenuOpen}
                             className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
@@ -1662,16 +1664,16 @@ function App() {
                                 className={`flex w-full items-center gap-2 px-3 py-2 text-[13px] transition-colors hover:bg-muted disabled:cursor-not-allowed ${syncIconColor}`}
                               >
                                 <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} aria-hidden="true" />
-                                {syncing ? 'Sincronizando…' : lastSyncStatus === 'failed' ? 'Reintentar sync' : 'Sincronizar'}
+                                {syncing ? t.header.syncing : lastSyncStatus === 'failed' ? t.header.retrySync : t.header.sync}
                               </button>
                               <div className="h-px bg-border" />
                               <div className="px-3 py-2">
                                 <div className="flex items-center justify-between gap-2 text-[12px]">
-                                  <span className="text-muted-foreground">Plan actual</span>
+                                  <span className="text-muted-foreground">{t.header.currentPlan}</span>
                                   {usageLoading ? (
                                     <span
                                       className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/70 bg-background"
-                                      aria-label="Cargando información de plan"
+                                        aria-label={t.plan.loadingPlan}
                                     >
                                       <Spinner size={9} color="hsl(var(--muted-foreground) / 0.85)" />
                                     </span>
@@ -1688,7 +1690,7 @@ function App() {
                                     disabled={upgradePending || usageLoading}
                                     className="mt-2 inline-flex h-7 w-full items-center justify-center rounded-md border border-primary/40 bg-primary/10 text-[12px] font-medium text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
                                   >
-                                    {upgradePending ? 'Actualizando…' : 'Upgrade'}
+                                    {upgradePending ? t.header.upgrading : t.header.upgrade}
                                   </button>
                                 ) : (
                                   cancelConfirm ? (
@@ -1699,7 +1701,7 @@ function App() {
                                         disabled={cancelPending}
                                         className="inline-flex h-7 flex-1 items-center justify-center rounded-md border border-destructive/40 bg-destructive/10 text-[12px] font-medium text-destructive transition-colors hover:bg-destructive/20 disabled:cursor-not-allowed disabled:opacity-60"
                                       >
-                                        {cancelPending ? 'Cancelando…' : 'Sí, cancelar'}
+                                        {cancelPending ? t.header.canceling : t.header.confirmCancel}
                                       </button>
                                       <button
                                         type="button"
@@ -1707,17 +1709,7 @@ function App() {
                                         disabled={cancelPending}
                                         className="inline-flex h-7 flex-1 items-center justify-center rounded-md border border-border bg-muted/50 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed"
                                       >
-                                        No
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => setCancelConfirm(true)}
-                                      disabled={cancelPending || usageLoading}
-                                      className="mt-2 inline-flex h-7 w-full items-center justify-center rounded-md border border-border bg-muted/50 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                      Cambiar a Free
+                                        {t.header.no}
                                     </button>
                                   )
                                 )}
@@ -1728,7 +1720,7 @@ function App() {
                                 className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                               >
                                 {isDark ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}
-                                {isDark ? 'Tema claro' : 'Tema oscuro'}
+                                {isDark ? t.header.lightTheme : t.header.darkTheme}
                               </button>
                               <div className="h-px bg-border" />
                               <button
@@ -1736,7 +1728,7 @@ function App() {
                                 className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                               >
                                 <LogOut className="h-4 w-4" aria-hidden="true" />
-                                Salir
+                                {t.header.logout}
                               </button>
                             </div>
                           )}
@@ -1749,19 +1741,19 @@ function App() {
                 <button
                   onClick={handleStartStravaLogin}
                   disabled={authPending}
-                  aria-label={authPending ? 'Conectando con Strava' : 'Conectar con Strava'}
+                  aria-label={authPending ? t.header.connectingStrava : t.header.connectStrava}
                   className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-muted-foreground/50"
                 >
                   <LogIn className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">
-                    {authPending ? 'Conectando…' : 'Strava'}
+                    {authPending ? t.header.connecting : 'Strava'}
                   </span>
                 </button>
               )}
               {!authSession && (
                 <button
                   onClick={() => setIsDark((d) => !d)}
-                  aria-label={isDark ? 'Activar tema claro' : 'Activar tema oscuro'}
+                  aria-label={isDark ? t.header.activateLightTheme : t.header.activateDarkTheme}
                   aria-pressed={isDark}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
@@ -1803,8 +1795,8 @@ function App() {
                 >
                   <p className="text-sm text-muted-foreground">
                     {authSession
-                      ? `Hola${authSession.athlete?.firstname ? `, ${authSession.athlete.firstname}` : ''}. ¿En qué puedo ayudarte?`
-                      : 'Conecta tu cuenta de Strava para comenzar.'}
+                      ? t.chat.greeting(authSession.athlete?.firstname)
+                      : t.chat.connectToStart}
                   </p>
                 </motion.div>
               ) : (
@@ -1875,9 +1867,9 @@ function App() {
               placeholder={
                 authSession
                   ? hasUsageRemaining
-                    ? 'Preguntame por ritmo, carga, series, recuperacion o segmentos'
-                    : 'Limite diario alcanzado, espera la renovacion de tu plan para seguir chateando'
-                  : 'Inicia sesion con Strava para habilitar el chat'
+                    ? t.chat.placeholder
+                    : t.chat.limitReached
+                  : t.chat.loginToChat
               }
               disabled={requestStatus !== 'idle' || !authSession || authPending || !hasUsageRemaining}
               loading={requestStatus !== 'idle'}
@@ -1889,7 +1881,7 @@ function App() {
                   usageLoading ? (
                     <span
                       className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border/70 bg-background"
-                      aria-label="Cargando información de plan"
+                      aria-label={t.plan.loadingPlan}
                     >
                       <Spinner size={10} color="hsl(var(--muted-foreground) / 0.85)" />
                     </span>
@@ -1918,12 +1910,12 @@ function App() {
                             exit={{ opacity: 0, y: 4, scale: 0.98 }}
                             transition={{ duration: 0.14, ease: 'easeOut' }}
                             role="dialog"
-                            aria-label="Detalle de plan y uso"
+                            aria-label={t.plan.planDetail}
                             className="absolute bottom-full right-0 z-50 mb-2 w-[280px] rounded-xl border border-border bg-background p-3 shadow-md"
                           >
                             <div className="space-y-2.5">
                               <div>
-                                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Plan activo</p>
+                                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{t.plan.activePlan}</p>
                                 <div className="mt-0.5 flex items-center justify-between gap-2">
                                   <p className="truncate text-sm font-semibold text-foreground">
                                     {usage.plan?.name ?? usage.planId}
@@ -1935,7 +1927,7 @@ function App() {
                                       disabled={upgradePending || usageLoading}
                                       className="inline-flex h-6 shrink-0 items-center justify-center rounded-md border border-primary/40 bg-primary/10 px-2 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
                                     >
-                                      {upgradePending ? 'Actualizando…' : 'Upgrade'}
+                                      {upgradePending ? t.plan.upgrading : t.plan.upgrade}
                                     </button>
                                   ) : cancelConfirm ? (
                                     <div className="flex gap-1">
@@ -1945,7 +1937,7 @@ function App() {
                                         disabled={cancelPending}
                                         className="inline-flex h-6 shrink-0 items-center justify-center rounded-md border border-destructive/40 bg-destructive/10 px-2 text-[10px] font-semibold text-destructive transition-colors hover:bg-destructive/20 disabled:cursor-not-allowed disabled:opacity-60"
                                       >
-                                        {cancelPending ? '…' : 'Confirmar'}
+                                        {cancelPending ? t.plan.canceling : t.plan.confirm}
                                       </button>
                                       <button
                                         type="button"
@@ -1953,7 +1945,7 @@ function App() {
                                         disabled={cancelPending}
                                         className="inline-flex h-6 shrink-0 items-center justify-center rounded-md border border-border bg-muted/50 px-2 text-[10px] font-semibold text-muted-foreground transition-colors hover:bg-muted"
                                       >
-                                        No
+                                        {t.plan.no}
                                       </button>
                                     </div>
                                   ) : (
@@ -1963,7 +1955,7 @@ function App() {
                                       disabled={cancelPending || usageLoading}
                                       className="inline-flex h-6 shrink-0 items-center justify-center rounded-md border border-border bg-muted/50 px-2 text-[10px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                                     >
-                                      Cancelar Pro
+                                      {t.plan.cancelPro}
                                     </button>
                                   )}
                                 </div>
@@ -1976,26 +1968,26 @@ function App() {
 
                               <div className="grid grid-cols-3 gap-2 rounded-md bg-muted/50 p-2">
                                 <div className="text-center">
-                                  <p className="text-[10px] text-muted-foreground">Usados</p>
+                                  <p className="text-[10px] text-muted-foreground">{t.plan.used}</p>
                                   <p className="text-sm font-semibold text-foreground">{usage.usageMessagesUsed}</p>
                                 </div>
                                 <div className="text-center">
-                                  <p className="text-[10px] text-muted-foreground">Límite</p>
+                                  <p className="text-[10px] text-muted-foreground">{t.plan.limit}</p>
                                   <p className="text-sm font-semibold text-foreground">{usage.usageMessagesDailyMax}</p>
                                 </div>
                                 <div className="text-center">
-                                  <p className="text-[10px] text-muted-foreground">Restan</p>
+                                  <p className="text-[10px] text-muted-foreground">{t.plan.remaining}</p>
                                   <p className="text-sm font-semibold text-foreground">{usage.usageMessagesRemaining}</p>
                                 </div>
                               </div>
 
                               <div className="rounded-md border border-border/70 px-2 py-1.5 text-[11px] text-muted-foreground">
-                                Renueva: {formatUsageDate(usage.usagePeriodEndsAt)}
+                                {t.plan.renewsOn} {formatUsageDate(usage.usagePeriodEndsAt)}
                               </div>
 
                               {usage.plan?.features?.length ? (
                                 <div className="rounded-md border border-border/70 px-2 py-1.5">
-                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Incluye</p>
+                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{t.plan.includes}</p>
                                   <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-muted-foreground">
                                     {usage.plan.features.slice(0, 4).map((feature) => (
                                       <li key={feature}>{feature}</li>

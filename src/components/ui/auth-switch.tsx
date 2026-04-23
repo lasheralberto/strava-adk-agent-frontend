@@ -6,6 +6,7 @@ import { GradientBars } from '@/components/ui/gradient-bars-background'
 import athlyLogo from '@/assets/athly_logo.png'
 import btnStravaConnect from '@/assets/btn_strava_connect_with_orange.png'
 import { TextGlitch } from '@/components/ui/text-glitch-effect'
+import { useLocale } from '@/hooks/use-locale'
 
 interface AuthSwitchProps {
   onLogin: () => void
@@ -64,7 +65,22 @@ const iconTone = {
 } as const
 
 // ── Phone mockup ──────────────────────────────────────────────────────────
+function renderMsgText(text: string, highlight?: string) {
+  if (!highlight) return <>{text}</>
+  const idx = text.indexOf(highlight)
+  if (idx === -1) return <>{text}</>
+  return (
+    <>
+      {text.slice(0, idx)}
+      <span className="font-semibold text-zinc-100">{highlight}</span>
+      {text.slice(idx + highlight.length)}
+    </>
+  )
+}
+
 function PhoneMockup() {
+  const { t } = useLocale()
+  const msgs = t.auth.mockup.messages
   return (
     <div className="flex h-[480px] w-[230px] flex-col overflow-hidden rounded-[38px] border-[6px] border-zinc-700 bg-zinc-900 shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)] select-none">
       {/* Status bar */}
@@ -94,7 +110,7 @@ function PhoneMockup() {
           />
           <span className="inline-flex items-center gap-1 rounded-[3px] bg-emerald-500/15 px-1.5 py-0.5 text-[8px] font-medium text-emerald-400">
             <span className="h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-            Conectado
+            {t.auth.mockup.connected}
           </span>
         </div>
         <div className="flex gap-1.5">
@@ -109,29 +125,26 @@ function PhoneMockup() {
         <div className="flex justify-end">
           <div className="max-w-[75%] rounded-2xl rounded-tr-sm bg-zinc-100 px-2.5 py-1.5">
             <p className="text-[9.5px] leading-snug text-zinc-900">
-              ¿Cuál fue mi mejor 5K este mes?
+              {msgs[0].text}
             </p>
           </div>
         </div>
         {/* Assistant */}
         <div className="flex justify-start">
           <p className="max-w-[88%] text-[9.5px] leading-snug text-zinc-300">
-            Tu mejor 5K fue el martes 14:{' '}
-            <span className="font-semibold text-zinc-100">21:34</span>, ritmo 4:19/km.
-            Mejoraste 23 seg respecto al anterior.
+            {renderMsgText(msgs[1].text, 'highlight' in msgs[1] ? msgs[1].highlight : undefined)}
           </p>
         </div>
         {/* User */}
         <div className="flex justify-end">
           <div className="max-w-[75%] rounded-2xl rounded-tr-sm bg-zinc-100 px-2.5 py-1.5">
-            <p className="text-[9.5px] leading-snug text-zinc-900">¿Cuánto correr mañana?</p>
+            <p className="text-[9.5px] leading-snug text-zinc-900">{msgs[2].text}</p>
           </div>
         </div>
         {/* Assistant */}
         <div className="flex justify-start">
           <p className="max-w-[88%] text-[9.5px] leading-snug text-zinc-300">
-            Carga alta esta semana (847 TSS). Recomiendo 30–40 min fácil en{' '}
-            <span className="font-semibold text-zinc-100">zona 2</span>.
+            {renderMsgText(msgs[3].text, 'highlight' in msgs[3] ? msgs[3].highlight : undefined)}
           </p>
         </div>
       </div>
@@ -140,7 +153,7 @@ function PhoneMockup() {
       <div className="shrink-0 border-t border-zinc-800 px-2.5 py-2.5">
         <div className="flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-2">
           <span className="flex-1 text-[9.5px] text-zinc-600">
-            Pregúntame sobre tu entrenamiento...
+            {t.auth.mockup.promptPlaceholder}
           </span>
           <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-700">
             <div className="h-2 w-2 rounded-[2px] bg-zinc-500" />
@@ -152,25 +165,10 @@ function PhoneMockup() {
 }
 
 // ── Pain point section ────────────────────────────────────────────────────
-const PAIN_POINTS = [
-  {
-    icon: Zap,
-    title: 'Extrae sin esfuerzo',
-    body: 'Synca con Strava automáticamente. Tus actividades llegan solas, cada día.',
-  },
-  {
-    icon: Brain,
-    title: 'Analiza en profundidad',
-    body: 'Agentes especializados detectan carga, patrones de recuperación y PRs ocultos.',
-  },
-  {
-    icon: TrendingUp,
-    title: 'Te conoce mejor cada día',
-    body: 'Con cada sesión construye tu perfil deportivo. Un entrenador que nunca para.',
-  },
-] as const
+const PAIN_POINT_ICONS = [Zap, Brain, TrendingUp] as const
 
 function PainPointSection() {
+  const { t } = useLocale()
   return (
     <motion.section
       initial={{ opacity: 0, y: 20 }}
@@ -181,48 +179,45 @@ function PainPointSection() {
     >
       <div className="mb-8 text-center">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#FC4C02]/60">
-          Por qué Athly
+          {t.auth.whyAthly}
         </p>
         <h2
           id="pain-point-heading"
           className="text-[22px] font-bold leading-tight tracking-tight text-white sm:text-[26px]"
         >
-          Hacemos el trabajo sucio.
+          {t.auth.painPointsHeadline}
         </h2>
         <p className="mx-auto mt-3 max-w-md text-[13px] leading-relaxed text-white/40">
-          La mayoría de atletas tiene datos valiosos en Strava que nunca aprovecha.
-          Athly los extrae, los analiza y actúa como tu segundo cerebro deportivo —
-          cuanto más entrenas, más sabe de ti.
+          {t.auth.painPointsSubheadline}
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {PAIN_POINTS.map((point, i) => (
-          <motion.div
-            key={point.title}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.62 + i * 0.1, ease: 'easeOut' }}
-            className="rounded-lg border border-white/10 bg-white/[0.03] p-4"
-          >
-            <div className="mb-3 flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/5">
-              <point.icon className="h-3.5 w-3.5 text-[#FC4C02]" aria-hidden="true" />
-            </div>
-            <div className="mb-1 text-[13px] font-semibold text-white">{point.title}</div>
-            <div className="text-[11px] leading-relaxed text-white/40">{point.body}</div>
-          </motion.div>
-        ))}
+        {t.auth.painPoints.map((point, i) => {
+          const Icon = PAIN_POINT_ICONS[i]
+          return (
+            <motion.div
+              key={point.title}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.62 + i * 0.1, ease: 'easeOut' }}
+              className="rounded-lg border border-white/10 bg-white/[0.03] p-4"
+            >
+              <div className="mb-3 flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/5">
+                <Icon className="h-3.5 w-3.5 text-[#FC4C02]" aria-hidden="true" />
+              </div>
+              <div className="mb-1 text-[13px] font-semibold text-white">{point.title}</div>
+              <div className="text-[11px] leading-relaxed text-white/40">{point.body}</div>
+            </motion.div>
+          )
+        })}
       </div>
     </motion.section>
   )
 }
 
 // ── API CLI demo section ──────────────────────────────────────────────────
-const API_STEPS = [
-  { label: 'Tu App', sub: 'cualquier cliente HTTP', accent: false },
-  { label: 'Agentes', sub: 'diseña tu pipeline', accent: true },
-  { label: 'API', sub: 'obtén tu análisis', accent: false },
-]
+const API_STEP_ACCENTS = [false, true, false]
 
 type Token = { t: string; c?: string }
 type CodeLine = Token[]
@@ -358,6 +353,7 @@ const COPY_TEXT: Record<ApiTab, (base: string) => string> = {
 function ApiCliSection() {
   const [tab, setTab] = useState<ApiTab>('curl')
   const [copied, setCopied] = useState(false)
+  const { t } = useLocale()
 
   const apiBase =
     (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '') ||
@@ -379,17 +375,17 @@ function ApiCliSection() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.65, ease: 'easeOut' }}
       className="w-full max-w-2xl mt-14 px-2"
-      aria-label="Integración por API"
+      aria-label={t.auth.api.integrationLabel}
     >
       {/* Flow steps */}
       <div className="mb-6 flex items-center justify-center gap-2 sm:gap-4">
-        {API_STEPS.map((step, i) => (
+        {t.auth.api.steps.map((step, i) => (
           <div key={step.label} className="flex items-center gap-2 sm:gap-4">
             <div className="flex flex-col items-center gap-1">
               <div
                 className={cn(
                   'rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors',
-                  step.accent
+                  API_STEP_ACCENTS[i]
                     ? 'border-[#FC4C02]/40 bg-[#FC4C02]/10 text-white'
                     : 'border-white/10 bg-white/5 text-white/65',
                 )}
@@ -398,7 +394,7 @@ function ApiCliSection() {
               </div>
               <span className="text-[10px] text-white/30">{step.sub}</span>
             </div>
-            {i < API_STEPS.length - 1 ? (
+            {i < t.auth.api.steps.length - 1 ? (
               <span className="mb-4 text-[15px] leading-none text-white/20" aria-hidden="true">
                 →
               </span>
@@ -419,20 +415,20 @@ function ApiCliSection() {
             </div>
             {/* Language tabs */}
             <div className="flex items-center gap-0.5 rounded-md bg-white/5 p-0.5">
-              {(['curl', 'fetch', 'python'] as const).map((t) => (
+              {(['curl', 'fetch', 'python'] as const).map((tabKey) => (
                 <button
-                  key={t}
+                  key={tabKey}
                   type="button"
-                  onClick={() => setTab(t)}
+                  onClick={() => setTab(tabKey)}
                   className={cn(
                     'rounded px-2.5 py-1 font-mono text-[10px] transition-colors',
-                    tab === t
+                    tab === tabKey
                       ? 'bg-white/10 text-white/80'
                       : 'text-white/30 hover:text-white/55',
                   )}
-                  aria-pressed={tab === t}
+                  aria-pressed={tab === tabKey}
                 >
-                  {t}
+                  {tabKey}
                 </button>
               ))}
             </div>
@@ -441,21 +437,21 @@ function ApiCliSection() {
             type="button"
             onClick={handleCopy}
             className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-white/35 transition-colors hover:bg-white/5 hover:text-white/65"
-            aria-label="Copiar código"
+            aria-label={t.auth.api.copyCode}
           >
             {copied ? (
               <Check className="h-3 w-3 text-emerald-400" aria-hidden="true" />
             ) : (
               <Copy className="h-3 w-3" aria-hidden="true" />
             )}
-            {copied ? 'Copiado' : 'Copiar'}
+            {copied ? t.auth.api.copied : t.auth.api.copyCode}
           </button>
         </div>
 
         {/* Code */}
         <pre
           className="px-4 py-4 font-mono text-[12px] leading-[1.75]"
-          aria-label="Ejemplo de código"
+          aria-label={t.auth.api.integrationLabel}
         >
           {lines.map((line, li) =>
             line.length === 0 ? (
@@ -474,7 +470,7 @@ function ApiCliSection() {
 
         {/* Response */}
         <div className="border-t border-white/10 px-4 py-3">
-          <span className="mb-1.5 block font-mono text-[10px] text-white/25">// respuesta</span>
+          <span className="mb-1.5 block font-mono text-[10px] text-white/25">{t.auth.api.responseComment}</span>
           <pre className="font-mono text-[11px] leading-relaxed text-white/45">{`{\n  "response": "Esta semana corriste 42 km en 4 sesiones. Ritmo medio: 4:58/km..."\n}`}</pre>
         </div>
       </div>
@@ -484,6 +480,7 @@ function ApiCliSection() {
 
 // ── Main component ────────────────────────────────────────────────────────
 export default function AuthSwitch({ onLogin, isPending, error, className }: AuthSwitchProps) {
+  const { t } = useLocale()
   return (
     <div className={cn('relative min-h-screen flex flex-col overflow-hidden bg-[rgb(7,13,32)]', className)}>
       {/* Gradient bars background */}
@@ -516,12 +513,12 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
           onClick={onLogin}
           disabled={isPending}
           className="overflow-hidden rounded-full transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label="Conectar con Strava"
+          aria-label={t.auth.connectWithStrava}
         >
           {isPending ? (
             <span className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-[#FC4C02] px-4 text-sm font-semibold leading-none text-white">
               <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
-              <span className="leading-none">Connecting...</span>
+              <span className="leading-none">{t.auth.connectingStrava}</span>
             </span>
           ) : (
             <span className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-[#FC4C02] px-4 text-sm font-semibold leading-none text-white">
@@ -530,7 +527,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
                 alt=""
                 className="h-4 w-auto shrink-0"
               />
-              <span className="leading-none">Connect with Strava</span>
+              <span className="leading-none">{t.auth.connectWithStrava}</span>
             </span>
           )}
         </button>
@@ -548,14 +545,14 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
         {/* Headline */}
         <div className="mb-12 w-full px-6 sm:px-10">
           <TextGlitch
-            text="Tu rendimiento,"
-            hoverText="Tu rendimiento,"
+            text={t.auth.headline1}
+            hoverText={t.auth.headline1}
             delay={0}
             className="text-[6vw]"
           />
           <TextGlitch
-            text="sin filtros ni complicaciones."
-            hoverText="sin filtros ni complicaciones."
+            text={t.auth.headline2}
+            hoverText={t.auth.headline2}
             delay={0.2}
             className="text-[4.2vw]"
           />
@@ -565,7 +562,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
         <div className="flex items-center justify-center gap-6 lg:gap-10">
           {/* Left cards */}
           <div className="hidden flex-col items-end gap-4 lg:flex">
-            {leftCards.map((card) => (
+            {LEFT_CARD_META.map((card, i) => (
               <motion.div
                 key={card.id}
                 className="flex w-[192px] items-start gap-2.5 rounded-md border border-white/10 bg-zinc-900/75 px-3 py-2.5 shadow-md"
@@ -592,10 +589,10 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
                 </div>
                 <div className="min-w-0">
                   <div className="text-[12px] font-semibold leading-tight text-white">
-                    {card.title}
+                    {t.auth.leftCards[i].title}
                   </div>
                   <div className="mt-0.5 text-[11px] leading-tight text-white/55">
-                    {card.sub}
+                    {t.auth.leftCards[i].sub}
                   </div>
                 </div>
               </motion.div>
@@ -613,7 +610,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
 
           {/* Right cards */}
           <div className="hidden flex-col items-start gap-4 lg:flex">
-            {rightCards.map((card) => (
+            {RIGHT_CARD_META.map((card, i) => (
               <motion.div
                 key={card.id}
                 className="flex w-[192px] items-start gap-2.5 rounded-md border border-white/10 bg-zinc-900/75 px-3 py-2.5 shadow-md"
@@ -640,10 +637,10 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
                 </div>
                 <div className="min-w-0">
                   <div className="text-[12px] font-semibold leading-tight text-white">
-                    {card.title}
+                    {t.auth.rightCards[i].title}
                   </div>
                   <div className="mt-0.5 text-[11px] leading-tight text-white/55">
-                    {card.sub}
+                    {t.auth.rightCards[i].sub}
                   </div>
                 </div>
               </motion.div>

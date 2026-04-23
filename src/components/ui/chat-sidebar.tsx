@@ -2,6 +2,8 @@ import { X, Plus, MessageSquare } from 'lucide-react'
 import athlyLogo from '@/assets/athly_logo.png'
 import { AnimatePresence, motion } from 'motion/react'
 import type { ChatSession } from '@/types/chat-sessions'
+import { useLocale } from '@/hooks/use-locale'
+import type { TEXTS } from '@/data/texts'
 
 type ChatSidebarProps = {
   sessions: ChatSession[]
@@ -14,18 +16,20 @@ type ChatSidebarProps = {
   onClose: () => void
 }
 
-function formatRelativeTime(isoString: string): string {
+type SidebarTexts = typeof TEXTS['en']['sidebar']
+
+function formatRelativeTime(isoString: string, s: SidebarTexts): string {
   const date = new Date(isoString)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffMins = Math.floor(diffMs / 60_000)
-  if (diffMins < 1) return 'ahora'
-  if (diffMins < 60) return `hace ${diffMins}m`
+  if (diffMins < 1) return s.now
+  if (diffMins < 60) return s.minutesAgo(diffMins)
   const diffHours = Math.floor(diffMins / 60)
-  if (diffHours < 24) return `hace ${diffHours}h`
+  if (diffHours < 24) return s.hoursAgo(diffHours)
   const diffDays = Math.floor(diffHours / 24)
-  if (diffDays < 7) return `hace ${diffDays}d`
-  return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+  if (diffDays < 7) return s.daysAgo(diffDays)
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 }
 
 function SessionItem({
@@ -33,11 +37,13 @@ function SessionItem({
   isActive,
   onSelect,
   onDelete,
+  sidebarTexts,
 }: {
   session: ChatSession
   isActive: boolean
   onSelect: () => void
   onDelete: () => void
+  sidebarTexts: SidebarTexts
 }) {
   return (
     <div
@@ -61,13 +67,13 @@ function SessionItem({
             WebkitMaskImage: 'linear-gradient(to right, black 60%, transparent 100%)',
           }}
         >
-          {session.title || 'Sin título'}
+          {session.title || sidebarTexts.untitled}
         </div>
-        <p className="mt-0.5 text-[11px] opacity-50">{formatRelativeTime(session.updatedAt)}</p>
+        <p className="mt-0.5 text-[11px] opacity-50">{formatRelativeTime(session.updatedAt, sidebarTexts)}</p>
       </div>
       <button
         onClick={(e) => { e.stopPropagation(); onDelete() }}
-        aria-label={`Eliminar sesión: ${session.title}`}
+        aria-label={sidebarTexts.deleteSession(session.title)}
         className="invisible ml-auto shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:visible group-hover:opacity-100 focus-visible:visible focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       >
         <X className="h-3 w-3" aria-hidden="true" />
@@ -84,6 +90,7 @@ function SidebarContent({
   onSelectSession,
   onDeleteSession,
 }: Omit<ChatSidebarProps, 'isOpen' | 'onClose'>) {
+  const { t } = useLocale()
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-center px-3 pb-2 pt-4">
@@ -95,15 +102,15 @@ function SidebarContent({
           className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-          Nueva sesión
+          {t.sidebar.newSession}
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 pb-4">
         {loading ? (
-          <p className="px-2 py-3 text-[12px] text-muted-foreground">Cargando…</p>
+          <p className="px-2 py-3 text-[12px] text-muted-foreground">{t.sidebar.loading}</p>
         ) : sessions.length === 0 ? (
-          <p className="px-2 py-3 text-[12px] text-muted-foreground">Sin sesiones anteriores</p>
+          <p className="px-2 py-3 text-[12px] text-muted-foreground">{t.sidebar.noSessions}</p>
         ) : (
           <div className="space-y-0.5">
             {sessions.map((session) => (
@@ -113,6 +120,7 @@ function SidebarContent({
                 isActive={session.sessionId === currentSessionId}
                 onSelect={() => onSelectSession(session.sessionId)}
                 onDelete={() => onDeleteSession(session.sessionId)}
+                sidebarTexts={t.sidebar}
               />
             ))}
           </div>
