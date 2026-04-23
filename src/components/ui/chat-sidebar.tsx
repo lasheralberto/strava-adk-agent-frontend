@@ -87,7 +87,7 @@ function SidebarContent({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-center px-3 pb-2 pt-4">
-        <img src={athlyLogo} alt="Athly" className="h-10 w-auto object-contain" />
+        <img src={athlyLogo} alt="Athly" className="h-16 w-auto object-contain" />
       </div>
       <div className="px-3 pb-2 pt-2">
         <button
