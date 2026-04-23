@@ -509,7 +509,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
           <img
             src={athlyLogo}
             alt="Athly"
-            className="h-8 w-auto max-w-none object-contain"
+            className="h-12 w-auto max-w-none object-contain"
           />
         </div>
         <button

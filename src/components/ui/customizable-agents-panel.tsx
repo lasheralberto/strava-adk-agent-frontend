@@ -6,7 +6,11 @@ import {
   Controls,
   MarkerType,
   applyNodeChanges,
+  applyEdgeChanges,
+  addEdge,
+  type Connection,
   type Edge,
+  type EdgeChange,
   type Node,
   type NodeChange,
 } from '@xyflow/react'
@@ -83,9 +87,15 @@ type AgentEntry = {
   order: number
 }
 
+type AgentConnection = {
+  from: string
+  to: string
+}
+
 type DesignerDefinition = {
   system: { entrypoint: 'orchestrator' }
   agents: AgentEntry[]
+  connections: AgentConnection[]
 }
 
 type Props = {
@@ -279,9 +289,19 @@ function parseTomlDefinition(tomlContent: string): DesignerDefinition {
     agents.push(emptyAgent('agent_1', 1))
   }
 
+  // Parse [[connections]]
+  const rawConnections = Array.isArray((parsed as Record<string, unknown>).connections)
+    ? (parsed as Record<string, unknown>).connections as unknown[]
+    : []
+  const connections: AgentConnection[] = rawConnections
+    .filter((c): c is Record<string, unknown> => isRecord(c))
+    .map((c) => ({ from: asString(c.from), to: asString(c.to) }))
+    .filter((c) => c.from && c.to)
+
   return {
     system,
     agents: agents.sort((a, b) => a.order - b.order),
+    connections,
   }
 }
 
@@ -295,13 +315,16 @@ function definitionToToml(definition: DesignerDefinition): string {
     prompt: item.prompt || '',
     custom_type: '',
     sub_agents: [],
-    output_key: item.output_key || '',
+    output_key: item.output_key || resolveOutputKey(item),
     order: index + 1,
   }))
+
+  const connections = definition.connections.map((c) => ({ from: c.from, to: c.to }))
 
   return stringifyToml({
     system: { entrypoint: 'orchestrator' },
     agents,
+    ...(connections.length > 0 ? { connections } : {}),
   })
 }
 
@@ -335,7 +358,10 @@ type FlowNode = Node<AgentNodeData, 'agent'>
 
 const flowNodeTypes = { agent: AgentNode }
 
-function buildFlowGraph(agents: AgentEntry[]): { nodes: FlowNode[]; edges: Edge[] } {
+function buildFlowGraph(
+  agents: AgentEntry[],
+  connections: AgentConnection[],
+): { nodes: FlowNode[]; edges: Edge[] } {
   const ordered = [...agents].sort((a, b) => a.order - b.order)
   const columnWidth = 280
   const agentsY = 96
@@ -389,38 +415,87 @@ function buildFlowGraph(agents: AgentEntry[]): { nodes: FlowNode[]; edges: Edge[
     })
   }
 
+  const agentIds = new Set(ordered.map((a) => a.id))
   const edges: Edge[] = []
 
-  if (ordered.length > 1) {
-    for (let i = 0; i < ordered.length; i++) {
-      const sourceAgent = ordered[i]
-      const targetAgent = ordered[(i + 1) % ordered.length]
+  const hasUserConnections = connections.length > 0
+
+  if (hasUserConnections) {
+    // ── User-defined directed connections ──────────────────────────────
+    // Track which agents have at least one outgoing connection to another agent
+    const agentsWithOutgoing = new Set(
+      connections.filter((c) => agentIds.has(c.from) && agentIds.has(c.to)).map((c) => c.from),
+    )
+
+    for (const conn of connections) {
+      if (!agentIds.has(conn.from) || !agentIds.has(conn.to)) continue
+      const sourceAgent = ordered.find((a) => a.id === conn.from)
       edges.push({
-        id: `iter__${sourceAgent.id}__${targetAgent.id}`,
-        source: sourceAgent.id,
-        target: targetAgent.id,
+        id: `conn__${conn.from}__${conn.to}`,
+        source: conn.from,
+        target: conn.to,
         type: 'smoothstep',
-        label: i === ordered.length - 1 ? 'closes round' : 'iterates',
-        style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.6 },
+        label: sourceAgent ? resolveOutputKey(sourceAgent) : conn.from,
+        style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.8 },
         labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
         markerEnd: { type: MarkerType.ArrowClosed },
         animated: true,
+        deletable: true,
       })
     }
-  }
 
-  for (const agent of ordered) {
-    edges.push({
-      id: `consensus__${agent.id}`,
-      source: agent.id,
-      target: '__consensus__',
-      type: 'bezier',
-      label: resolveOutputKey(agent),
-      style: { stroke: 'hsl(var(--success))', strokeDasharray: '5 4' },
-      labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
-      markerEnd: { type: MarkerType.ArrowClosed },
-      animated: true,
-    })
+    // "Leaf" agents (no outgoing connections to another agent) flow to consensus
+    for (const agent of ordered) {
+      if (!agentsWithOutgoing.has(agent.id)) {
+        edges.push({
+          id: `consensus__${agent.id}`,
+          source: agent.id,
+          target: '__consensus__',
+          type: 'bezier',
+          label: resolveOutputKey(agent),
+          style: { stroke: 'hsl(var(--success))', strokeDasharray: '5 4' },
+          labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
+          markerEnd: { type: MarkerType.ArrowClosed },
+          animated: true,
+          deletable: false,
+        })
+      }
+    }
+  } else {
+    // ── Automatic round-robin ring (no user-defined connections) ───────
+    if (ordered.length > 1) {
+      for (let i = 0; i < ordered.length; i++) {
+        const sourceAgent = ordered[i]
+        const targetAgent = ordered[(i + 1) % ordered.length]
+        edges.push({
+          id: `iter__${sourceAgent.id}__${targetAgent.id}`,
+          source: sourceAgent.id,
+          target: targetAgent.id,
+          type: 'smoothstep',
+          label: i === ordered.length - 1 ? 'closes round' : 'iterates',
+          style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.6 },
+          labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
+          markerEnd: { type: MarkerType.ArrowClosed },
+          animated: true,
+          deletable: false,
+        })
+      }
+    }
+
+    for (const agent of ordered) {
+      edges.push({
+        id: `consensus__${agent.id}`,
+        source: agent.id,
+        target: '__consensus__',
+        type: 'bezier',
+        label: resolveOutputKey(agent),
+        style: { stroke: 'hsl(var(--success))', strokeDasharray: '5 4' },
+        labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
+        markerEnd: { type: MarkerType.ArrowClosed },
+        animated: true,
+        deletable: false,
+      })
+    }
   }
 
   if (ordered.length > 0) {
@@ -434,6 +509,7 @@ function buildFlowGraph(agents: AgentEntry[]): { nodes: FlowNode[]; edges: Edge[
       labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
       markerEnd: { type: MarkerType.ArrowClosed },
       animated: false,
+      deletable: false,
     })
   }
 
@@ -459,6 +535,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   const [definition, setDefinition] = useState<DesignerDefinition>({
     system: { entrypoint: 'orchestrator' },
     agents: [emptyAgent('agent_1', 1)],
+    connections: [],
   })
 
   const [activeAgentId, setActiveAgentId] = useState(selectedAgentId)
@@ -481,11 +558,20 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     [definition.agents],
   )
 
-  const flowGraph = useMemo(() => buildFlowGraph(orderedAgents), [orderedAgents])
+  const flowGraph = useMemo(
+    () => buildFlowGraph(orderedAgents, definition.connections),
+    [orderedAgents, definition.connections],
+  )
   const [flowNodes, setFlowNodes] = useState(() => flowGraph.nodes)
+  const [flowEdges, setFlowEdges] = useState(() => flowGraph.edges)
   useEffect(() => { setFlowNodes(flowGraph.nodes) }, [flowGraph.nodes])
+  useEffect(() => { setFlowEdges(flowGraph.edges) }, [flowGraph.edges])
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => setFlowNodes((nds) => applyNodeChanges(changes, nds) as FlowNode[]),
+    [],
+  )
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => setFlowEdges((eds) => applyEdgeChanges(changes, eds)),
     [],
   )
 
@@ -654,7 +740,11 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
         sub_agents: a.sub_agents.filter((s) => s !== agentId),
       }))
 
-      setDefinition((cur) => ({ ...cur, agents: cleaned }))
+      setDefinition((cur) => ({
+        ...cur,
+        agents: cleaned,
+        connections: cur.connections.filter((c) => c.from !== agentId && c.to !== agentId),
+      }))
 
       if (activeAgentId === agentId) {
         setActiveAndNotify(cleaned[0].id)
@@ -669,6 +759,39 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     },
     [activeAgentId, closeEditor, editorDraft?.id, orderedAgents, setActiveAndNotify],
   )
+
+  // ── Connection handlers ────────────────────────────────────────────
+
+  const handleConnect = useCallback((params: Connection) => {
+    const { source, target } = params
+    if (!source || !target) return
+    if (source === '__consensus__' || source === '__api_endpoint__') return
+    if (target === '__consensus__' || target === '__api_endpoint__') return
+    if (source === target) return
+
+    setDefinition((cur) => {
+      if (cur.connections.some((c) => c.from === source && c.to === target)) return cur
+      return { ...cur, connections: [...cur.connections, { from: source, to: target }] }
+    })
+
+    // Also let ReactFlow render the edge immediately
+    setFlowEdges((eds) => addEdge(params, eds))
+  }, [])
+
+  const handleEdgesDelete = useCallback((edges: Edge[]) => {
+    const toRemove = new Set(edges.filter((e) => e.deletable !== false).map((e) => e.id))
+    if (toRemove.size === 0) return
+    setDefinition((cur) => ({
+      ...cur,
+      connections: cur.connections.filter((c) => !toRemove.has(`conn__${c.from}__${c.to}`)),
+    }))
+  }, [])
+
+  const handleClearConnections = useCallback(() => {
+    setDefinition((cur) => ({ ...cur, connections: [] }))
+    setNotice('Connections cleared.')
+    setTimeout(() => setNotice(null), 2000)
+  }, [])
 
   const handleMoveAgent = useCallback((agentId: string, direction: -1 | 1) => {
     let moved = false
@@ -1000,20 +1123,39 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                 {/* ── Main canvas pane ── */}
                 <section className="flex flex-col p-3 md:p-4">
                   <div className="rounded-md border border-border bg-background/40 p-3">
-                    <div className="mb-2 text-[12px] text-muted-foreground">
-                      Automatic flow: agents iterate among themselves for {CONSENSUS_ROUNDS} rounds and then pass their outputs to the final consensus node.
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-[12px] text-muted-foreground">
+                        {definition.connections.length > 0
+                          ? 'Custom flow: drag from an agent\'s right handle to another to wire output_keys. Delete a connection by selecting it and pressing Delete.'
+                          : 'Automatic flow: agents iterate among themselves for ' + CONSENSUS_ROUNDS + ' rounds and pass their outputs to the final consensus node. Drag between agents to define custom connections.'}
+                      </p>
+                      {definition.connections.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleClearConnections}
+                          className="shrink-0 inline-flex h-6 items-center gap-1 rounded border border-destructive/40 px-2 text-[10px] text-destructive hover:bg-destructive/10"
+                        >
+                          <X className="h-3 w-3" />
+                          Clear wiring
+                        </button>
+                      )}
                     </div>
                     <div className="h-[52vh] min-h-[320px] overflow-hidden rounded-md border border-border bg-background md:h-[62vh] md:min-h-[420px]">
                       <ReactFlow
                         nodes={flowNodes}
-                        edges={flowGraph.edges}
+                        edges={flowEdges}
                         onNodesChange={onNodesChange}
+                        onEdgesChange={onEdgesChange}
+                        onConnect={handleConnect}
+                        onEdgesDelete={handleEdgesDelete}
                         nodeTypes={flowNodeTypes}
                         fitView
                         nodesDraggable={true}
-                        nodesConnectable={false}
+                        nodesConnectable={true}
                         edgesFocusable
+                        edgesReconnectable={false}
                         elementsSelectable
+                        deleteKeyCode="Delete"
                         onNodeClick={(_, node) => {
                           if (node.id === '__consensus__') return
                           if (node.id === '__api_endpoint__') {
@@ -1039,7 +1181,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
                       <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
                         <span className="inline-block h-2 w-4 rounded-sm bg-primary" />
-                        Agent iteration
+                        {definition.connections.length > 0 ? 'Custom connection' : 'Agent iteration'}
                       </span>
                       <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
                         <span className="inline-block h-2 w-4 rounded-sm border border-success bg-transparent" />
@@ -1277,6 +1419,27 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                           placeholder="Short description"
                           className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
                         />
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[12px] font-medium text-foreground">Output key</label>
+                        <input
+                          type="text"
+                          value={editorDraft.output_key}
+                          onChange={(event) => {
+                            const raw = event.target.value.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '')
+                            setEditorDraft((cur) => (cur ? { ...cur, output_key: raw } : cur))
+                          }}
+                          placeholder={`${editorDraft.id}_output`}
+                          className="h-9 w-full rounded-md border border-border bg-background px-2 font-mono text-[13px] text-foreground"
+                        />
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Result stored in session state under this key. Downstream agents reference it as{' '}
+                          <code className="rounded bg-muted px-1 font-mono text-[10px]">
+                            {'{' + (editorDraft.output_key || `${editorDraft.id}_output`) + '}'}
+                          </code>
+                          {' '}in their prompts.
+                        </p>
                       </div>
 
                     </div>
