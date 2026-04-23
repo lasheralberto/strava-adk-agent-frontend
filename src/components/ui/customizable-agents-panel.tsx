@@ -418,84 +418,22 @@ function buildFlowGraph(
   const agentIds = new Set(ordered.map((a) => a.id))
   const edges: Edge[] = []
 
-  const hasUserConnections = connections.length > 0
-
-  if (hasUserConnections) {
-    // ── User-defined directed connections ──────────────────────────────
-    // Track which agents have at least one outgoing connection to another agent
-    const agentsWithOutgoing = new Set(
-      connections.filter((c) => agentIds.has(c.from) && agentIds.has(c.to)).map((c) => c.from),
-    )
-
-    for (const conn of connections) {
-      if (!agentIds.has(conn.from) || !agentIds.has(conn.to)) continue
-      const sourceAgent = ordered.find((a) => a.id === conn.from)
-      edges.push({
-        id: `conn__${conn.from}__${conn.to}`,
-        source: conn.from,
-        target: conn.to,
-        type: 'smoothstep',
-        label: sourceAgent ? resolveOutputKey(sourceAgent) : conn.from,
-        style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.8 },
-        labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
-        markerEnd: { type: MarkerType.ArrowClosed },
-        animated: true,
-        deletable: true,
-      })
-    }
-
-    // "Leaf" agents (no outgoing connections to another agent) flow to consensus
-    for (const agent of ordered) {
-      if (!agentsWithOutgoing.has(agent.id)) {
-        edges.push({
-          id: `consensus__${agent.id}`,
-          source: agent.id,
-          target: '__consensus__',
-          type: 'bezier',
-          label: resolveOutputKey(agent),
-          style: { stroke: 'hsl(var(--success))', strokeDasharray: '5 4' },
-          labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
-          markerEnd: { type: MarkerType.ArrowClosed },
-          animated: true,
-          deletable: false,
-        })
-      }
-    }
-  } else {
-    // ── Automatic round-robin ring (no user-defined connections) ───────
-    if (ordered.length > 1) {
-      for (let i = 0; i < ordered.length; i++) {
-        const sourceAgent = ordered[i]
-        const targetAgent = ordered[(i + 1) % ordered.length]
-        edges.push({
-          id: `iter__${sourceAgent.id}__${targetAgent.id}`,
-          source: sourceAgent.id,
-          target: targetAgent.id,
-          type: 'smoothstep',
-          label: i === ordered.length - 1 ? 'closes round' : 'iterates',
-          style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.6 },
-          labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
-          markerEnd: { type: MarkerType.ArrowClosed },
-          animated: true,
-          deletable: false,
-        })
-      }
-    }
-
-    for (const agent of ordered) {
-      edges.push({
-        id: `consensus__${agent.id}`,
-        source: agent.id,
-        target: '__consensus__',
-        type: 'bezier',
-        label: resolveOutputKey(agent),
-        style: { stroke: 'hsl(var(--success))', strokeDasharray: '5 4' },
-        labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
-        markerEnd: { type: MarkerType.ArrowClosed },
-        animated: true,
-        deletable: false,
-      })
-    }
+  // ── Only render connections explicitly defined by the user ──────────────
+  for (const conn of connections) {
+    if (!agentIds.has(conn.from) || !agentIds.has(conn.to)) continue
+    const sourceAgent = ordered.find((a) => a.id === conn.from)
+    edges.push({
+      id: `conn__${conn.from}__${conn.to}`,
+      source: conn.from,
+      target: conn.to,
+      type: 'smoothstep',
+      label: sourceAgent ? resolveOutputKey(sourceAgent) : conn.from,
+      style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.8 },
+      labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
+      markerEnd: { type: MarkerType.ArrowClosed },
+      animated: true,
+      deletable: true,
+    })
   }
 
   if (ordered.length > 0) {
