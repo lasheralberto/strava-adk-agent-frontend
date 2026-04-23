@@ -520,6 +520,8 @@ function App() {
   const [usage, setUsage] = useState<UsageSnapshot | null>(null)
   const [usageLoading, setUsageLoading] = useState(false)
   const [upgradePending, setUpgradePending] = useState(false)
+  const [cancelPending, setCancelPending] = useState(false)
+  const [cancelConfirm, setCancelConfirm] = useState(false)
   const [planBadgeOpen, setPlanBadgeOpen] = useState(false)
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
@@ -555,7 +557,10 @@ function App() {
   }, [authSession])
 
   useEffect(() => {
-    if (!userMenuOpen) return
+    if (!userMenuOpen) {
+      setCancelConfirm(false)
+      return
+    }
     const handle = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false)
@@ -566,7 +571,10 @@ function App() {
   }, [userMenuOpen])
 
   useEffect(() => {
-    if (!planBadgeOpen) return
+    if (!planBadgeOpen) {
+      setCancelConfirm(false)
+      return
+    }
 
     const handleOutside = (event: MouseEvent) => {
       if (planBadgeRef.current && !planBadgeRef.current.contains(event.target as Node)) {
@@ -728,6 +736,25 @@ function App() {
 
     runOAuthCallbackExchange()
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    const checkoutStatus = url.searchParams.get('checkout_status')
+    if (!checkoutStatus) return
+
+    url.searchParams.delete('checkout_status')
+    url.searchParams.delete('session_id')
+    window.history.replaceState({}, document.title, url.toString())
+
+    if (checkoutStatus === 'success') {
+      toasts.success('¡Suscripción activada! Bienvenido a Athly Pro.')
+      const athleteId = authSessionRef.current?.athlete?.id
+      if (athleteId) {
+        setTimeout(() => void fetchUsage(athleteId), 2500)
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const ensureValidStravaSession = useCallback(async (): Promise<StravaAuthSession | null> => {
     const currentSession = authSessionRef.current
@@ -959,38 +986,67 @@ function App() {
     setUpgradePending(true)
 
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (internalPipelineToken) {
-        headers['X-Internal-Token'] = internalPipelineToken
-      }
-
-      const response = await fetch(`${apiBaseUrl}/usage/${athleteId}/plan`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ plan_id: 'pro' }),
+      const response = await fetch(`${apiBaseUrl}/billing/checkout-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ athlete_id: athleteId }),
       })
 
       if (!response.ok) {
-        let backendError = await readBackendErrorMessage(response)
-        if (!internalPipelineToken && (response.status === 401 || response.status === 403)) {
-          backendError = 'Upgrade no disponible en este entorno.'
-        }
+        const backendError = await readBackendErrorMessage(response)
         throw new Error(backendError)
       }
 
-      const payload = (await response.json()) as UsageSnapshot
-      setUsage(payload)
-      setPlanBadgeOpen(false)
-      setUserMenuOpen(false)
-      toasts.success('Plan actualizado a Pro.')
+      const { checkout_url } = (await response.json()) as { checkout_url: string }
+      window.location.href = checkout_url
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'No se pudo actualizar el plan.'
+      const message = error instanceof Error ? error.message : 'No se pudo iniciar el pago.'
+      toasts.error(message)
+      setUpgradePending(false)
+    }
+  }, [apiBaseUrl, toasts, usage?.plan?.id, usage?.planId])
+
+  const handleCancelSubscription = useCallback(async () => {
+    const athleteId = authSessionRef.current?.athlete?.id
+    if (!athleteId) {
+      toasts.warning('No hay una sesión activa.')
+      return
+    }
+
+    const currentPlanId = (usage?.plan?.id ?? usage?.planId ?? '').trim().toLowerCase()
+    if (currentPlanId === 'free') {
+      return
+    }
+
+    if (!apiBaseUrl) {
+      toasts.error('El servicio no está disponible en este momento.')
+      return
+    }
+
+    setCancelPending(true)
+    setCancelConfirm(false)
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/billing/cancel-subscription`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ athlete_id: athleteId }),
+      })
+
+      if (!response.ok) {
+        const backendError = await readBackendErrorMessage(response)
+        throw new Error(backendError)
+      }
+
+      toasts.message({ text: 'Suscripción cancelada. Has vuelto al plan gratuito.' })
+      await fetchUsage(athleteId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo cancelar la suscripción.'
       toasts.error(message)
     } finally {
-      setUpgradePending(false)
-      void fetchUsage(athleteId)
+      setCancelPending(false)
     }
-  }, [apiBaseUrl, fetchUsage, internalPipelineToken, toasts, usage?.plan?.id, usage?.planId])
+  }, [apiBaseUrl, toasts, usage?.plan?.id, usage?.planId, fetchUsage])
 
   const handleRunDailyPipeline = async () => {
     if (pipelineStatus === 'running' || lastSyncStatus === 'queued') return
@@ -1634,7 +1690,37 @@ function App() {
                                   >
                                     {upgradePending ? 'Actualizando…' : 'Upgrade'}
                                   </button>
-                                ) : null}
+                                ) : (
+                                  cancelConfirm ? (
+                                    <div className="mt-2 flex gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleCancelSubscription()}
+                                        disabled={cancelPending}
+                                        className="inline-flex h-7 flex-1 items-center justify-center rounded-md border border-destructive/40 bg-destructive/10 text-[12px] font-medium text-destructive transition-colors hover:bg-destructive/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                      >
+                                        {cancelPending ? 'Cancelando…' : 'Sí, cancelar'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setCancelConfirm(false)}
+                                        disabled={cancelPending}
+                                        className="inline-flex h-7 flex-1 items-center justify-center rounded-md border border-border bg-muted/50 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed"
+                                      >
+                                        No
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setCancelConfirm(true)}
+                                      disabled={cancelPending || usageLoading}
+                                      className="mt-2 inline-flex h-7 w-full items-center justify-center rounded-md border border-border bg-muted/50 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      Cambiar a Free
+                                    </button>
+                                  )
+                                )}
                               </div>
                               <div className="h-px bg-border" />
                               <button
@@ -1851,7 +1937,35 @@ function App() {
                                     >
                                       {upgradePending ? 'Actualizando…' : 'Upgrade'}
                                     </button>
-                                  ) : null}
+                                  ) : cancelConfirm ? (
+                                    <div className="flex gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleCancelSubscription()}
+                                        disabled={cancelPending}
+                                        className="inline-flex h-6 shrink-0 items-center justify-center rounded-md border border-destructive/40 bg-destructive/10 px-2 text-[10px] font-semibold text-destructive transition-colors hover:bg-destructive/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                      >
+                                        {cancelPending ? '…' : 'Confirmar'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setCancelConfirm(false)}
+                                        disabled={cancelPending}
+                                        className="inline-flex h-6 shrink-0 items-center justify-center rounded-md border border-border bg-muted/50 px-2 text-[10px] font-semibold text-muted-foreground transition-colors hover:bg-muted"
+                                      >
+                                        No
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setCancelConfirm(true)}
+                                      disabled={cancelPending || usageLoading}
+                                      className="inline-flex h-6 shrink-0 items-center justify-center rounded-md border border-border bg-muted/50 px-2 text-[10px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      Cancelar Pro
+                                    </button>
+                                  )}
                                 </div>
                                 {usage.plan?.description ? (
                                   <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
