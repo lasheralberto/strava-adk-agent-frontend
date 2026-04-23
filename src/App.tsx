@@ -1710,6 +1710,15 @@ function App() {
                                         className="inline-flex h-7 flex-1 items-center justify-center rounded-md border border-border bg-muted/50 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed"
                                       >
                                         {t.header.no}
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setCancelConfirm(true)}
+                                      className="mt-2 inline-flex h-7 w-full items-center justify-center rounded-md border border-border/40 bg-muted/10 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      {t.header.switchToFree}
                                     </button>
                                   )
                                 )}
