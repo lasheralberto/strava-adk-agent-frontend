@@ -419,8 +419,9 @@ function buildFlowGraph(
   const edges: Edge[] = []
 
   // ── Only render connections explicitly defined by the user ──────────────
+  const validTargets = new Set([...agentIds, '__consensus__'])
   for (const conn of connections) {
-    if (!agentIds.has(conn.from) || !agentIds.has(conn.to)) continue
+    if (!agentIds.has(conn.from) || !validTargets.has(conn.to)) continue
     const sourceAgent = ordered.find((a) => a.id === conn.from)
     edges.push({
       id: `conn__${conn.from}__${conn.to}`,
@@ -704,7 +705,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     const { source, target } = params
     if (!source || !target) return
     if (source === '__consensus__' || source === '__api_endpoint__') return
-    if (target === '__consensus__' || target === '__api_endpoint__') return
+    if (target === '__api_endpoint__') return
     if (source === target) return
 
     setDefinition((cur) => {
