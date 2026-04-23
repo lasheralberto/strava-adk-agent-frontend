@@ -49,6 +49,7 @@ export const TEXTS = {
     },
     plan: {
       activePlan: 'Active plan',
+      loadingPlan: 'Loading plan info',
       upgrading: 'Upgrading…',
       upgrade: 'Upgrade',
       canceling: '…',
@@ -179,6 +180,7 @@ export const TEXTS = {
     },
     plan: {
       activePlan: 'Plan activo',
+      loadingPlan: 'Cargando información del plan',
       upgrading: 'Actualizando…',
       upgrade: 'Upgrade',
       canceling: '…',

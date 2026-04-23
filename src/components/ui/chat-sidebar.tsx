@@ -3,7 +3,6 @@ import athlyLogo from '@/assets/athly_logo.png'
 import { AnimatePresence, motion } from 'motion/react'
 import type { ChatSession } from '@/types/chat-sessions'
 import { useLocale } from '@/hooks/use-locale'
-import type { TEXTS } from '@/data/texts'
 
 type ChatSidebarProps = {
   sessions: ChatSession[]
@@ -16,7 +15,17 @@ type ChatSidebarProps = {
   onClose: () => void
 }
 
-type SidebarTexts = typeof TEXTS['en']['sidebar']
+interface SidebarTexts {
+  newSession: string
+  loading: string
+  noSessions: string
+  deleteSession: (title: string) => string
+  untitled: string
+  now: string
+  minutesAgo: (n: number) => string
+  hoursAgo: (n: number) => string
+  daysAgo: (n: number) => string
+}
 
 function formatRelativeTime(isoString: string, s: SidebarTexts): string {
   const date = new Date(isoString)

@@ -16,46 +16,14 @@ interface AuthSwitchProps {
 }
 
 // ── Floating notification cards ───────────────────────────────────────────
-const leftCards = [
-  {
-    id: 1,
-    icon: TrendingUp,
-    title: 'PR detectado · 5K',
-    sub: '21:34 — Hoy 7:30am',
-    tone: 'success' as const,
-    delay: 0.1,
-    floatY: 8,
-  },
-  {
-    id: 2,
-    icon: Zap,
-    title: 'Carga semanal alta',
-    sub: '847 TSS · Descansa mañana',
-    tone: 'warning' as const,
-    delay: 0.32,
-    floatY: -6,
-  },
+const LEFT_CARD_META = [
+  { id: 1, icon: TrendingUp, tone: 'success' as const, delay: 0.1, floatY: 8 },
+  { id: 2, icon: Zap, tone: 'warning' as const, delay: 0.32, floatY: -6 },
 ]
 
-const rightCards = [
-  {
-    id: 3,
-    icon: Brain,
-    title: 'Agente analizando',
-    sub: 'Identificando patrones...',
-    tone: 'primary' as const,
-    delay: 0.2,
-    floatY: -8,
-  },
-  {
-    id: 4,
-    icon: BarChart2,
-    title: 'Recuperación: 82%',
-    sub: 'Listo para entrenar hoy',
-    tone: 'success' as const,
-    delay: 0.42,
-    floatY: 6,
-  },
+const RIGHT_CARD_META = [
+  { id: 3, icon: Brain, tone: 'primary' as const, delay: 0.2, floatY: -8 },
+  { id: 4, icon: BarChart2, tone: 'success' as const, delay: 0.42, floatY: 6 },
 ]
 
 const iconTone = {
