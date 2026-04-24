@@ -33,8 +33,8 @@ export const TEXTS = {
       activateLightTheme: 'Activate light theme',
       activateDarkTheme: 'Activate dark theme',
       logout: 'Sign out',
-      connectingStrava: 'Connecting with STRAVA',
-      connectStrava: 'Connect with STRAVA',
+      connectingSTRAVA: 'Connecting with STRAVA',
+      connectSTRAVA: 'Connect with STRAVA',
       connecting: 'Connecting…',
     },
     chat: {
@@ -64,19 +64,19 @@ export const TEXTS = {
       planDetail: 'Plan and usage details',
     },
     auth: {
-      connectingStrava: 'Connecting...',
-      connectWithStrava: 'Connect with Strava',
+      connectingSTRAVA: 'Connecting...',
+      connectWithSTRAVA: 'Connect with STRAVA',
       connected: 'Connected',
       whyAthly: 'Why Athly',
       headline1: 'Your performance,',
       headline2: 'unfiltered and uncomplicated.',
       painPointsHeadline: 'We do the dirty work.',
       painPointsSubheadline:
-        'Most athletes have valuable data in Strava they never use. Athly extracts it, analyzes it and acts as your sports second brain — the more you train, the more it knows about you.',
+        'Most athletes have valuable data in STRAVA they never use. Athly extracts it, analyzes it and acts as your sports second brain — the more you train, the more it knows about you.',
       painPoints: [
         {
           title: 'Effortless sync',
-          body: 'Automatically syncs with Strava. Your activities arrive on their own, every day.',
+          body: 'Automatically syncs with STRAVA. Your activities arrive on their own, every day.',
         },
         {
           title: 'Deep analysis',
@@ -161,8 +161,8 @@ export const TEXTS = {
       activateLightTheme: 'Activar tema claro',
       activateDarkTheme: 'Activar tema oscuro',
       logout: 'Salir',
-      connectingStrava: 'Conectando con Strava',
-      connectStrava: 'Conectar con Strava',
+      connectingSTRAVA: 'Conectando con STRAVA',
+      connectSTRAVA: 'Conectar con STRAVA',
       connecting: 'Conectando…',
     },
     chat: {
@@ -170,11 +170,11 @@ export const TEXTS = {
         name
           ? `Hola, ${name}. ¿En qué puedo ayudarte?`
           : '¿En qué puedo ayudarte?',
-      connectToStart: 'Conecta tu cuenta de Strava para comenzar.',
+      connectToStart: 'Conecta tu cuenta de STRAVA para comenzar.',
       placeholder: 'Preguntame por ritmo, carga, series, recuperacion o segmentos',
       limitReached:
         'Limite diario alcanzado, espera la renovacion de tu plan para seguir chateando',
-      loginToChat: 'Inicia sesion con Strava para habilitar el chat',
+      loginToChat: 'Inicia sesion con STRAVA para habilitar el chat',
       backendEmpty: 'El backend respondio sin contenido.',
       unexpectedError: 'Error inesperado al contactar el backend.',
     },
@@ -195,19 +195,19 @@ export const TEXTS = {
       planDetail: 'Detalle de plan y uso',
     },
     auth: {
-      connectingStrava: 'Connecting...',
-      connectWithStrava: 'Connect with Strava',
+      connectingSTRAVA: 'Conectando...',
+      connectWithSTRAVA: 'Conectar con STRAVA',
       connected: 'Conectado',
       whyAthly: 'Por qué Athly',
       headline1: 'Tu rendimiento,',
       headline2: 'sin filtros ni complicaciones.',
       painPointsHeadline: 'Hacemos el trabajo sucio.',
       painPointsSubheadline:
-        'La mayoría de atletas tiene datos valiosos en Strava que nunca aprovecha. Athly los extrae, los analiza y actúa como tu segundo cerebro deportivo — cuanto más entrenas, más sabe de ti.',
+        'La mayoría de atletas tiene datos valiosos en STRAVA que nunca aprovecha. Athly los extrae, los analiza y actúa como tu segundo cerebro deportivo — cuanto más entrenas, más sabe de ti.',
       painPoints: [
         {
           title: 'Extrae sin esfuerzo',
-          body: 'Synca con Strava automáticamente. Tus actividades llegan solas, cada día.',
+          body: 'Synca con STRAVA automáticamente. Tus actividades llegan solas, cada día.',
         },
         {
           title: 'Analiza en profundidad',
