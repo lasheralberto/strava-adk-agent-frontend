@@ -21,8 +21,10 @@ import { BouncingDots } from '@/components/ui/bouncing-dots'
 import { useToasts } from '@/components/ui/toast'
 import { Spinner } from '@/components/ui/spinner-1'
 import { PlanReactMessage } from '@/components/ui/plan-react-message'
+import { AgentFlowMessage } from '@/components/ui/agent-flow-message'
 import { A2uiRenderer } from '@/components/ui/a2ui-renderer'
 import type { A2uiPayload } from '@/types/a2ui'
+import type { AgentTracePayload } from '@/types/agent-trace'
 import { ActivitiesRunsPanel } from '@/components/ui/activities-runs-panel'
 import { CustomizableAgentsPanel } from '@/components/ui/customizable-agents-panel'
 import {
@@ -65,6 +67,7 @@ type ChatMessage = {
   tag: string
   structured?: StructuredChatContent
   a2ui?: A2uiPayload
+  agentTrace?: AgentTracePayload
 }
 
 type RequestStatus = 'idle' | 'requesting' | 'streaming'
@@ -88,6 +91,7 @@ type ChatApiPayload = {
   structured?: StructuredApiPayload
   _event?: string
   a2ui?: A2uiPayload
+  agent_trace?: AgentTracePayload
 }
 
 type UsagePlan = {
@@ -387,6 +391,16 @@ function updateAssistantA2ui(
   )
 }
 
+function updateAssistantAgentTrace(
+  currentMessages: ChatMessage[],
+  messageId: number,
+  agentTrace: AgentTracePayload,
+): ChatMessage[] {
+  return currentMessages.map((message) =>
+    message.id === messageId ? { ...message, agentTrace } : message,
+  )
+}
+
 function parseSseEventBlock(block: string): { event: string; data: string } | null {
   const lines = block.split('\n')
   let event = 'message'
@@ -543,7 +557,7 @@ function App() {
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
-  const finalAssistantContentRef = useRef<{ content: string; tag: string; structured?: import('@/types/plan-react').StructuredChatContent; a2ui?: A2uiPayload } | null>(null)
+  const finalAssistantContentRef = useRef<{ content: string; tag: string; structured?: import('@/types/plan-react').StructuredChatContent; a2ui?: A2uiPayload; agentTrace?: AgentTracePayload } | null>(null)
   const planBadgeRef = useRef<HTMLDivElement | null>(null)
   const toasts = useToasts()
   const [isDark, setIsDark] = useState(() => {
@@ -1203,6 +1217,7 @@ function App() {
       content: m.content,
       tag: m.tag,
       structured: m.structured,
+      agentTrace: m.agentTrace,
     }))
 
     setMessages(restored)
@@ -1315,6 +1330,7 @@ function App() {
       let streamedResponse = ''
       let accumulatedBlocks: PlanReactBlock[] = []
       let streamedA2ui: A2uiPayload | undefined
+      let streamedAgentTrace: AgentTracePayload | undefined
 
       setMessages((currentMessages) =>
         updateAssistantMessage(currentMessages, assistantMessageId, '', transform ?? 'Streaming'),
@@ -1427,6 +1443,7 @@ function App() {
         const structuredBlocks = parseStructuredBlocks(payload)
         const finalText = (payload.response ?? '').trim() || t.chat.backendEmpty
         const nonStreamA2ui = payload.a2ui
+        const nonStreamAgentTrace = payload.agent_trace
         setMessages((currentMessages) => {
           let nextMessages = updateAssistantMessage(
             currentMessages,
@@ -1448,6 +1465,10 @@ function App() {
             nextMessages = updateAssistantA2ui(nextMessages, assistantMessageId, nonStreamA2ui)
           }
 
+          if (nonStreamAgentTrace) {
+            nextMessages = updateAssistantAgentTrace(nextMessages, assistantMessageId, nonStreamAgentTrace)
+          }
+
           return nextMessages
         })
         const nonStreamFinalText = (payload.response ?? '').trim() || t.chat.backendEmpty
@@ -1456,6 +1477,7 @@ function App() {
           tag: transform ?? 'Respuesta',
           structured: structuredBlocks.length > 0 ? { format: 'plan_react_v1', blocks: structuredBlocks } : undefined,
           a2ui: nonStreamA2ui,
+          agentTrace: nonStreamAgentTrace,
         }
         return
       }
@@ -1502,6 +1524,15 @@ function App() {
               streamedA2ui = payload.a2ui
               setMessages((currentMessages) =>
                 updateAssistantA2ui(currentMessages, assistantMessageId, payload.a2ui!),
+              )
+              boundaryIndex = buffer.indexOf('\n\n')
+              continue
+            }
+
+            if (parsedEvent.event === 'agent_trace' && payload.agent_trace) {
+              streamedAgentTrace = payload.agent_trace
+              setMessages((currentMessages) =>
+                updateAssistantAgentTrace(currentMessages, assistantMessageId, payload.agent_trace!),
               )
               boundaryIndex = buffer.indexOf('\n\n')
               continue
@@ -1570,6 +1601,7 @@ function App() {
         tag: transform ?? 'Respuesta',
         structured: accumulatedBlocks.length > 0 ? { format: 'plan_react_v1', blocks: accumulatedBlocks } : undefined,
         a2ui: streamedA2ui,
+        agentTrace: streamedAgentTrace,
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : t.chat.unexpectedError
@@ -1585,7 +1617,7 @@ function App() {
       setActiveAssistantMessageId(null)
       // Persist final assistant message to Firestore
       if (athleteId && activeSessionId && finalAssistantContentRef.current) {
-        const { content, tag, structured } = finalAssistantContentRef.current
+        const { content, tag, structured, agentTrace } = finalAssistantContentRef.current
         void addMessage({
           athleteId,
           sessionId: activeSessionId,
@@ -1594,6 +1626,7 @@ function App() {
           content,
           tag,
           structured,
+          agentTrace,
         })
         finalAssistantContentRef.current = null
       }
@@ -1884,6 +1917,14 @@ function App() {
                                     </div>
                                   )
                                 )}
+
+                                {!isUser && message.agentTrace ? (
+                                  <AgentFlowMessage
+                                    trace={message.agentTrace}
+                                    isActive={isActiveAssistantMessage}
+                                    labels={t.chat.agentFlow}
+                                  />
+                                ) : null}
 
                                 {!isUser && message.a2ui ? (
                                   <A2uiRenderer payload={message.a2ui} />

@@ -46,6 +46,16 @@ export const TEXTS = {
       loginToChat: 'Sign in with STRAVA to enable chat',
       backendEmpty: 'The backend responded with no content.',
       unexpectedError: 'Unexpected error contacting the backend.',
+      agentFlow: {
+        title: 'Agent flow',
+        live: 'Live flow',
+        completed: 'Flow completed',
+        error: 'Flow error',
+        round: 'Round',
+        finalAnswer: 'Final answer',
+        outputKey: 'Output key',
+        activePath: 'Active path',
+      },
     },
     plan: {
       activePlan: 'Active plan',
@@ -177,6 +187,16 @@ export const TEXTS = {
       loginToChat: 'Inicia sesion con STRAVA para habilitar el chat',
       backendEmpty: 'El backend respondio sin contenido.',
       unexpectedError: 'Error inesperado al contactar el backend.',
+      agentFlow: {
+        title: 'Flujo entre agentes',
+        live: 'Flujo en vivo',
+        completed: 'Flujo completado',
+        error: 'Error en el flujo',
+        round: 'Ronda',
+        finalAnswer: 'Respuesta final',
+        outputKey: 'Output key',
+        activePath: 'Camino activo',
+      },
     },
     plan: {
       activePlan: 'Plan activo',

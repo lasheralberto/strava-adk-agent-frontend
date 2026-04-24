@@ -1,4 +1,5 @@
 import type { StructuredChatContent } from '@/types/plan-react'
+import type { AgentTracePayload } from '@/types/agent-trace'
 
 export type ChatSession = {
   sessionId: string
@@ -13,6 +14,7 @@ export type ChatSessionMessage = {
   content: string
   tag: string
   structured?: StructuredChatContent
+  agentTrace?: AgentTracePayload
   createdAt: string
 }
 

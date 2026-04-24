@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import type { ChatSession, ChatSessionMessage } from '@/types/chat-sessions'
+import type { AgentTracePayload } from '@/types/agent-trace'
 import type { StructuredChatContent } from '@/types/plan-react'
 
 const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
@@ -18,6 +19,7 @@ type UseChatSessionsReturn = {
     content: string
     tag: string
     structured?: StructuredChatContent
+    agentTrace?: AgentTracePayload
   }) => Promise<void>
   deleteSession: (athleteId: number, sessionId: string) => Promise<void>
   clearSessions: () => void
@@ -92,6 +94,7 @@ export function useChatSessions(): UseChatSessionsReturn {
     content,
     tag,
     structured,
+    agentTrace,
   }: {
     athleteId: number
     sessionId: string
@@ -100,6 +103,7 @@ export function useChatSessions(): UseChatSessionsReturn {
     content: string
     tag: string
     structured?: StructuredChatContent
+    agentTrace?: AgentTracePayload
   }) => {
     if (!apiBaseUrl) return
     try {
@@ -113,6 +117,7 @@ export function useChatSessions(): UseChatSessionsReturn {
           content,
           tag,
           ...(structured ? { structured } : {}),
+          ...(agentTrace ? { agent_trace: agentTrace } : {}),
         }),
       })
       // Update session updatedAt in local state
