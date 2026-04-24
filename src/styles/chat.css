@@ -403,6 +403,36 @@
   margin: 4px 0;
 }
 
+.a2ui-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.a2ui-chart-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.a2ui-chart-frame {
+  height: 220px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+  background: hsl(var(--card));
+  padding: 12px 8px 4px;
+}
+
+.a2ui-chart-empty {
+  border: 1px dashed hsl(var(--border));
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.35);
+}
+
 /* ── Responsive ──────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .message-bubble {
@@ -428,5 +458,9 @@
 
   .a2ui-stat-value {
     font-size: 18px;
+  }
+
+  .a2ui-chart-frame {
+    height: 200px;
   }
 }

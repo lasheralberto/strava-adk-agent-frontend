@@ -1782,7 +1782,7 @@ function App() {
                 <button
                   onClick={handleStartStravaLogin}
                   disabled={authPending}
-                  aria-label={authPending ? t.header.connectingStrava : t.header.connectStrava}
+                  aria-label={authPending ? t.header.connectingSTRAVA : t.header.connectSTRAVA}
                   className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-muted-foreground/50"
                 >
                   <LogIn className="h-4 w-4" aria-hidden="true" />

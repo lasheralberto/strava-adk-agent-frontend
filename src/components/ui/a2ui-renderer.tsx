@@ -1,4 +1,20 @@
-import type { A2uiPayload, A2uiComponentEntry, A2uiComponentDef } from '@/types/a2ui'
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
+import type {
+  A2uiPayload,
+  A2uiComponentEntry,
+  A2uiComponentDef,
+  A2uiChartDataPoint,
+} from '@/types/a2ui'
 
 type A2uiRendererProps = {
   payload: A2uiPayload
@@ -54,6 +70,8 @@ function RenderNode({
       return <StatCardNode def={def} />
     case 'Divider':
       return <hr className="a2ui-divider" />
+    case 'Chart':
+      return <ChartNode def={def} />
     default:
       return null
   }
@@ -157,4 +175,80 @@ function StatCardNode({ def }: { def: A2uiComponentDef }) {
       {detail ? <span className="a2ui-stat-detail">{detail}</span> : null}
     </div>
   )
+}
+
+function ChartNode({ def }: { def: A2uiComponentDef }) {
+  if (!('Chart' in def)) return null
+
+  const { type, title, chartData, xKey = 'label', yKey = 'value' } = def.Chart
+  const rows = normalizeChartData(chartData.literalArray, xKey, yKey)
+
+  if (rows.length === 0) {
+    return (
+      <div className="a2ui-chart">
+        {title ? <p className="a2ui-chart-title">{title}</p> : null}
+        <div className="a2ui-chart-empty">No hay datos suficientes para mostrar el grafico.</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="a2ui-chart">
+      {title ? <p className="a2ui-chart-title">{title}</p> : null}
+      <div className="a2ui-chart-frame">
+        <ResponsiveContainer width="100%" height={220}>
+          {type === 'line' ? (
+            <LineChart data={rows} margin={{ top: 12, right: 12, bottom: 0, left: -20 }}>
+              <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey={xKey} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} width={36} />
+              <Tooltip
+                contentStyle={{
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px',
+                  backgroundColor: 'hsl(var(--card))',
+                  color: 'hsl(var(--foreground))',
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey={yKey}
+                stroke="hsl(var(--primary))"
+                strokeWidth={2.5}
+                dot={{ r: 3, fill: 'hsl(var(--primary))' }}
+                activeDot={{ r: 5 }}
+              />
+            </LineChart>
+          ) : (
+            <BarChart data={rows} margin={{ top: 12, right: 12, bottom: 0, left: -20 }}>
+              <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey={xKey} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} width={36} />
+              <Tooltip
+                contentStyle={{
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px',
+                  backgroundColor: 'hsl(var(--card))',
+                  color: 'hsl(var(--foreground))',
+                }}
+              />
+              <Bar dataKey={yKey} fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+    </div>
+  )
+}
+
+function normalizeChartData(
+  rows: A2uiChartDataPoint[],
+  xKey: string,
+  yKey: string,
+): A2uiChartDataPoint[] {
+  return rows.filter((row) => {
+    const xValue = row[xKey]
+    const yValue = row[yKey]
+    return typeof xValue === 'string' && typeof yValue === 'number' && Number.isFinite(yValue)
+  })
 }

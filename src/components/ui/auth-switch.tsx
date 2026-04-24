@@ -481,12 +481,12 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
           onClick={onLogin}
           disabled={isPending}
           className="overflow-hidden rounded-full transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label={t.auth.connectWithStrava}
+          aria-label={t.auth.connectWithSTRAVA}
         >
           {isPending ? (
             <span className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-[#FC4C02] px-4 text-sm font-semibold leading-none text-white">
               <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
-              <span className="leading-none">{t.auth.connectingStrava}</span>
+              <span className="leading-none">{t.auth.connectingSTRAVA}</span>
             </span>
           ) : (
             <span className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-[#FC4C02] px-4 text-sm font-semibold leading-none text-white">
@@ -495,7 +495,7 @@ export default function AuthSwitch({ onLogin, isPending, error, className }: Aut
                 alt=""
                 className="h-4 w-auto shrink-0"
               />
-              <span className="leading-none">{t.auth.connectWithStrava}</span>
+              <span className="leading-none">{t.auth.connectWithSTRAVA}</span>
             </span>
           )}
         </button>

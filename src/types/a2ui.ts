@@ -35,6 +35,22 @@ export type A2uiDividerComponent = {
   Divider: Record<string, never>
 }
 
+export type A2uiChartDataPoint = {
+  label: string
+  value: number
+  [key: string]: string | number
+}
+
+export type A2uiChartComponent = {
+  Chart: {
+    type: 'bar' | 'line'
+    title?: string
+    chartData: { literalArray: A2uiChartDataPoint[] }
+    xKey?: string
+    yKey?: string
+  }
+}
+
 export type A2uiComponentDef =
   | A2uiTextComponent
   | A2uiColumnComponent
@@ -42,6 +58,7 @@ export type A2uiComponentDef =
   | A2uiCardComponent
   | A2uiStatCardComponent
   | A2uiDividerComponent
+  | A2uiChartComponent
 
 export type A2uiComponentEntry = {
   id: string
