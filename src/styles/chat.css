@@ -301,6 +301,108 @@
   scrollbar-color: hsl(var(--border)) transparent;
 }
 
+/* ── A2UI Surface ───────────────────────────────────────────────────── */
+.a2ui-surface {
+  margin-top: 8px;
+  animation: block-enter 180ms ease-out both;
+}
+
+.a2ui-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.a2ui-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.a2ui-row > * {
+  flex: 1 1 0;
+  min-width: 120px;
+}
+
+.a2ui-card {
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  padding: 12px;
+  background: hsl(var(--card));
+}
+
+.a2ui-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  padding: 12px;
+  background: hsl(var(--card));
+}
+
+.a2ui-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+.a2ui-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: hsl(var(--foreground));
+}
+
+.a2ui-stat-detail {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  margin-top: 2px;
+}
+
+.a2ui-text--h1 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+  color: hsl(var(--foreground));
+}
+
+.a2ui-text--h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  color: hsl(var(--foreground));
+}
+
+.a2ui-text--h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  color: hsl(var(--foreground));
+}
+
+.a2ui-text--body {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+  color: hsl(var(--foreground));
+}
+
+.a2ui-text--caption {
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0;
+  color: hsl(var(--muted-foreground));
+}
+
+.a2ui-divider {
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 4px 0;
+}
+
 /* ── Responsive ──────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .message-bubble {
@@ -318,5 +420,13 @@
 
   .thinking-block-text {
     font-size: 12px;
+  }
+
+  .a2ui-row {
+    flex-direction: column;
+  }
+
+  .a2ui-stat-value {
+    font-size: 18px;
   }
 }

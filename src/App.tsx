@@ -21,6 +21,8 @@ import { BouncingDots } from '@/components/ui/bouncing-dots'
 import { useToasts } from '@/components/ui/toast'
 import { Spinner } from '@/components/ui/spinner-1'
 import { PlanReactMessage } from '@/components/ui/plan-react-message'
+import { A2uiRenderer } from '@/components/ui/a2ui-renderer'
+import type { A2uiPayload } from '@/types/a2ui'
 import { ActivitiesRunsPanel } from '@/components/ui/activities-runs-panel'
 import { CustomizableAgentsPanel } from '@/components/ui/customizable-agents-panel'
 import {
@@ -62,6 +64,7 @@ type ChatMessage = {
   content: string
   tag: string
   structured?: StructuredChatContent
+  a2ui?: A2uiPayload
 }
 
 type RequestStatus = 'idle' | 'requesting' | 'streaming'
@@ -83,6 +86,8 @@ type ChatApiPayload = {
   response?: string
   tool_calls?: Array<Record<string, unknown>>
   structured?: StructuredApiPayload
+  _event?: string
+  a2ui?: A2uiPayload
 }
 
 type UsagePlan = {
@@ -372,6 +377,16 @@ function updateAssistantStructuredBlocks(
   ]
 }
 
+function updateAssistantA2ui(
+  currentMessages: ChatMessage[],
+  messageId: number,
+  a2ui: A2uiPayload,
+): ChatMessage[] {
+  return currentMessages.map((message) =>
+    message.id === messageId ? { ...message, a2ui } : message,
+  )
+}
+
 function parseSseEventBlock(block: string): { event: string; data: string } | null {
   const lines = block.split('\n')
   let event = 'message'
@@ -528,7 +543,7 @@ function App() {
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
-  const finalAssistantContentRef = useRef<{ content: string; tag: string; structured?: import('@/types/plan-react').StructuredChatContent } | null>(null)
+  const finalAssistantContentRef = useRef<{ content: string; tag: string; structured?: import('@/types/plan-react').StructuredChatContent; a2ui?: A2uiPayload } | null>(null)
   const planBadgeRef = useRef<HTMLDivElement | null>(null)
   const toasts = useToasts()
   const [isDark, setIsDark] = useState(() => {
@@ -1299,6 +1314,7 @@ function App() {
 
       let streamedResponse = ''
       let accumulatedBlocks: PlanReactBlock[] = []
+      let streamedA2ui: A2uiPayload | undefined
 
       setMessages((currentMessages) =>
         updateAssistantMessage(currentMessages, assistantMessageId, '', transform ?? 'Streaming'),
@@ -1410,6 +1426,7 @@ function App() {
         const payload = (await response.json()) as ChatApiPayload
         const structuredBlocks = parseStructuredBlocks(payload)
         const finalText = (payload.response ?? '').trim() || t.chat.backendEmpty
+        const nonStreamA2ui = payload.a2ui
         setMessages((currentMessages) => {
           let nextMessages = updateAssistantMessage(
             currentMessages,
@@ -1427,6 +1444,10 @@ function App() {
             )
           }
 
+          if (nonStreamA2ui) {
+            nextMessages = updateAssistantA2ui(nextMessages, assistantMessageId, nonStreamA2ui)
+          }
+
           return nextMessages
         })
         const nonStreamFinalText = (payload.response ?? '').trim() || t.chat.backendEmpty
@@ -1434,6 +1455,7 @@ function App() {
           content: nonStreamFinalText,
           tag: transform ?? 'Respuesta',
           structured: structuredBlocks.length > 0 ? { format: 'plan_react_v1', blocks: structuredBlocks } : undefined,
+          a2ui: nonStreamA2ui,
         }
         return
       }
@@ -1472,6 +1494,15 @@ function App() {
             }
 
             if (parsedEvent.event === 'heartbeat') {
+              boundaryIndex = buffer.indexOf('\n\n')
+              continue
+            }
+
+            if (parsedEvent.event === 'a2ui' && payload.a2ui) {
+              streamedA2ui = payload.a2ui
+              setMessages((currentMessages) =>
+                updateAssistantA2ui(currentMessages, assistantMessageId, payload.a2ui!),
+              )
               boundaryIndex = buffer.indexOf('\n\n')
               continue
             }
@@ -1538,6 +1569,7 @@ function App() {
         content: finalText,
         tag: transform ?? 'Respuesta',
         structured: accumulatedBlocks.length > 0 ? { format: 'plan_react_v1', blocks: accumulatedBlocks } : undefined,
+        a2ui: streamedA2ui,
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : t.chat.unexpectedError
@@ -1852,6 +1884,10 @@ function App() {
                                     </div>
                                   )
                                 )}
+
+                                {!isUser && message.a2ui ? (
+                                  <A2uiRenderer payload={message.a2ui} />
+                                ) : null}
 
                                 {isActiveAssistantMessage ? (
                                   <div className="plan-react-loading-inline">
