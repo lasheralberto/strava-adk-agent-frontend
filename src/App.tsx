@@ -1666,7 +1666,7 @@ function App() {
           onClose={() => setSidebarOpen(false)}
         />
         <section className="glass-panel flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="flex h-[60px] shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] bg-card/60 px-3 backdrop-blur-md sm:gap-3 sm:px-5">
+          <header className="relative z-10 flex h-[60px] shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] bg-card/60 px-3 backdrop-blur-md sm:gap-3 sm:px-5">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <button
                 onClick={() => setSidebarOpen(true)}
