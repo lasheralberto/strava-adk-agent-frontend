@@ -99,6 +99,27 @@ type DesignerDefinition = {
   connections: AgentConnection[]
 }
 
+function inferConnectionsFromSubAgents(agents: AgentEntry[]): AgentConnection[] {
+  const agentIds = new Set(agents.map((agent) => agent.id))
+  const inferred: AgentConnection[] = []
+  const seen = new Set<string>()
+
+  for (const agent of agents) {
+    for (const rawRef of agent.sub_agents) {
+      const refId = String(rawRef || '').trim()
+      if (!refId || refId === agent.id || !agentIds.has(refId)) continue
+
+      const key = `${refId}__${agent.id}`
+      if (seen.has(key)) continue
+
+      seen.add(key)
+      inferred.push({ from: refId, to: agent.id })
+    }
+  }
+
+  return inferred
+}
+
 type Props = {
   isDark: boolean
   athleteId: number | null
@@ -299,10 +320,12 @@ function parseTomlDefinition(tomlContent: string): DesignerDefinition {
     .map((c) => ({ from: asString(c.from), to: asString(c.to) }))
     .filter((c) => c.from && c.to)
 
+  const resolvedConnections = connections.length > 0 ? connections : inferConnectionsFromSubAgents(agents)
+
   return {
     system,
     agents: agents.sort((a, b) => a.order - b.order),
-    connections,
+    connections: resolvedConnections,
   }
 }
 
