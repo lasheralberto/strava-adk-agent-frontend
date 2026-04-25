@@ -23,10 +23,7 @@
     radial-gradient(700px 500px at 0% 100%, rgba(59, 130, 246, 0.05), transparent 60%);
 }
 
-.chat-canvas > * {
-  position: relative;
-  z-index: 1;
-}
+/* Note: z-index removed — ::before halos sit below siblings by DOM order */
 
 /* ── Message bubbles ─────────────────────────────────────────────────── */
 .message-bubble {

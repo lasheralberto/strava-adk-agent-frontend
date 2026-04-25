@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
   ReactFlow,
@@ -883,6 +884,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
         <span className="hidden sm:inline">Design agents</span>
       </button>
 
+      {createPortal(
       <AnimatePresence>
         {open ? (
           <>
@@ -897,7 +899,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
               exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
               transition={{ duration: reduceMotion ? 0 : PANEL_ANIMATION_DURATION_S, ease: 'easeOut' }}
               className={cn(
-                'fixed inset-0 z-50 flex h-screen w-screen flex-col bg-popover text-popover-foreground',
+                'fixed inset-0 z-[9999] flex h-screen w-screen flex-col bg-popover text-popover-foreground',
                 isDark ? 'text-foreground' : 'text-foreground',
               )}
             >
@@ -1406,7 +1408,9 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
             </AnimatePresence>
           </>
         ) : null}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+      )}
     </>
   )
 }
