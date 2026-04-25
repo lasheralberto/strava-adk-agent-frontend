@@ -1,6 +1,6 @@
 import { type CSSProperties, useEffect, useRef, useState } from 'react'
 import { AlertCircle, CheckCircle2, ChevronDown, GitBranch, LoaderCircle } from 'lucide-react'
-import type { AgentTraceEdge, AgentTraceNode, AgentTracePayload } from '@/types/agent-trace'
+import type { AgentTraceNode, AgentTracePayload } from '@/types/agent-trace'
 
 // ── Design tokens ────────────────────────────────────────────────────
 const F_BG     = '#0A1428'
@@ -24,49 +24,78 @@ const PX = 32    // canvas x-padding
 const PY = 32    // canvas y-padding
 
 // ── Layout types ─────────────────────────────────────────────────────
+
+// One logical node instance per round column
+type ExpandedNode = {
+  virtualId: string          // e.g. "agent_1_r1" or "consensus_finalizer"
+  node: AgentTraceNode       // original node for display
+  round: number | null       // null for finalizer column
+}
+
+// Edge with virtual source/target IDs so beziers always go left → right
+type ExpandedEdge = {
+  id: string
+  source: string             // virtual ID
+  target: string             // virtual ID
+  label: string
+  kind: 'context' | 'finalize'
+  sourceBaseId: string       // original agent id, used for active-path highlighting
+  targetBaseId: string
+}
+
 type Column = {
   key: string
   label: string
   step: string
   color: string
-  nodes: AgentTraceNode[]
+  nodes: ExpandedNode[]
 }
 
 type Layout = {
   columns: Column[]
   pos: Map<string, { x: number; y: number }>
+  expandedEdges: ExpandedEdge[]
   cW: number
   cH: number
 }
 
+// ── Virtual-ID helpers ────────────────────────────────────────────────
+
+function virtualId(nodeId: string, round: number, totalRounds: number): string {
+  // Use plain nodeId when there is only 1 round (avoids suffix clutter)
+  return totalRounds > 1 ? `${nodeId}_r${round}` : nodeId
+}
+
+// ── Layout computation ────────────────────────────────────────────────
+
 function computeLayout(trace: AgentTracePayload): Layout {
-  const nodeRound = new Map<string, number>()
-  for (const s of trace.visited_steps) {
-    if (s.round != null && !nodeRound.has(s.node_id)) {
-      nodeRound.set(s.node_id, s.round)
-    }
-  }
-
-  const groups = new Map<number, AgentTraceNode[]>()
-  for (const n of trace.nodes) {
-    if (n.kind === 'finalizer') continue
-    const r = nodeRound.get(n.id) ?? 1
-    if (!groups.has(r)) groups.set(r, [])
-    groups.get(r)!.push(n)
-  }
-
-  const rounds = [...groups.keys()].sort((a, b) => a - b)
-  const cols: Column[] = rounds.map((r, i) => ({
-    key: `r${r}`,
-    label: `RONDA ${r}`,
-    step: String(i + 1).padStart(2, '0'),
-    color: F_VIOLET,
-    nodes: groups.get(r)!.sort((a, b) => a.order - b.order),
-  }))
+  const participants = trace.nodes
+    .filter(n => n.kind !== 'finalizer')
+    .sort((a, b) => a.order - b.order)
 
   const finalizers = trace.nodes
     .filter(n => n.kind === 'finalizer')
     .sort((a, b) => a.order - b.order)
+
+  // total_rounds comes from the TOML definition via the backend trace template
+  const totalRounds = Math.max(1, trace.total_rounds || 1)
+
+  const cols: Column[] = []
+
+  // One column per round, each containing all participant nodes
+  for (let r = 1; r <= totalRounds; r++) {
+    cols.push({
+      key: `r${r}`,
+      label: `RONDA ${r}`,
+      step: String(r).padStart(2, '0'),
+      color: F_VIOLET,
+      nodes: participants.map(n => ({
+        virtualId: virtualId(n.id, r, totalRounds),
+        node: n,
+        round: r,
+      })),
+    })
+  }
 
   if (finalizers.length > 0) {
     cols.push({
@@ -74,27 +103,92 @@ function computeLayout(trace: AgentTracePayload): Layout {
       label: 'FINAL',
       step: String(cols.length + 1).padStart(2, '0'),
       color: F_AMBER,
-      nodes: finalizers,
+      nodes: finalizers.map(n => ({
+        virtualId: n.id,
+        node: n,
+        round: null,
+      })),
     })
   }
 
   if (cols.length === 0) {
-    return { columns: [], pos: new Map(), cW: 400, cH: 200 }
+    return { columns: [], pos: new Map(), expandedEdges: [], cW: 400, cH: 200 }
   }
 
+  // Build position map keyed by virtual ID
   const pos = new Map<string, { x: number; y: number }>()
   cols.forEach((col, ci) => {
     const x = PX + ci * (NW + CG)
-    col.nodes.forEach((n, ri) => {
-      pos.set(n.id, { x, y: PY + ri * (NH + RG) })
+    col.nodes.forEach((en, ri) => {
+      pos.set(en.virtualId, { x, y: PY + ri * (NH + RG) })
     })
   })
+
+  // Expand edges so they always connect left-column → right-column nodes:
+  //   context edge a→b: a's output in round R feeds b in round R+1
+  //   finalize edge a→fin: last round's a feeds the finalizer
+  const expandedEdges: ExpandedEdge[] = []
+  for (const e of trace.edges) {
+    if (e.kind === 'context') {
+      for (let r = 1; r < totalRounds; r++) {
+        const src = virtualId(e.source, r, totalRounds)
+        const tgt = virtualId(e.target, r + 1, totalRounds)
+        if (pos.has(src) && pos.has(tgt)) {
+          expandedEdges.push({
+            id: `${e.id}_r${r}_r${r + 1}`,
+            source: src,
+            target: tgt,
+            label: e.label,
+            kind: 'context',
+            sourceBaseId: e.source,
+            targetBaseId: e.target,
+          })
+        }
+      }
+      // With a single round, context edges within the same column are omitted
+      // (no upstream context exists in round 1).
+    } else if (e.kind === 'finalize') {
+      const src = virtualId(e.source, totalRounds, totalRounds)
+      if (pos.has(src) && pos.has(e.target)) {
+        expandedEdges.push({
+          id: `${e.id}_final`,
+          source: src,
+          target: e.target,
+          label: e.label,
+          kind: 'finalize',
+          sourceBaseId: e.source,
+          targetBaseId: e.target,
+        })
+      }
+    }
+  }
 
   const maxRows = Math.max(...cols.map(c => c.nodes.length))
   const cW = PX * 2 + cols.length * (NW + CG) - CG
   const cH = PY + maxRows * (NH + RG) - RG + PX
 
-  return { columns: cols, pos, cW, cH }
+  return { columns: cols, pos, expandedEdges, cW, cH }
+}
+
+// ── Runtime-state helpers ─────────────────────────────────────────────
+
+function isExpandedNodeActive(
+  trace: AgentTracePayload,
+  nodeId: string,
+  round: number | null,
+): boolean {
+  if (nodeId !== trace.active_node_id) return false
+  if (round === null) return true  // finalizer is active when it is the active_node_id
+  return trace.active_step?.round === round
+}
+
+function isExpandedNodeCompleted(
+  trace: AgentTracePayload,
+  nodeId: string,
+  round: number | null,
+): boolean {
+  if (round === null) return trace.completed_node_ids.includes(nodeId)
+  return trace.visited_steps.some(s => s.node_id === nodeId && s.round === round)
 }
 
 // ── Icons ─────────────────────────────────────────────────────────────
@@ -136,11 +230,14 @@ function bezier(ax: number, ay: number, bx: number, by: number) {
 
 // ── EdgeLayer ─────────────────────────────────────────────────────────
 function EdgeLayer({
-  edges, pos, activePath, selectedId,
+  edges,
+  pos,
+  trace,
+  selectedId,
 }: {
-  edges: AgentTraceEdge[]
+  edges: ExpandedEdge[]
   pos: Map<string, { x: number; y: number }>
-  activePath: string[]
+  trace: AgentTracePayload
   selectedId: string | null
 }) {
   return (
@@ -151,8 +248,10 @@ function EdgeLayer({
         if (!a || !b) return null
 
         const isFinalize   = e.kind === 'finalize'
-        const isActivePath = activePath.includes(e.source) && activePath.includes(e.target)
-        const involves     = selectedId && (e.source === selectedId || e.target === selectedId)
+        const isActivePath = trace.active_path.includes(e.sourceBaseId) &&
+          (trace.active_path.includes(e.targetBaseId) || isFinalize)
+        const involves     = selectedId !== null &&
+          (e.source === selectedId || e.target === selectedId)
 
         const stroke = involves
           ? F_AMBER
@@ -190,12 +289,19 @@ function EdgeLayer({
 
 // ── NodeCard ──────────────────────────────────────────────────────────
 function NodeCard({
-  node, pos, selected, onClick, active, completed,
+  node,
+  virtualId: vId,
+  pos,
+  selected,
+  onClick,
+  active,
+  completed,
 }: {
   node: AgentTraceNode
+  virtualId: string
   pos: { x: number; y: number }
   selected: boolean
-  onClick: (id: string) => void
+  onClick: (virtualId: string) => void
   active: boolean
   completed: boolean
 }) {
@@ -205,7 +311,7 @@ function NodeCard({
   return (
     <foreignObject x={pos.x} y={pos.y} width={NW} height={NH} style={{ overflow: 'visible' }}>
       <div
-        onClick={() => onClick(node.id)}
+        onClick={() => onClick(vId)}
         style={{
           width: NW, height: NH, borderRadius: 10, cursor: 'pointer',
           background: isFin
@@ -264,11 +370,14 @@ function LaneHeaders({ columns, cH }: { columns: Column[]; cH: number }) {
 // ── Desktop graph ─────────────────────────────────────────────────────
 function FlowDesktop({ trace, layout }: { trace: AgentTracePayload; layout: Layout }) {
   const [selected, setSelected] = useState<string | null>(null)
-  const { columns, pos, cW, cH } = layout
+  const { columns, pos, expandedEdges, cW, cH } = layout
 
-  function handleNodeClick(id: string) {
-    setSelected(prev => (prev === id ? null : id))
+  function handleNodeClick(vId: string) {
+    setSelected(prev => (prev === vId ? null : vId))
   }
+
+  // Flatten all expanded nodes across columns for rendering
+  const allNodes = columns.flatMap(col => col.nodes)
 
   return (
     <div style={{
@@ -297,23 +406,24 @@ function FlowDesktop({ trace, layout }: { trace: AgentTracePayload; layout: Layo
         >
           <LaneHeaders columns={columns} cH={cH} />
           <EdgeLayer
-            edges={trace.edges}
+            edges={expandedEdges}
             pos={pos}
-            activePath={trace.active_path}
+            trace={trace}
             selectedId={selected}
           />
-          {trace.nodes.map(n => {
-            const p = pos.get(n.id)
+          {allNodes.map(en => {
+            const p = pos.get(en.virtualId)
             if (!p) return null
             return (
               <NodeCard
-                key={n.id}
-                node={n}
+                key={en.virtualId}
+                node={en.node}
+                virtualId={en.virtualId}
                 pos={p}
-                selected={selected === n.id}
+                selected={selected === en.virtualId}
                 onClick={handleNodeClick}
-                active={n.id === trace.active_node_id}
-                completed={trace.completed_node_ids.includes(n.id)}
+                active={isExpandedNodeActive(trace, en.node.id, en.round)}
+                completed={isExpandedNodeCompleted(trace, en.node.id, en.round)}
               />
             )
           })}
@@ -324,17 +434,19 @@ function FlowDesktop({ trace, layout }: { trace: AgentTracePayload; layout: Layo
 }
 
 // ── Mobile node card ──────────────────────────────────────────────────
-function MobileNodeCard({ node, trace, selected, onClick }: {
-  node: AgentTraceNode
+function MobileNodeCard({ en, trace, expandedEdges, selected, onClick }: {
+  en: ExpandedNode
   trace: AgentTracePayload
+  expandedEdges: ExpandedEdge[]
   selected: boolean
   onClick: () => void
 }) {
+  const { node, virtualId: vId, round } = en
   const isFin     = node.kind === 'finalizer'
   const accent    = isFin ? F_AMBER : F_VIOLET
-  const active    = node.id === trace.active_node_id
-  const completed = trace.completed_node_ids.includes(node.id)
-  const outEdges  = trace.edges.filter(e => e.source === node.id)
+  const active    = isExpandedNodeActive(trace, node.id, round)
+  const completed = isExpandedNodeCompleted(trace, node.id, round)
+  const outEdges  = expandedEdges.filter(e => e.source === vId)
 
   return (
     <div onClick={onClick} style={{
@@ -384,7 +496,7 @@ function MobileNodeCard({ node, trace, selected, onClick }: {
 // ── Mobile flow ───────────────────────────────────────────────────────
 function FlowMobile({ trace, layout }: { trace: AgentTracePayload; layout: Layout }) {
   const [selected, setSelected] = useState<string | null>(null)
-  const { columns } = layout
+  const { columns, expandedEdges } = layout
 
   return (
     <div style={{
@@ -411,13 +523,14 @@ function FlowMobile({ trace, layout }: { trace: AgentTracePayload; layout: Layou
 
           <div style={{ paddingLeft: 11, position: 'relative' }}>
             <div style={{ position: 'absolute', left: 11, top: 0, bottom: 0, width: 1, background: F_LINE2 }} />
-            {col.nodes.map(n => (
+            {col.nodes.map(en => (
               <MobileNodeCard
-                key={n.id}
-                node={n}
+                key={en.virtualId}
+                en={en}
                 trace={trace}
-                selected={selected === n.id}
-                onClick={() => setSelected(selected === n.id ? null : n.id)}
+                expandedEdges={expandedEdges}
+                selected={selected === en.virtualId}
+                onClick={() => setSelected(selected === en.virtualId ? null : en.virtualId)}
               />
             ))}
           </div>
