@@ -596,8 +596,8 @@ function App() {
         setUserMenuOpen(false)
       }
     }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
+    document.addEventListener('click', handle)
+    return () => document.removeEventListener('click', handle)
   }, [userMenuOpen])
 
   useEffect(() => {
@@ -1705,6 +1705,7 @@ function App() {
                       return (
                         <>
                           <button
+                            type="button"
                             onClick={() => setUserMenuOpen((o) => !o)}
                             aria-label={t.header.userMenu}
                             aria-expanded={userMenuOpen}
@@ -1728,6 +1729,7 @@ function App() {
                           {userMenuOpen && (
                             <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-xl border border-white/[0.08] bg-popover shadow-xl" style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.36), 0 0 0 1px rgba(255,255,255,0.06)' }}>
                               <button
+                                type="button"
                                 onClick={() => { setUserMenuOpen(false); handleRunDailyPipeline() }}
                                 disabled={syncing}
                                 className={`flex w-full items-center gap-2 px-3 py-2 text-[13px] transition-colors hover:bg-muted disabled:cursor-not-allowed ${syncIconColor}`}
@@ -1794,6 +1796,7 @@ function App() {
                               </div>
                               <div className="h-px bg-border" />
                               <button
+                                type="button"
                                 onClick={() => setIsDark((d) => !d)}
                                 className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                               >
@@ -1802,6 +1805,7 @@ function App() {
                               </button>
                               <div className="h-px bg-border" />
                               <button
+                                type="button"
                                 onClick={() => { setUserMenuOpen(false); handleLogout(); }}
                                 className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                               >
@@ -1817,6 +1821,7 @@ function App() {
                 </>
               ) : (
                 <button
+                  type="button"
                   onClick={handleStartStravaLogin}
                   disabled={authPending}
                   aria-label={authPending ? t.header.connectingSTRAVA : t.header.connectSTRAVA}
@@ -1830,6 +1835,7 @@ function App() {
               )}
               {!authSession && (
                 <button
+                  type="button"
                   onClick={() => setIsDark((d) => !d)}
                   aria-label={isDark ? t.header.activateLightTheme : t.header.activateDarkTheme}
                   aria-pressed={isDark}
