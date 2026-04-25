@@ -1667,12 +1667,12 @@ function App() {
           onClose={() => setSidebarOpen(false)}
         />
         <section className="glass-panel flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-3 sm:gap-3 sm:px-6">
+          <header className="flex h-[60px] shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] bg-card/60 px-3 backdrop-blur-md sm:gap-3 sm:px-5">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <button
                 onClick={() => setSidebarOpen(true)}
                 aria-label={t.header.openSessions}
-                className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
+                className="mr-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.03] text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
               >
                 <Menu className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -1681,6 +1681,7 @@ function App() {
             <div className="flex flex-wrap items-center gap-2">
               {authSession ? (
                 <>
+                  <div className="flex items-center gap-2">
                   <ActivitiesRunsPanel
                     athleteId={authSession.athlete?.id ?? null}
                     refreshKey={activitiesRefreshKey}
@@ -1691,6 +1692,7 @@ function App() {
                     selectedAgentId={selectedAgentId}
                     onAgentChange={setSelectedAgentId}
                   />
+                  </div>
                   <div className="relative" ref={userMenuRef}>
                     {(() => {
                       const syncing = pipelineStatus === 'running' || lastSyncStatus === 'queued'
@@ -1707,22 +1709,25 @@ function App() {
                             onClick={() => setUserMenuOpen((o) => !o)}
                             aria-label={t.header.userMenu}
                             aria-expanded={userMenuOpen}
-                            className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-white/10 bg-white/[0.03] px-3 text-[13px] font-medium text-foreground transition-colors duration-100 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
                             <RefreshCw
                               className={`h-3.5 w-3.5 shrink-0 ${syncIconColor} ${syncing ? 'animate-spin' : ''}`}
                               aria-hidden="true"
                             />
-                            <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                            <span
+                              className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                              style={{ background: 'linear-gradient(135deg, #3B82F6 0%, #6366f1 100%)' }}
+                            >
                               {(authSession.athlete?.firstname?.[0] ?? '').toUpperCase()}{(authSession.athlete?.lastname?.[0] ?? '').toUpperCase()}
                             </span>
                             <span className="hidden max-w-[120px] truncate sm:inline">
                               {authSession.athlete?.firstname} {authSession.athlete?.lastname}
                             </span>
-                            <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
+                            <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden="true" />
                           </button>
                           {userMenuOpen && (
-                            <div className="absolute right-0 top-full z-50 mt-1 min-w-[160px] overflow-hidden rounded-md border border-border bg-background shadow-md">
+                            <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-xl border border-white/[0.08] bg-popover shadow-xl" style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.36), 0 0 0 1px rgba(255,255,255,0.06)' }}>
                               <button
                                 onClick={() => { setUserMenuOpen(false); handleRunDailyPipeline() }}
                                 disabled={syncing}
@@ -1816,7 +1821,7 @@ function App() {
                   onClick={handleStartStravaLogin}
                   disabled={authPending}
                   aria-label={authPending ? t.header.connectingSTRAVA : t.header.connectSTRAVA}
-                  className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-muted-foreground/50"
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-white/10 bg-white/[0.03] px-3 text-[13px] font-medium text-foreground transition-colors duration-100 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <LogIn className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">
@@ -1829,7 +1834,7 @@ function App() {
                   onClick={() => setIsDark((d) => !d)}
                   aria-label={isDark ? t.header.activateLightTheme : t.header.activateDarkTheme}
                   aria-pressed={isDark}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.03] text-muted-foreground transition-colors duration-100 hover:bg-white/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {isDark ? (
                     <Sun className="h-4 w-4" aria-hidden="true" />
@@ -1856,7 +1861,8 @@ function App() {
             ) : null}
           </AnimatePresence>
 
-          <div ref={messageStreamRef} className="message-stream flex-1 space-y-2 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4 lg:px-7">
+          <div className="chat-canvas flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div ref={messageStreamRef} className="message-stream flex-1 space-y-2 overflow-y-auto px-4 py-8 sm:px-[7%] sm:py-10">
             <AnimatePresence mode="wait">
               {messages.length === 0 ? (
                 <motion.div
@@ -1947,7 +1953,7 @@ function App() {
             </AnimatePresence>
           </div>
 
-          <footer className="border-t border-border/70 px-2 py-2 sm:px-4 sm:py-3 lg:px-6">
+          <footer className="border-t border-white/[0.06] px-3 py-3 sm:px-[5%] sm:py-4">
             <RuixenPromptBox
               onSend={handleSend}
               placeholder={
@@ -2091,6 +2097,7 @@ function App() {
               }
             />
           </footer>
+          </div>{/* /chat-canvas */}
         </section>
       </main>
     </div>

@@ -22,10 +22,10 @@
     --secondary: 222 39% 94%;
     --secondary-foreground: 223 57% 10%;
 
-    /* Accent = hover/selected tint (shadcn semantics). Primary = DESIGN accent blue. */
+    /* Accent = hover/selected tint (shadcn semantics). Primary = Athly orange. */
     --accent: 222 39% 94%;
     --accent-foreground: 223 57% 10%;
-    --primary: 220 98% 57%;              /* DESIGN --color-accent */
+    --primary: 18 98% 50%;               /* #FC4C02 Strava/Athly orange */
     --primary-foreground: 0 0% 100%;
 
     /* Semantic */
@@ -39,7 +39,7 @@
     /* Lines */
     --border: 220 20% 89%;
     --input: 220 20% 89%;
-    --ring: 223 100% 65%;                /* border-focus */
+    --ring: 18 98% 50%;                  /* orange focus ring */
 
     /* Radius — DESIGN.md scale: sm 4 / md 8 / lg 12 / xl 16 */
     --radius: 0.5rem;
@@ -71,53 +71,54 @@
   }
 
   .dark {
-    --background: 218 55% 8%;
-    --foreground: 226 89% 92%;
-    --card: 218 53% 12%;
-    --card-foreground: 226 89% 92%;
-    --popover: 220 44% 15%;
-    --popover-foreground: 226 89% 92%;
-    --muted: 218 41% 19%;
-    --muted-foreground: 219 24% 64%;
-    --secondary: 218 41% 19%;
-    --secondary-foreground: 226 89% 92%;
+    /* Athly dark palette — #050A18 base */
+    --background: 224 56% 6%;          /* #050A18 */
+    --foreground: 0 0% 92%;            /* rgba(255,255,255,0.92) */
+    --card: 223 58% 9%;                /* #0A1226 sidebar/panel bg */
+    --card-foreground: 0 0% 92%;
+    --popover: 224 55% 12%;            /* #0E1730 hover/active */
+    --popover-foreground: 0 0% 92%;
+    --muted: 224 55% 12%;              /* #0E1730 */
+    --muted-foreground: 220 6% 58%;    /* rgba(255,255,255,0.55) approx */
+    --secondary: 224 55% 12%;
+    --secondary-foreground: 0 0% 92%;
 
-    --accent: 218 41% 19%;
-    --accent-foreground: 226 89% 92%;
-    --primary: 220 98% 57%;
-    --primary-foreground: 223 57% 10%;
+    --accent: 224 55% 12%;
+    --accent-foreground: 0 0% 92%;
+    --primary: 18 98% 50%;             /* #FC4C02 Strava orange */
+    --primary-foreground: 0 0% 100%;
 
     --destructive: 4 100% 61%;
-    --destructive-foreground: 223 57% 10%;
-    --success: 135 59% 49%;
-    --success-foreground: 223 57% 10%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 45%;            /* #22C55E */
+    --success-foreground: 0 0% 10%;
     --warning: 36 100% 52%;
-    --warning-foreground: 223 57% 10%;
+    --warning-foreground: 0 0% 10%;
 
-    --border: 220 23% 22%;
-    --input: 220 23% 22%;
-    --ring: 223 100% 65%;
+    --border: 224 22% 14%;             /* rgba(255,255,255,0.06) on #050A18 */
+    --input: 224 22% 16%;              /* rgba(255,255,255,0.10) on #050A18 */
+    --ring: 18 98% 50%;                /* orange focus ring */
 
     /* Toast + button token set (dark) */
-    --context-card-border: hsla(0, 0%, 18%, 1);
-    --geist-background: #000;
+    --context-card-border: hsla(224, 22%, 18%, 1);
+    --geist-background: #050A18;
     --ds-red-800: oklch(58.01% 0.227 25.12);
     --ds-red-900: oklch(69.96% 0.2136 22.03);
     --ds-blue-700: oklch(57.61% 0.2321 258.23);
     --ds-amber-800: oklch(77.21% 0.1991 64.28);
-    --ds-gray-100: hsla(0, 0%, 10%, 1);
-    --ds-gray-400: hsla(0, 0%, 18%, 1);
+    --ds-gray-100: hsla(224, 56%, 8%, 1);
+    --ds-gray-400: hsla(224, 22%, 16%, 1);
     --ds-gray-700: hsla(0, 0%, 56%, 1);
     --ds-gray-1000: hsla(0, 0%, 93%, 1);
     --ds-gray-1000-h: hsl(0, 0%, 80%);
-    --ds-gray-alpha-200: hsla(0, 0%, 100%, 0.09);
-    --ds-gray-alpha-400: hsla(0, 0%, 100%, 0.14);
-    --ds-background-100: hsla(0, 0%, 4%, 1);
-    --ds-shadow-border: 0 0 0 1px rgba(255, 255, 255, 0.145);
-    --ds-shadow-small: 0px 1px 2px rgba(0, 0, 0, 0.16);
+    --ds-gray-alpha-200: hsla(0, 0%, 100%, 0.06);
+    --ds-gray-alpha-400: hsla(0, 0%, 100%, 0.10);
+    --ds-background-100: hsla(224, 56%, 4%, 1);
+    --ds-shadow-border: 0 0 0 1px rgba(255, 255, 255, 0.08);
+    --ds-shadow-small: 0px 1px 2px rgba(0, 0, 0, 0.32);
     --ds-shadow-border-small: var(--ds-shadow-border), var(--ds-shadow-small);
-    --ds-shadow-menu: var(--ds-shadow-border), 0px 1px 1px rgba(0, 0, 0, 0.02),
-      0px 4px 8px -4px rgba(0, 0, 0, 0.04), 0px 16px 24px -8px rgba(0, 0, 0, 0.06);
+    --ds-shadow-menu: var(--ds-shadow-border), 0px 1px 1px rgba(0, 0, 0, 0.04),
+      0px 4px 8px -4px rgba(0, 0, 0, 0.12), 0px 16px 24px -8px rgba(0, 0, 0, 0.18);
   }
 
   * {
@@ -136,18 +137,18 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: "SF Pro Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Geist', "SF Pro Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     font-feature-settings: "cv11", "ss01";
     min-height: 100vh;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: "SF Pro Display", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Geist', "SF Pro Display", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     letter-spacing: -0.01em;
   }
 
   code, kbd, samp, pre {
-    font-family: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+    font-family: 'Geist Mono', "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
   }
 
   button, input, textarea {

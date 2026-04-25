@@ -7,6 +7,27 @@
   background: hsl(var(--card));
 }
 
+/* ── Chat canvas — ambient halos (dark only) ─────────────────────────── */
+.chat-canvas {
+  position: relative;
+}
+
+.dark .chat-canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(900px 500px at 80% -10%, rgba(252, 76, 2, 0.06), transparent 60%),
+    radial-gradient(700px 500px at 0% 100%, rgba(59, 130, 246, 0.05), transparent 60%);
+}
+
+.chat-canvas > * {
+  position: relative;
+  z-index: 1;
+}
+
 /* ── Message bubbles ─────────────────────────────────────────────────── */
 .message-bubble {
   border-width: 0;
@@ -16,6 +37,15 @@
 .message-bubble-user {
   background: hsl(var(--foreground));
   color: hsl(var(--background));
+  box-shadow: none;
+}
+
+/* Dark-mode: glassmorphic user bubble */
+.dark .message-bubble-user {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 20px 20px 6px 20px;
   box-shadow: none;
 }
 
@@ -414,6 +444,11 @@
 }
 
 /* ── Keyframes ───────────────────────────────────────────────────────── */
+@keyframes ath-pulse-orange {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(252, 76, 2, 0.45); }
+  50%       { box-shadow: 0 0 0 6px rgba(252, 76, 2, 0); }
+}
+
 @keyframes thinking-icon-pulse {
   0%, 100% { opacity: 0.9; transform: scale(1); }
   50%       { opacity: 1;   transform: scale(1.15); }
