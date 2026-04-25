@@ -16,12 +16,12 @@ const FONT     = `'Geist', -apple-system, system-ui, sans-serif`
 const MONO     = `'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace`
 
 // ── Layout constants ─────────────────────────────────────────────────
-const NW = 220   // node width
-const NH = 56    // node height
-const CG = 140   // column gap
-const RG = 16    // row gap
-const PX = 48    // canvas x-padding
-const PY = 72    // canvas y-padding (includes space for column header above nodes)
+const NW = 180   // node width
+const NH = 44    // node height
+const CG = 100   // column gap
+const RG = 12    // row gap
+const PX = 32    // canvas x-padding
+const PY = 32    // canvas y-padding
 
 // ── Layout types ─────────────────────────────────────────────────────
 type Column = {
@@ -143,8 +143,6 @@ function EdgeLayer({
   activePath: string[]
   selectedId: string | null
 }) {
-  const [hovered, setHovered] = useState<string | null>(null)
-
   return (
     <g>
       {edges.map(e => {
@@ -155,34 +153,24 @@ function EdgeLayer({
         const isFinalize   = e.kind === 'finalize'
         const isActivePath = activePath.includes(e.source) && activePath.includes(e.target)
         const involves     = selectedId && (e.source === selectedId || e.target === selectedId)
-        const isHovered    = hovered === e.id
 
-        const stroke = involves || isHovered
+        const stroke = involves
           ? F_AMBER
           : isActivePath
             ? F_AMBER
             : isFinalize
               ? 'rgba(255,138,61,0.45)'
               : 'rgba(255,255,255,0.22)'
-        const sw = involves || isHovered ? 2.2 : isActivePath ? 1.8 : 1.2
+        const sw = involves ? 2.2 : isActivePath ? 1.8 : 1.2
 
         const ax = a.x + NW, ay = a.y + NH / 2
         const bx = b.x,      by = b.y + NH / 2
-        const mx = (ax + bx) / 2, my = (ay + by) / 2
         const d  = bezier(ax, ay, bx, by)
 
         return (
-          <g
-            key={e.id}
-            onMouseEnter={() => setHovered(e.id)}
-            onMouseLeave={() => setHovered(null)}
-            style={{ cursor: 'pointer' }}
-          >
-            {/* hit area */}
-            <path d={d} stroke="transparent" strokeWidth={12} fill="none" />
-            {/* glow under active edges */}
+          <g key={e.id}>
             {(isActivePath || involves) && (
-              <path d={d} stroke={F_AMBER} strokeWidth={6} fill="none" opacity={0.12} />
+              <path d={d} stroke={F_AMBER} strokeWidth={6} fill="none" opacity={0.10} />
             )}
             <path
               d={d}
@@ -192,27 +180,7 @@ function EdgeLayer({
               strokeDasharray={isActivePath ? '6 4' : undefined}
               style={isActivePath ? { animation: 'agf-flow 1.6s linear infinite' } as CSSProperties : undefined}
             />
-            {/* arrow head */}
-            <polygon points={`${bx - 7},${by - 4} ${bx},${by} ${bx - 7},${by + 4}`} fill={stroke} />
-            {/* label chip */}
-            <foreignObject x={mx - 80} y={my - 13} width={160} height={26} style={{ overflow: 'visible' }}>
-              <div style={{
-                display: 'inline-flex', maxWidth: 160,
-                padding: '2px 7px', borderRadius: 999,
-                background: isHovered
-                  ? F_AMBER
-                  : isActivePath
-                    ? 'rgba(255,138,61,.18)'
-                    : 'rgba(255,255,255,.05)',
-                border: `1px solid ${isHovered ? F_AMBER : isActivePath ? 'rgba(255,138,61,.4)' : F_LINE2}`,
-                color: isHovered ? '#0A1428' : isActivePath ? F_AMBER : 'rgba(255,255,255,.7)',
-                fontFamily: MONO, fontSize: 10, fontWeight: 500,
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                transition: 'all .15s ease',
-              }} title={e.label}>
-                {e.label}
-              </div>
-            </foreignObject>
+            <polygon points={`${bx - 6},${by - 3} ${bx},${by} ${bx - 6},${by + 3}`} fill={stroke} />
           </g>
         )
       })}
@@ -239,28 +207,28 @@ function NodeCard({
       <div
         onClick={() => onClick(node.id)}
         style={{
-          width: NW, height: NH, borderRadius: 14, cursor: 'pointer',
+          width: NW, height: NH, borderRadius: 10, cursor: 'pointer',
           background: isFin
             ? 'linear-gradient(180deg,rgba(255,138,61,.18) 0%,rgba(20,28,46,.92) 100%)'
             : 'linear-gradient(180deg,rgba(168,85,247,.10) 0%,rgba(14,26,51,.95) 100%)',
           border: `1.5px solid ${selected ? F_AMBER : active ? 'rgba(255,138,61,.55)' : F_LINE2}`,
           boxShadow: selected
-            ? '0 0 0 3px rgba(255,138,61,.18),0 16px 40px -16px rgba(0,0,0,.6)'
-            : '0 12px 28px -16px rgba(0,0,0,.6)',
-          padding: '0 14px',
-          display: 'flex', alignItems: 'center', gap: 8,
+            ? '0 0 0 3px rgba(255,138,61,.15),0 8px 24px -8px rgba(0,0,0,.5)'
+            : '0 4px 12px -4px rgba(0,0,0,.4)',
+          padding: '0 10px',
+          display: 'flex', alignItems: 'center', gap: 7,
           transition: 'all .18s ease', fontFamily: FONT,
         }}
       >
         <div style={{
-          width: 24, height: 24, borderRadius: 7, flexShrink: 0,
+          width: 20, height: 20, borderRadius: 6, flexShrink: 0,
           background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <RoleIcon kind={node.kind} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontSize: 14, fontWeight: 600, color: F_INK,
+            fontSize: 12, fontWeight: 600, color: F_INK,
             letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
             {node.label}
@@ -279,32 +247,14 @@ function LaneHeaders({ columns, cH }: { columns: Column[]; cH: number }) {
       {columns.map((col, ci) => {
         const x = PX + ci * (NW + CG)
         return (
-          <g key={col.key}>
-            {/* subtle column background */}
-            <rect
-              x={x - 14} y={PY - 16}
-              width={NW + 28} height={cH - PY + 16 - 24}
-              rx={14}
-              fill="rgba(255,255,255,0.015)"
-              stroke={F_LINE}
-            />
-            {/* column label above the rect */}
-            <foreignObject x={x - 10} y={PY - 56} width={NW + 20} height={32} style={{ overflow: 'visible' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <div style={{
-                  width: 20, height: 20, borderRadius: 5, flexShrink: 0,
-                  background: col.color, color: '#0A1428',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: MONO, fontSize: 9, fontWeight: 700,
-                }}>
-                  {col.step}
-                </div>
-                <div style={{ fontFamily: MONO, fontSize: 11, color: 'rgba(255,255,255,.85)', letterSpacing: '.14em', fontWeight: 600 }}>
-                  {col.label}
-                </div>
-              </div>
-            </foreignObject>
-          </g>
+          <rect
+            key={col.key}
+            x={x - 12} y={PY - 12}
+            width={NW + 24} height={cH - PY * 2 + 24}
+            rx={12}
+            fill="rgba(255,255,255,0.018)"
+            stroke={F_LINE}
+          />
         )
       })}
     </g>
