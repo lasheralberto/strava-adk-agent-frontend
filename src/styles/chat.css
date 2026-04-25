@@ -404,6 +404,15 @@
   to { transform: rotate(360deg); }
 }
 
+@keyframes agf-flow {
+  to { stroke-dashoffset: -20; }
+}
+
+@keyframes agf-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.75); }
+}
+
 /* ── Keyframes ───────────────────────────────────────────────────────── */
 @keyframes thinking-icon-pulse {
   0%, 100% { opacity: 0.9; transform: scale(1); }
