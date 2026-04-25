@@ -314,3 +314,19 @@
     animation: none;
   }
 }
+
+/* ── Athly Landing page animations ─────────────────────────────────────── */
+@keyframes athly-scan {
+  0%   { transform: translateX(-30px); }
+  100% { transform: translateX(260px); }
+}
+
+@keyframes athly-float-a {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-6px); }
+}
+
+@keyframes athly-float-b {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(8px); }
+}

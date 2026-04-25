@@ -1,13 +1,20 @@
-import { useState } from 'react'
-import { BarChart2, Brain, Check, Copy, TrendingUp, Zap } from 'lucide-react'
+import type { CSSProperties, ReactNode } from 'react'
 import { motion } from 'motion/react'
-import { cn } from '@/lib/utils'
-import { GradientBars } from '@/components/ui/gradient-bars-background'
-import athlyLogo from '@/assets/athly_logo.png'
-import btnStravaConnect from '@/assets/btn_strava_connect_with_orange.png'
-import { TextGlitch } from '@/components/ui/text-glitch-effect'
-import { useLocale } from '@/hooks/use-locale'
 
+// ── Design tokens ────────────────────────────────────────────────────────────
+const A_ORANGE = '#FC4C02'
+const A_AMBER  = '#FF8A3D'
+const A_BLUE   = '#3B82F6'
+const A_CYAN   = '#22D3EE'
+const A_GREEN  = '#22C55E'
+const A_LINE   = 'rgba(255,255,255,0.08)'
+const A_LINE2  = 'rgba(255,255,255,0.14)'
+const A_DIM    = 'rgba(255,255,255,0.55)'
+const A_DIM2   = 'rgba(255,255,255,0.38)'
+const FONT     = `'Geist', -apple-system, system-ui, sans-serif`
+const MONO     = `'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace`
+
+// ── Props ────────────────────────────────────────────────────────────────────
 interface AuthSwitchProps {
   onLogin: () => void
   isPending?: boolean
@@ -15,614 +22,950 @@ interface AuthSwitchProps {
   className?: string
 }
 
-// ── Floating notification cards ───────────────────────────────────────────
-const LEFT_CARD_META = [
-  { id: 1, icon: TrendingUp, tone: 'success' as const, delay: 0.1, floatY: 8 },
-  { id: 2, icon: Zap, tone: 'warning' as const, delay: 0.32, floatY: -6 },
-]
-
-const RIGHT_CARD_META = [
-  { id: 3, icon: Brain, tone: 'primary' as const, delay: 0.2, floatY: -8 },
-  { id: 4, icon: BarChart2, tone: 'success' as const, delay: 0.42, floatY: 6 },
-]
-
-const iconTone = {
-  success: 'text-success',
-  warning: 'text-warning',
-  primary: 'text-primary',
-} as const
-
-// ── Phone mockup ──────────────────────────────────────────────────────────
-function renderMsgText(text: string, highlight?: string) {
-  if (!highlight) return <>{text}</>
-  const idx = text.indexOf(highlight)
-  if (idx === -1) return <>{text}</>
+// ── SVG Marks ────────────────────────────────────────────────────────────────
+function AthlyMark({ size = 22, accent = false }: { size?: number; accent?: boolean }) {
   return (
-    <>
-      {text.slice(0, idx)}
-      <span className="font-semibold text-zinc-100">{highlight}</span>
-      {text.slice(idx + highlight.length)}
-    </>
+    <svg width={size} height={size} viewBox="0 0 22 22" fill="none">
+      <path d="M11 3 L19 19 L14.5 19 L11 11.5 L7.5 19 L3 19 Z" fill="#fff" />
+      <path d="M11 11.5 L13.2 16 L8.8 16 Z" fill={accent ? A_ORANGE : A_ORANGE} />
+    </svg>
   )
 }
 
-function PhoneMockup() {
-  const { t } = useLocale()
-  const msgs = t.auth.mockup.messages
+function StravaIcon({ size = 14 }: { size?: number }) {
   return (
-    <div className="flex h-[480px] w-[230px] flex-col overflow-hidden rounded-[38px] border-[6px] border-zinc-700 bg-zinc-900 shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)] select-none">
-      {/* Status bar */}
-      <div className="flex shrink-0 items-center justify-between px-5 pb-0.5 pt-3.5">
-        <span className="text-[10px] font-medium text-zinc-500">9:41</span>
-        <div className="flex items-center gap-1.5">
-          <div className="flex h-2.5 items-end gap-[2px]">
-            {([3, 5, 7, 9] as const).map((h, i) => (
-              <div
-                key={i}
-                className="w-[2px] rounded-[1px] bg-zinc-500"
-                style={{ height: `${h}px` }}
-              />
-            ))}
-          </div>
-          <span className="text-[9px] text-zinc-500">100%</span>
-        </div>
-      </div>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
+    </svg>
+  )
+}
 
-      {/* App header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <img
-            src={athlyLogo}
-            alt="Athly"
-            className="h-[18px] w-auto max-w-[90px] object-contain"
-          />
-          <span className="inline-flex items-center gap-1 rounded-[3px] bg-emerald-500/15 px-1.5 py-0.5 text-[8px] font-medium text-emerald-400">
-            <span className="h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-            {t.auth.mockup.connected}
-          </span>
-        </div>
-        <div className="flex gap-1.5">
-          <div className="h-5 w-5 rounded-md bg-zinc-800" />
-          <div className="h-5 w-5 rounded-md bg-zinc-800" />
-        </div>
-      </div>
+// ── Noise grain overlay ───────────────────────────────────────────────────────
+function Grain() {
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.4,
+        backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")`,
+      }}
+    />
+  )
+}
 
-      {/* Messages */}
-      <div className="flex flex-1 flex-col gap-2.5 overflow-hidden px-2.5 py-3">
-        {/* User */}
-        <div className="flex justify-end">
-          <div className="max-w-[75%] rounded-2xl rounded-tr-sm bg-zinc-100 px-2.5 py-1.5">
-            <p className="text-[9.5px] leading-snug text-zinc-900">
-              {msgs[0].text}
-            </p>
-          </div>
+// ── Phone shell ───────────────────────────────────────────────────────────────
+function PhoneShell({ width = 320, height = 660, children }: { width?: number; height?: number; children: ReactNode }) {
+  return (
+    <div style={{ width, height }}>
+      <div style={{
+        width, height, borderRadius: 44,
+        background: 'linear-gradient(180deg, #1a2336 0%, #0c1426 100%)',
+        padding: 8,
+        boxShadow: '0 60px 120px -30px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,255,255,0.04)',
+        position: 'relative',
+      }}>
+        <div style={{ width: '100%', height: '100%', borderRadius: 36, background: '#0A1020', overflow: 'hidden', position: 'relative' }}>
+          {children}
         </div>
-        {/* Assistant */}
-        <div className="flex justify-start">
-          <p className="max-w-[88%] text-[9.5px] leading-snug text-zinc-300">
-            {renderMsgText(msgs[1].text, 'highlight' in msgs[1] ? msgs[1].highlight : undefined)}
-          </p>
-        </div>
-        {/* User */}
-        <div className="flex justify-end">
-          <div className="max-w-[75%] rounded-2xl rounded-tr-sm bg-zinc-100 px-2.5 py-1.5">
-            <p className="text-[9.5px] leading-snug text-zinc-900">{msgs[2].text}</p>
-          </div>
-        </div>
-        {/* Assistant */}
-        <div className="flex justify-start">
-          <p className="max-w-[88%] text-[9.5px] leading-snug text-zinc-300">
-            {renderMsgText(msgs[3].text, 'highlight' in msgs[3] ? msgs[3].highlight : undefined)}
-          </p>
-        </div>
-      </div>
-
-      {/* Prompt bar */}
-      <div className="shrink-0 border-t border-zinc-800 px-2.5 py-2.5">
-        <div className="flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-2">
-          <span className="flex-1 text-[9.5px] text-zinc-600">
-            {t.auth.mockup.promptPlaceholder}
-          </span>
-          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-700">
-            <div className="h-2 w-2 rounded-[2px] bg-zinc-500" />
-          </div>
-        </div>
+        {/* Dynamic island */}
+        <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', width: 96, height: 28, borderRadius: 14, background: '#000' }} />
       </div>
     </div>
   )
 }
 
-// ── Pain point section ────────────────────────────────────────────────────
-const PAIN_POINT_ICONS = [Zap, Brain, TrendingUp] as const
-
-function PainPointSection() {
-  const { t } = useLocale()
+function PhoneStatus() {
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.55, ease: 'easeOut' }}
-      className="w-full max-w-2xl mt-16 px-2"
-      aria-labelledby="pain-point-heading"
-    >
-      <div className="mb-8 text-center">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#FC4C02]/60">
-          {t.auth.whyAthly}
-        </p>
-        <h2
-          id="pain-point-heading"
-          className="text-[22px] font-bold leading-tight tracking-tight text-white sm:text-[26px]"
-        >
-          {t.auth.painPointsHeadline}
-        </h2>
-        <p className="mx-auto mt-3 max-w-md text-[13px] leading-relaxed text-white/40">
-          {t.auth.painPointsSubheadline}
-        </p>
+    <div style={{ height: 44, padding: '14px 22px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#fff', fontSize: 13, fontFamily: FONT, fontWeight: 600 }}>
+      <div>9:41</div>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <svg width="16" height="10" viewBox="0 0 16 10"><g fill="#fff">
+          <rect x="0"  y="6" width="3" height="4" rx="0.5" />
+          <rect x="4"  y="4" width="3" height="6" rx="0.5" />
+          <rect x="8"  y="2" width="3" height="8" rx="0.5" />
+          <rect x="12" y="0" width="3" height="10" rx="0.5" />
+        </g></svg>
+        <svg width="22" height="10" viewBox="0 0 22 10" fill="none">
+          <rect x="0" y="0" width="18" height="10" rx="2" stroke="#fff" strokeOpacity="0.6" />
+          <rect x="2" y="2" width="14" height="6" rx="1" fill="#fff" />
+          <rect x="19" y="3" width="2" height="4" rx="1" fill="#fff" opacity="0.6" />
+        </svg>
       </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {t.auth.painPoints.map((point, i) => {
-          const Icon = PAIN_POINT_ICONS[i]
-          return (
-            <motion.div
-              key={point.title}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.62 + i * 0.1, ease: 'easeOut' }}
-              className="rounded-lg border border-white/10 bg-white/[0.03] p-4"
-            >
-              <div className="mb-3 flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/5">
-                <Icon className="h-3.5 w-3.5 text-[#FC4C02]" aria-hidden="true" />
-              </div>
-              <div className="mb-1 text-[13px] font-semibold text-white">{point.title}</div>
-              <div className="text-[11px] leading-relaxed text-white/40">{point.body}</div>
-            </motion.div>
-          )
-        })}
-      </div>
-    </motion.section>
+    </div>
   )
 }
 
-// ── API CLI demo section ──────────────────────────────────────────────────
-const API_STEP_ACCENTS = [false, true, false]
-
-type Token = { t: string; c?: string }
-type CodeLine = Token[]
-type ApiTab = 'curl' | 'fetch' | 'python'
-
-function buildCurlLines(apiBase: string): CodeLine[] {
-  return [
-    [
-      { t: '$ ', c: 'select-none text-white/25' },
-      { t: 'curl', c: 'text-[#FC4C02]' },
-      { t: ' -G \\', c: 'text-white/40' },
-    ],
-    [
-      { t: '    "', c: 'text-white/45' },
-      { t: apiBase, c: 'text-white/30' },
-      { t: '/v1/ask', c: 'text-violet-400' },
-      { t: '" \\', c: 'text-white/45' },
-    ],
-    [
-      { t: '    --data-urlencode ', c: 'text-white/40' },
-      { t: '"question=', c: 'text-white/50' },
-      { t: '¿Cuánto corrí esta semana?', c: 'text-emerald-400' },
-      { t: '" \\', c: 'text-white/45' },
-    ],
-    [
-      { t: '    --data-urlencode ', c: 'text-white/40' },
-      { t: '"strava_athlete_id=', c: 'text-white/50' },
-      { t: 'YOUR_ATHLETE_ID', c: 'text-yellow-400' },
-      { t: '" \\', c: 'text-white/45' },
-    ],
-    [
-      { t: '    -H ', c: 'text-white/40' },
-      { t: '"Authorization: Bearer ', c: 'text-white/50' },
-      { t: 'YOUR_STRAVA_TOKEN', c: 'text-yellow-400' },
-      { t: '"', c: 'text-white/45' },
-    ],
-  ]
-}
-
-const FETCH_LINES: CodeLine[] = [
-  [
-    { t: 'const ', c: 'text-violet-400' },
-    { t: 'params ', c: 'text-white/65' },
-    { t: '= ', c: 'text-white/40' },
-    { t: 'new ', c: 'text-violet-400' },
-    { t: 'URLSearchParams', c: 'text-[#FC4C02]' },
-    { t: '({', c: 'text-white/50' },
-  ],
-  [
-    { t: '  question: ', c: 'text-white/45' },
-    { t: '"¿Cuánto corrí esta semana?"', c: 'text-emerald-400' },
-    { t: ',', c: 'text-white/35' },
-  ],
-  [
-    { t: '  strava_athlete_id: ', c: 'text-white/45' },
-    { t: '"YOUR_ATHLETE_ID"', c: 'text-yellow-400' },
-    { t: ',', c: 'text-white/35' },
-  ],
-  [{ t: '});', c: 'text-white/50' }],
-  [],
-  [
-    { t: 'const ', c: 'text-violet-400' },
-    { t: 'res ', c: 'text-white/65' },
-    { t: '= ', c: 'text-white/40' },
-    { t: 'await ', c: 'text-violet-400' },
-    { t: 'fetch', c: 'text-[#FC4C02]' },
-    { t: '(`${', c: 'text-white/35' },
-    { t: 'BASE_URL', c: 'text-violet-400' },
-    { t: '}/v1/ask?${', c: 'text-white/35' },
-    { t: 'params', c: 'text-white/65' },
-    { t: '}`, {', c: 'text-white/35' },
-  ],
-  [
-    { t: '  headers: { Authorization: ', c: 'text-white/45' },
-    { t: '`Bearer ${', c: 'text-white/35' },
-    { t: 'token', c: 'text-yellow-400' },
-    { t: '}`', c: 'text-white/35' },
-    { t: ' },', c: 'text-white/45' },
-  ],
-  [{ t: '});', c: 'text-white/50' }],
-]
-
-const PYTHON_LINES: CodeLine[] = [
-  [
-    { t: 'import ', c: 'text-violet-400' },
-    { t: 'requests', c: 'text-white/65' },
-  ],
-  [],
-  [
-    { t: 'r ', c: 'text-white/65' },
-    { t: '= requests.', c: 'text-white/40' },
-    { t: 'get', c: 'text-[#FC4C02]' },
-    { t: '(', c: 'text-white/50' },
-  ],
-  [
-    { t: '  f"', c: 'text-white/40' },
-    { t: '{BASE_URL}', c: 'text-violet-400' },
-    { t: '/v1/ask",', c: 'text-white/45' },
-  ],
-  [{ t: '  params={', c: 'text-white/50' }],
-  [
-    { t: '    "question": ', c: 'text-white/45' },
-    { t: '"¿Cuánto corrí esta semana?"', c: 'text-emerald-400' },
-    { t: ',', c: 'text-white/35' },
-  ],
-  [
-    { t: '    "strava_athlete_id": ', c: 'text-white/45' },
-    { t: '"YOUR_ATHLETE_ID"', c: 'text-yellow-400' },
-    { t: ',', c: 'text-white/35' },
-  ],
-  [{ t: '  },', c: 'text-white/50' }],
-  [
-    { t: '  headers={', c: 'text-white/50' },
-    { t: '"Authorization"', c: 'text-white/45' },
-    { t: ': ', c: 'text-white/35' },
-    { t: 'f"Bearer {', c: 'text-white/40' },
-    { t: 'token', c: 'text-yellow-400' },
-    { t: '}"', c: 'text-white/40' },
-    { t: '},', c: 'text-white/50' },
-  ],
-  [{ t: ')', c: 'text-white/50' }],
-]
-
-const COPY_TEXT: Record<ApiTab, (base: string) => string> = {
-  curl: (b) =>
-    `curl -G \\\n    "${b}/v1/ask" \\\n    --data-urlencode "question=¿Cuánto corrí esta semana?" \\\n    --data-urlencode "strava_athlete_id=YOUR_ATHLETE_ID" \\\n    -H "Authorization: Bearer YOUR_STRAVA_TOKEN"`,
-  fetch: () =>
-    `const params = new URLSearchParams({\n  question: "¿Cuánto corrí esta semana?",\n  strava_athlete_id: "YOUR_ATHLETE_ID",\n});\nconst res = await fetch(\`\${BASE_URL}/v1/ask?\${params}\`, {\n  headers: { Authorization: \`Bearer \${token}\` },\n});`,
-  python: () =>
-    `import requests\n\nr = requests.get(\n  f"{BASE_URL}/v1/ask",\n  params={\n    "question": "¿Cuánto corrí esta semana?",\n    "strava_athlete_id": "YOUR_ATHLETE_ID",\n  },\n  headers={"Authorization": f"Bearer {token}"},\n)`,
-}
-
-function ApiCliSection() {
-  const [tab, setTab] = useState<ApiTab>('curl')
-  const [copied, setCopied] = useState(false)
-  const { t } = useLocale()
-
-  const apiBase =
-    (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '') ||
-    'https://api.athly.app'
-
-  const lines =
-    tab === 'curl' ? buildCurlLines(apiBase) : tab === 'fetch' ? FETCH_LINES : PYTHON_LINES
-
-  const handleCopy = () => {
-    void navigator.clipboard.writeText(COPY_TEXT[tab](apiBase)).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
+function MiniStat({ label, value, delta, warn }: { label: string; value: string; delta?: string; warn?: boolean }) {
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.65, ease: 'easeOut' }}
-      className="w-full max-w-2xl mt-14 px-2"
-      aria-label={t.auth.api.integrationLabel}
-    >
-      {/* Flow steps */}
-      <div className="mb-6 flex items-center justify-center gap-2 sm:gap-4">
-        {t.auth.api.steps.map((step, i) => (
-          <div key={step.label} className="flex items-center gap-2 sm:gap-4">
-            <div className="flex flex-col items-center gap-1">
-              <div
-                className={cn(
-                  'rounded-md border px-3 py-1.5 text-[13px] font-semibold transition-colors',
-                  API_STEP_ACCENTS[i]
-                    ? 'border-[#FC4C02]/40 bg-[#FC4C02]/10 text-white'
-                    : 'border-white/10 bg-white/5 text-white/65',
-                )}
-              >
-                {step.label}
-              </div>
-              <span className="text-[10px] text-white/30">{step.sub}</span>
-            </div>
-            {i < t.auth.api.steps.length - 1 ? (
-              <span className="mb-4 text-[15px] leading-none text-white/20" aria-hidden="true">
-                →
-              </span>
-            ) : null}
+    <div style={{ flex: 1, padding: '8px 10px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: `1px solid ${A_LINE}` }}>
+      <div style={{ fontFamily: MONO, fontSize: 9, color: A_DIM, letterSpacing: '0.1em' }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 2 }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', fontFamily: FONT, letterSpacing: '-0.02em' }}>{value}</div>
+        {delta && <div style={{ fontFamily: MONO, fontSize: 9, color: warn ? A_AMBER : A_GREEN }}>{delta}</div>}
+      </div>
+    </div>
+  )
+}
+
+function PhoneBubble({ user, children }: { user?: boolean; children: ReactNode }) {
+  return (
+    <div style={{
+      maxWidth: '82%',
+      alignSelf: user ? 'flex-end' : 'flex-start',
+      padding: '10px 14px',
+      borderRadius: user ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+      background: user ? 'rgba(255,255,255,0.08)' : 'transparent',
+      border: user ? 'none' : `1px solid ${A_LINE}`,
+      color: user ? '#fff' : 'rgba(255,255,255,0.85)',
+      fontSize: 13, lineHeight: 1.45, fontFamily: FONT,
+    }}>{children}</div>
+  )
+}
+
+function PhoneAgentChat() {
+  return (
+    <div style={{ width: '100%', height: '100%', background: '#070C1A', display: 'flex', flexDirection: 'column' }}>
+      <PhoneStatus />
+      {/* Header */}
+      <div style={{ padding: '6px 18px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 10, background: `linear-gradient(135deg, ${A_ORANGE} 0%, ${A_AMBER} 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <AthlyMark size={18} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', fontFamily: FONT }}>Athly</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 6, height: 6, borderRadius: 3, background: A_GREEN, boxShadow: `0 0 8px ${A_GREEN}` }} />
+            <div style={{ fontFamily: MONO, fontSize: 10, color: A_DIM, letterSpacing: '0.06em' }}>STRAVA · sincronizado hace 2 min</div>
+          </div>
+        </div>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: `1px solid ${A_LINE}` }} />
+      </div>
+      {/* Metric strip */}
+      <div style={{ padding: '0 18px', display: 'flex', gap: 8 }}>
+        <MiniStat label="CTL" value="68" delta="+3" />
+        <MiniStat label="ATL" value="74" delta="+11" warn />
+        <MiniStat label="TSB" value="−6" />
+      </div>
+      {/* Chat */}
+      <div style={{ flex: 1, padding: '20px 18px 12px', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
+        <PhoneBubble user>¿Cuál fue mi mejor 5K este mes?</PhoneBubble>
+        <PhoneBubble>
+          Tu mejor 5K fue el <b style={{ color: '#fff' }}>martes</b> en <b style={{ color: A_AMBER }}>21:34</b>, ritmo 4:19/km. Mejoraste <span style={{ color: A_AMBER }}>23 seg</span> respecto al anterior.
+        </PhoneBubble>
+        <PhoneBubble user>¿Cuánto correr mañana?</PhoneBubble>
+        <PhoneBubble>
+          Carga alta esta semana (847 TSS). Recomiendo <b style={{ color: '#fff' }}>30–40 min fácil</b> en <span style={{ color: A_BLUE, fontFamily: MONO }}>zona 2</span>.
+        </PhoneBubble>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: -2 }}>
+          <span style={{ width: 6, height: 6, borderRadius: 3, background: A_DIM2 }} />
+          <span style={{ width: 6, height: 6, borderRadius: 3, background: A_DIM }} />
+          <span style={{ width: 6, height: 6, borderRadius: 3, background: A_DIM2 }} />
+        </div>
+      </div>
+      {/* Composer */}
+      <div style={{ padding: '8px 14px 18px' }}>
+        <div style={{ height: 46, borderRadius: 23, background: 'rgba(255,255,255,0.04)', border: `1px solid ${A_LINE2}`, padding: '0 8px 0 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1, fontSize: 13, color: A_DIM2 }}>Pregúntame sobre tu entrenamiento…</div>
+          <div style={{ width: 32, height: 32, borderRadius: 16, background: A_ORANGE, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 700 }}>↑</div>
+        </div>
+        <div style={{ height: 4, marginTop: 14, marginInline: '100px', borderRadius: 2, background: 'rgba(255,255,255,0.4)' }} />
+      </div>
+    </div>
+  )
+}
+
+// ── Floating card components ──────────────────────────────────────────────────
+type CardTone = 'up' | 'warn' | 'info'
+
+function FloatingCard({ children, top, left, right, tone = 'info', floatStyle }: {
+  children: ReactNode
+  top?: number | string
+  left?: number | string
+  right?: number | string
+  tone?: CardTone
+  floatStyle?: 'a' | 'b'
+}) {
+  const ring = tone === 'up' ? 'rgba(34,197,94,0.25)' : tone === 'warn' ? 'rgba(252,76,2,0.3)' : 'rgba(59,130,246,0.25)'
+  return (
+    <div style={{
+      position: 'absolute', top, left, right, zIndex: 3,
+      width: 230, padding: 14, borderRadius: 14,
+      background: 'linear-gradient(180deg, rgba(20,28,46,0.92), rgba(10,16,32,0.92))',
+      border: `1px solid rgba(255,255,255,0.08)`,
+      boxShadow: `0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px ${ring}`,
+      backdropFilter: 'blur(8px)',
+      animation: floatStyle === 'a' ? 'athly-float-a 4s ease-in-out infinite' : floatStyle === 'b' ? 'athly-float-b 4.8s ease-in-out infinite' : undefined,
+    }}>
+      {children}
+    </div>
+  )
+}
+
+function CardHeader({ icon, tone, children }: { icon: string; tone: CardTone; children: ReactNode }) {
+  const c = tone === 'up' ? A_GREEN : tone === 'warn' ? A_ORANGE : A_BLUE
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, background: 'rgba(255,255,255,0.06)', color: c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontFamily: MONO }}>{icon}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{children}</div>
+    </div>
+  )
+}
+
+function Sparkline({ color }: { color: string }) {
+  return (
+    <svg viewBox="0 0 200 32" width="100%" height="28" style={{ marginTop: 10 }}>
+      <path d="M0 24 L20 22 L40 24 L60 18 L80 20 L100 14 L120 18 L140 10 L160 12 L180 6 L200 8" stroke={color} strokeWidth="1.5" fill="none" />
+      <circle cx="180" cy="6" r="3" fill={color} />
+    </svg>
+  )
+}
+
+function BarRow() {
+  const heights = [10, 14, 9, 16, 12, 20, 8]
+  return (
+    <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 24, marginTop: 10 }}>
+      {heights.map((h, i) => (
+        <div key={i} style={{ flex: 1, height: h, borderRadius: 1.5, background: i === 5 ? A_ORANGE : 'rgba(255,255,255,0.25)' }} />
+      ))}
+    </div>
+  )
+}
+
+function ScanLine() {
+  return (
+    <div style={{ marginTop: 10, height: 26, position: 'relative', borderRadius: 6, background: 'rgba(59,130,246,0.08)', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: 0, bottom: 0, width: 24, background: `linear-gradient(90deg, transparent, ${A_BLUE}, transparent)`, animation: 'athly-scan 2.4s linear infinite' }} />
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', padding: '0 8px', gap: 4 }}>
+        {Array.from({ length: 28 }).map((_, i) => (
+          <div key={i} style={{ width: 2, height: 4 + (i % 4) * 3, background: 'rgba(59,130,246,0.45)', borderRadius: 1 }} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function RecoveryBar() {
+  return (
+    <div style={{ marginTop: 10, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+      <div style={{ width: '82%', height: '100%', background: `linear-gradient(90deg, ${A_GREEN}, ${A_CYAN})`, borderRadius: 3 }} />
+    </div>
+  )
+}
+
+function Avatars() {
+  const cs = [A_ORANGE, A_BLUE, A_GREEN, '#A855F7']
+  return (
+    <div style={{ display: 'flex' }}>
+      {cs.map((c, i) => (
+        <div key={i} style={{ width: 24, height: 24, borderRadius: 12, background: c, marginLeft: i === 0 ? 0 : -8, border: '2px solid #050A18' }} />
+      ))}
+    </div>
+  )
+}
+
+// ── Shared section header ─────────────────────────────────────────────────────
+function SectionHeader({ eye, title }: { eye: string; title: ReactNode }) {
+  return (
+    <div>
+      <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.14em' }}>{eye}</div>
+      <h2 style={{ margin: '14px 0 0', maxWidth: 800, fontSize: 'clamp(36px, 4.5vw, 60px)', lineHeight: 1, color: '#fff', letterSpacing: '-0.03em', fontWeight: 600 }}>
+        {title}
+      </h2>
+    </div>
+  )
+}
+
+// ── Feature visual mocks ──────────────────────────────────────────────────────
+function FeatBubble({ user, children }: { user?: boolean; children: ReactNode }) {
+  return (
+    <div style={{
+      maxWidth: '85%',
+      alignSelf: user ? 'flex-end' : 'flex-start',
+      padding: '10px 14px',
+      borderRadius: user ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+      background: user ? 'rgba(255,255,255,0.08)' : 'transparent',
+      border: user ? 'none' : `1px solid ${A_LINE2}`,
+      color: user ? '#fff' : 'rgba(255,255,255,0.85)',
+      fontSize: 13.5, lineHeight: 1.5, fontFamily: FONT,
+    }}>{children}</div>
+  )
+}
+
+function FeatChat() {
+  return (
+    <div style={{ background: '#070C1A', borderRadius: 18, border: `1px solid ${A_LINE}`, padding: 22, display: 'flex', flexDirection: 'column', gap: 12, minHeight: 280 }}>
+      <FeatBubble user>¿Estoy listo para 10×400 mañana?</FeatBubble>
+      <FeatBubble>
+        Sí — TSB en <b style={{ color: A_GREEN }}>−6</b>, sueño 7h12, FC reposo normal. Ritmo objetivo <b style={{ color: A_AMBER }}>3:45/km</b>, recuperación 90 seg.
+      </FeatBubble>
+      <FeatBubble user>¿Y si llueve?</FeatBubble>
+      <FeatBubble>Cambio a 6×800 en cinta a 3:55. Mismo estímulo, menos riesgo.</FeatBubble>
+    </div>
+  )
+}
+
+function FeatPatterns() {
+  const pts: [number, number][] = [[20,140],[50,130],[80,135],[110,118],[140,125],[170,108],[200,115],[230,98],[260,90],[290,75],[320,82],[350,62],[380,55]]
+  return (
+    <div style={{ background: '#070C1A', borderRadius: 18, border: `1px solid ${A_LINE}`, padding: 22, minHeight: 280, position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.1em' }}>RITMO 5K · ÚLTIMOS 90 DÍAS</div>
+        <div style={{ fontFamily: MONO, fontSize: 11, color: A_GREEN }}>−47s</div>
+      </div>
+      <svg viewBox="0 0 400 180" width="100%" height="180" style={{ marginTop: 16 }}>
+        <line x1="0" y1="60" x2="400" y2="60" stroke="rgba(255,255,255,0.06)" />
+        <line x1="0" y1="120" x2="400" y2="120" stroke="rgba(255,255,255,0.06)" />
+        {pts.map(([x, y], i) => (
+          <circle key={i} cx={x} cy={y} r="3" fill={i === 11 ? A_ORANGE : 'rgba(255,255,255,0.5)'} />
+        ))}
+        <path d="M20 140 C 80 130, 140 120, 200 110 S 320 70, 380 55" stroke={A_ORANGE} strokeWidth="2" fill="none" opacity="0.6" />
+        <circle cx="350" cy="62" r="8" fill="none" stroke={A_ORANGE} strokeWidth="1.5" />
+      </svg>
+      <div style={{ position: 'absolute', right: 36, top: 86, padding: '6px 10px', borderRadius: 8, background: A_ORANGE, color: '#fff', fontSize: 11, fontFamily: MONO, fontWeight: 600 }}>
+        PR · 21:34
+      </div>
+    </div>
+  )
+}
+
+function FeatPlan() {
+  const days = [
+    { d: 'LUN', label: 'Fácil 45min',   tone: 'green' as const },
+    { d: 'MAR', label: 'Series 8×400',  tone: 'orange' as const, updated: true },
+    { d: 'MIE', label: 'Descanso',      tone: 'gray' as const },
+    { d: 'JUE', label: 'Tempo 30min',   tone: 'orange' as const },
+    { d: 'VIE', label: 'Movilidad',     tone: 'gray' as const },
+    { d: 'SAB', label: 'Largo 18km',    tone: 'orange' as const },
+    { d: 'DOM', label: 'Recuperación',  tone: 'green' as const },
+  ]
+  const dotColor = (t: 'orange' | 'green' | 'gray') => t === 'orange' ? A_ORANGE : t === 'green' ? A_GREEN : 'rgba(255,255,255,0.4)'
+  return (
+    <div style={{ background: '#070C1A', borderRadius: 18, border: `1px solid ${A_LINE}`, padding: 22, minHeight: 280 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.1em' }}>SEMANA · 28 ABR — 4 MAY</div>
+        <div style={{ fontFamily: MONO, fontSize: 11, color: A_AMBER }}>↻ ajustado hace 4 min</div>
+      </div>
+      <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {days.map(d => (
+          <div key={d.d} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: `1px solid ${A_LINE}` }}>
+            <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.1em', width: 36 }}>{d.d}</div>
+            <div style={{ width: 8, height: 8, borderRadius: 4, background: dotColor(d.tone) }} />
+            <div style={{ flex: 1, fontSize: 13, color: '#fff', fontFamily: FONT }}>{d.label}</div>
+            {d.updated && <div style={{ fontFamily: MONO, fontSize: 10, color: A_AMBER }}>actualizado</div>}
           </div>
         ))}
       </div>
-
-      {/* Terminal */}
-      <div className="overflow-hidden rounded-xl border border-white/10 bg-zinc-950/80">
-        {/* Title bar */}
-        <div className="flex items-center justify-between border-b border-white/10 bg-zinc-900/60 px-4 py-2">
-          <div className="flex items-center gap-3">
-            <div className="flex gap-1.5" aria-hidden="true">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-500/55" />
-              <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/55" />
-              <span className="h-2.5 w-2.5 rounded-full bg-green-500/55" />
-            </div>
-            {/* Language tabs */}
-            <div className="flex items-center gap-0.5 rounded-md bg-white/5 p-0.5">
-              {(['curl', 'fetch', 'python'] as const).map((tabKey) => (
-                <button
-                  key={tabKey}
-                  type="button"
-                  onClick={() => setTab(tabKey)}
-                  className={cn(
-                    'rounded px-2.5 py-1 font-mono text-[10px] transition-colors',
-                    tab === tabKey
-                      ? 'bg-white/10 text-white/80'
-                      : 'text-white/30 hover:text-white/55',
-                  )}
-                  aria-pressed={tab === tabKey}
-                >
-                  {tabKey}
-                </button>
-              ))}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-white/35 transition-colors hover:bg-white/5 hover:text-white/65"
-            aria-label={t.auth.api.copyCode}
-          >
-            {copied ? (
-              <Check className="h-3 w-3 text-emerald-400" aria-hidden="true" />
-            ) : (
-              <Copy className="h-3 w-3" aria-hidden="true" />
-            )}
-            {copied ? t.auth.api.copied : t.auth.api.copyCode}
-          </button>
-        </div>
-
-        {/* Code */}
-        <pre
-          className="px-4 py-4 font-mono text-[12px] leading-[1.75]"
-          aria-label={t.auth.api.integrationLabel}
-        >
-          {lines.map((line, li) =>
-            line.length === 0 ? (
-              <div key={li} className="h-3" aria-hidden="true" />
-            ) : (
-              <div key={li}>
-                {line.map((tok, ti) => (
-                  <span key={ti} className={tok.c}>
-                    {tok.t}
-                  </span>
-                ))}
-              </div>
-            ),
-          )}
-        </pre>
-
-        {/* Response */}
-        <div className="border-t border-white/10 px-4 py-3">
-          <span className="mb-1.5 block font-mono text-[10px] text-white/25">{t.auth.api.responseComment}</span>
-          <pre className="font-mono text-[11px] leading-relaxed text-white/45">{`{\n  "response": "Esta semana corriste 42 km en 4 sesiones. Ritmo medio: 4:58/km..."\n}`}</pre>
-        </div>
-      </div>
-    </motion.section>
+    </div>
   )
 }
 
-// ── Main component ────────────────────────────────────────────────────────
-export default function AuthSwitch({ onLogin, isPending, error, className }: AuthSwitchProps) {
-  const { t } = useLocale()
+// ── CTA button styles ─────────────────────────────────────────────────────────
+const ctaPrimaryStyle: CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 8,
+  padding: '10px 16px', borderRadius: 10,
+  background: A_ORANGE, color: '#fff', border: 'none',
+  fontSize: 14, fontWeight: 600, fontFamily: FONT, cursor: 'pointer',
+  boxShadow: '0 8px 24px -8px rgba(252,76,2,0.6)',
+}
+
+// ── Desktop NAV ───────────────────────────────────────────────────────────────
+function Nav({ onLogin, isPending }: { onLogin: () => void; isPending?: boolean }) {
   return (
-    <div className={cn('relative min-h-screen flex flex-col overflow-hidden bg-[rgb(7,13,32)]', className)}>
-      {/* Gradient bars background */}
-      <GradientBars
-        numBars={13}
-        gradientFrom="hsl(var(--primary))"
-        gradientTo="transparent"
-        animationDuration={2.4}
-      />
-
-      {/* Soft white halo for depth on top of animated bars */}
-      <div
-        className="pointer-events-none absolute inset-0 z-[1]"
-        style={{
-          background:
-            'radial-gradient(circle at 50% 32%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.08) 20%, rgba(255, 255, 255, 0) 52%)',
-        }}
-      />
-
-      {/* Nav */}
-      <nav className="relative z-10 flex flex-col items-center gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-3">
-        <div className="flex shrink-0 items-center">
-          <img
-            src={athlyLogo}
-            alt="Athly"
-            className="h-12 w-auto max-w-none object-contain"
-          />
-        </div>
-        <button
-          onClick={onLogin}
-          disabled={isPending}
-          className="overflow-hidden rounded-full transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label={t.auth.connectWithSTRAVA}
-        >
-          {isPending ? (
-            <span className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-[#FC4C02] px-4 text-sm font-semibold leading-none text-white">
-              <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
-              <span className="leading-none">{t.auth.connectingSTRAVA}</span>
-            </span>
-          ) : (
-            <span className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-[#FC4C02] px-4 text-sm font-semibold leading-none text-white">
-              <img
-                src={btnStravaConnect}
-                alt=""
-                className="h-4 w-auto shrink-0"
-              />
-              <span className="leading-none">{t.auth.connectWithSTRAVA}</span>
-            </span>
-          )}
+    <nav style={{
+      position: 'sticky', top: 0, zIndex: 50,
+      padding: '20px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      background: 'rgba(5, 10, 24, 0.6)', backdropFilter: 'blur(20px)',
+      borderBottom: `1px solid ${A_LINE}`,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <AthlyMark size={26} />
+        <div style={{ fontSize: 17, fontWeight: 600, color: '#fff', letterSpacing: '-0.01em', fontFamily: FONT }}>Athly</div>
+        <div style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.06)', border: `1px solid ${A_LINE2}`, fontFamily: MONO, fontSize: 10, color: A_DIM, letterSpacing: '0.08em' }}>BETA</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 32, fontSize: 14, color: A_DIM, fontFamily: FONT }}>
+        <a style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', cursor: 'pointer' }} href="#funciones">Funciones</a>
+        <a style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', cursor: 'pointer' }} href="#como-funciona">Cómo funciona</a>
+        <a style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', cursor: 'pointer' }} href="#atletas">Atletas</a>
+        <a style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', cursor: 'pointer' }} href="#precio">Precio</a>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <button onClick={onLogin} disabled={isPending} style={{ ...ctaPrimaryStyle, opacity: isPending ? 0.7 : 1 }}>
+          {isPending
+            ? <><span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: 7, display: 'inline-block', animation: 'spin 0.8s linear infinite' }} /> Conectando…</>
+            : <><StravaIcon size={14} /> Conectar con Strava</>
+          }
         </button>
-      </nav>
+      </div>
+    </nav>
+  )
+}
 
-      {/* Error banner */}
-      {error && (
-        <div className="relative z-10 mx-6 mb-2 rounded-md border border-red-400/30 bg-red-950/60 px-4 py-2 text-xs text-red-300 backdrop-blur-sm sm:mx-10">
-          {error}
+// ── Desktop HERO ──────────────────────────────────────────────────────────────
+function Hero({ onLogin, isPending }: { onLogin: () => void; isPending?: boolean }) {
+  return (
+    <section style={{
+      position: 'relative', overflow: 'hidden',
+      padding: '80px 40px 120px',
+      background: `radial-gradient(1200px 600px at 80% 20%, rgba(252,76,2,0.18), transparent 60%),
+                   radial-gradient(900px 600px at 10% 60%, rgba(59,130,246,0.18), transparent 60%)`,
+    }}>
+      <Grain />
+      <div style={{ maxWidth: 1280, margin: '0 auto', position: 'relative' }}>
+        {/* Eyebrow */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '6px 12px', borderRadius: 999, background: 'rgba(255,255,255,0.04)', border: `1px solid ${A_LINE2}`, fontFamily: MONO, fontSize: 11, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.08em' }}>
+          <span style={{ width: 6, height: 6, borderRadius: 3, background: A_GREEN, boxShadow: `0 0 8px ${A_GREEN}` }} />
+          AGENTE IA · IMPULSADO POR TUS DATOS DE STRAVA
         </div>
-      )}
 
-      {/* Hero */}
-      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pb-16 pt-8 sm:px-10">
-        {/* Headline */}
-        <div className="mb-12 w-full px-6 sm:px-10">
-          <TextGlitch
-            text={t.auth.headline1}
-            hoverText={t.auth.headline1}
-            delay={0}
-            className="text-[6vw]"
-          />
-          <TextGlitch
-            text={t.auth.headline2}
-            hoverText={t.auth.headline2}
-            delay={0.2}
-            className="text-[4.2vw]"
-          />
+        <h1 style={{ margin: '24px 0 0', maxWidth: 920, fontSize: 'clamp(48px, 6vw, 84px)', lineHeight: 0.96, fontWeight: 600, letterSpacing: '-0.035em', color: '#fff', fontFamily: FONT }}>
+          Tu rendimiento,<br />
+          <span style={{ color: 'rgba(255,255,255,0.55)' }}>sin filtros ni complicaciones.</span>
+        </h1>
+
+        <p style={{ marginTop: 28, maxWidth: 560, fontSize: 18, lineHeight: 1.55, color: 'rgba(255,255,255,0.7)', fontFamily: FONT }}>
+          Athly es un agente que lee cada actividad, conversa contigo y te dice qué entrenar, cuándo descansar y por qué — en lenguaje humano, no en gráficas que tienes que descifrar.
+        </p>
+
+        <div style={{ marginTop: 36, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button onClick={onLogin} disabled={isPending} style={{ ...ctaPrimaryStyle, padding: '14px 22px', fontSize: 15 }}>
+            {isPending
+              ? <><span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: 7, display: 'inline-block' }} /> Conectando…</>
+              : <><StravaIcon size={16} /> Conectar con Strava</>
+            }
+          </button>
+          <button style={{ padding: '14px 22px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', color: '#fff', border: `1px solid ${A_LINE2}`, fontSize: 15, fontWeight: 500, fontFamily: FONT, cursor: 'pointer' }}>
+            Ver demo · 90 seg →
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 8, color: A_DIM, fontSize: 13, fontFamily: FONT }}>
+            <Avatars />
+            <span>+12.400 atletas conectados esta semana</span>
+          </div>
         </div>
 
         {/* Phone + floating cards */}
-        <div className="flex items-center justify-center gap-6 lg:gap-10">
-          {/* Left cards */}
-          <div className="hidden flex-col items-end gap-4 lg:flex">
-            {LEFT_CARD_META.map((card, i) => (
-              <motion.div
-                key={card.id}
-                className="flex w-[192px] items-start gap-2.5 rounded-md border border-white/10 bg-zinc-900/75 px-3 py-2.5 shadow-md"
-                initial={{ opacity: 0, x: -24 }}
-                animate={{ opacity: 1, x: 0, y: [0, card.floatY, 0] }}
-                transition={{
-                  opacity: { duration: 0.4, delay: card.delay, ease: 'easeOut' },
-                  x: { duration: 0.4, delay: card.delay, ease: 'easeOut' },
-                  y: {
-                    duration: 3.6 + card.id * 0.4,
-                    repeat: Infinity,
-                    ease: 'easeInOut',
-                    delay: card.delay + 0.5,
-                  },
-                }}
-              >
-                <div
-                  className={cn(
-                    'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/5',
-                    iconTone[card.tone],
-                  )}
-                >
-                  <card.icon className="h-3 w-3" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[12px] font-semibold leading-tight text-white">
-                    {t.auth.leftCards[i].title}
-                  </div>
-                  <div className="mt-0.5 text-[11px] leading-tight text-white/55">
-                    {t.auth.leftCards[i].sub}
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+        <div style={{ marginTop: 80, position: 'relative', height: 720, display: 'flex', justifyContent: 'center' }}>
+          {/* Glow plate */}
+          <div style={{ position: 'absolute', top: 60, left: '50%', transform: 'translateX(-50%)', width: 520, height: 580, borderRadius: '50%', background: 'radial-gradient(closest-side, rgba(252,76,2,0.25), transparent 70%)', filter: 'blur(20px)' }} />
+
+          {/* Phone */}
+          <div style={{ position: 'relative', zIndex: 2 }}>
+            <PhoneShell width={340} height={700}>
+              <PhoneAgentChat />
+            </PhoneShell>
           </div>
 
-          {/* Phone mockup */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.05, ease: 'easeOut' }}
-          >
-            <PhoneMockup />
-          </motion.div>
+          {/* Left cards */}
+          <FloatingCard top={120} left="6%" tone="up" floatStyle="a">
+            <CardHeader icon="↗" tone="up">PR detectado · 5K</CardHeader>
+            <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, marginTop: 4 }}>21:34 · Hoy 7:30am</div>
+            <Sparkline color={A_GREEN} />
+          </FloatingCard>
+
+          <FloatingCard top={320} left="2%" tone="warn" floatStyle="b">
+            <CardHeader icon="◐" tone="warn">Carga semanal alta</CardHeader>
+            <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, marginTop: 4 }}>847 TSS · Descansa mañana</div>
+            <BarRow />
+          </FloatingCard>
 
           {/* Right cards */}
-          <div className="hidden flex-col items-start gap-4 lg:flex">
-            {RIGHT_CARD_META.map((card, i) => (
-              <motion.div
-                key={card.id}
-                className="flex w-[192px] items-start gap-2.5 rounded-md border border-white/10 bg-zinc-900/75 px-3 py-2.5 shadow-md"
-                initial={{ opacity: 0, x: 24 }}
-                animate={{ opacity: 1, x: 0, y: [0, card.floatY, 0] }}
-                transition={{
-                  opacity: { duration: 0.4, delay: card.delay, ease: 'easeOut' },
-                  x: { duration: 0.4, delay: card.delay, ease: 'easeOut' },
-                  y: {
-                    duration: 3.6 + card.id * 0.4,
-                    repeat: Infinity,
-                    ease: 'easeInOut',
-                    delay: card.delay + 0.5,
-                  },
-                }}
-              >
-                <div
-                  className={cn(
-                    'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/5',
-                    iconTone[card.tone],
-                  )}
-                >
-                  <card.icon className="h-3 w-3" />
+          <FloatingCard top={80} right="4%" tone="info" floatStyle="b">
+            <CardHeader icon="●" tone="info">Agente analizando</CardHeader>
+            <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, marginTop: 4 }}>Identificando patrones de ritmo</div>
+            <ScanLine />
+          </FloatingCard>
+
+          <FloatingCard top={300} right="8%" tone="up" floatStyle="a">
+            <CardHeader icon="▮" tone="up">Recuperación: 82%</CardHeader>
+            <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, marginTop: 4 }}>Listo para entrenar hoy</div>
+            <RecoveryBar />
+          </FloatingCard>
+
+          <FloatingCard top={520} right="14%" tone="info">
+            <CardHeader icon="⌖" tone="info">Próxima carrera</CardHeader>
+            <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, marginTop: 4 }}>Maratón Madrid · 38 días</div>
+          </FloatingCard>
+
+          <FloatingCard top={540} left="10%" tone="warn">
+            <CardHeader icon="✦" tone="warn">Asimetría detectada</CardHeader>
+            <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, marginTop: 4 }}>Pierna der. +4% impacto</div>
+          </FloatingCard>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ── Logos strip ───────────────────────────────────────────────────────────────
+function LogosStrip() {
+  const items = ['STRAVA', 'GARMIN', 'WAHOO', 'COROS', 'POLAR', 'SUUNTO', 'APPLE HEALTH']
+  return (
+    <section style={{ padding: '40px 40px 60px', borderTop: `1px solid ${A_LINE}`, borderBottom: `1px solid ${A_LINE}` }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 32, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+        <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.14em' }}>SE CONECTA CON</div>
+        {items.map(l => (
+          <div key={l} style={{ fontFamily: MONO, fontSize: 14, color: 'rgba(255,255,255,0.55)', fontWeight: 500, letterSpacing: '0.08em' }}>{l}</div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ── Features section ──────────────────────────────────────────────────────────
+function Features() {
+  const items = [
+    { tag: '01 · CONVERSA', t: 'Habla con tu agente como con un coach.', d: 'Pregúntale en lenguaje natural: "¿Estoy listo para una serie de 10×400?". Athly conoce tus zonas, tu fatiga y tu historial.', visual: <FeatChat /> },
+    { tag: '02 · DETECTA', t: 'Encuentra patrones que tú no ves.', d: 'Athly cruza ritmo, frecuencia, sueño y volumen para detectar PRs, sobreentrenamiento o asimetrías antes de que se vuelvan lesión.', visual: <FeatPatterns /> },
+    { tag: '03 · DECIDE', t: 'Plan que se reescribe solo.', d: 'Si duermes mal o subiste pulsaciones, el plan de mañana ya viene ajustado. Sin abrir hojas de cálculo.', visual: <FeatPlan /> },
+  ]
+  return (
+    <section id="funciones" style={{ padding: '120px 40px' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+        <SectionHeader eye="FUNCIONES" title={<>Tres cosas que tu reloj <span style={{ color: A_DIM }}>no hace.</span></>} />
+        <div style={{ marginTop: 64, display: 'flex', flexDirection: 'column', gap: 32 }}>
+          {items.map((it, i) => (
+            <div key={i} style={{ padding: 32, borderRadius: 24, background: 'linear-gradient(180deg, rgba(20,28,46,0.6), rgba(10,16,32,0.6))', border: `1px solid ${A_LINE}`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center' }}>
+              <div style={{ order: i % 2 === 0 ? 0 : 1 }}>
+                <div style={{ fontFamily: MONO, fontSize: 11, color: A_ORANGE, letterSpacing: '0.14em' }}>{it.tag}</div>
+                <h3 style={{ margin: '14px 0 0', fontSize: 36, lineHeight: 1.05, color: '#fff', letterSpacing: '-0.025em', fontWeight: 600, fontFamily: FONT }}>{it.t}</h3>
+                <p style={{ marginTop: 14, fontSize: 16, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, maxWidth: 460, fontFamily: FONT }}>{it.d}</p>
+              </div>
+              <div style={{ order: i % 2 === 0 ? 1 : 0 }}>{it.visual}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ── How it works ──────────────────────────────────────────────────────────────
+function HowItWorks() {
+  const steps = [
+    { n: '01', t: 'Conecta Strava', d: 'Un clic. Athly importa tus últimos 90 días para entender de dónde vienes.' },
+    { n: '02', t: 'El agente aprende', d: 'En 2 minutos calibra tus zonas, ritmos y patrones de fatiga reales — no genéricos.' },
+    { n: '03', t: 'Pregunta. Entrena. Ajusta.', d: 'Cada conversación afina el plan. Cada actividad reentrena al agente.' },
+  ]
+  return (
+    <section id="como-funciona" style={{ padding: '120px 40px', borderTop: `1px solid ${A_LINE}` }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+        <SectionHeader eye="CÓMO FUNCIONA" title={<>Listo en menos<br />de tres minutos.</>} />
+        <div style={{ marginTop: 64, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+          {steps.map((s, i) => (
+            <div key={s.n} style={{ position: 'relative' }}>
+              <div style={{ fontFamily: MONO, fontSize: 13, color: A_ORANGE, letterSpacing: '0.1em' }}>{s.n}</div>
+              <div style={{ marginTop: 12, height: 1, background: A_LINE2, position: 'relative' }}>
+                <div style={{ position: 'absolute', left: 0, top: -3, width: 7, height: 7, borderRadius: 4, background: A_ORANGE }} />
+                {i < steps.length - 1 && <div style={{ position: 'absolute', right: -12, top: -3, width: 7, height: 7, borderRadius: 4, background: A_LINE2 }} />}
+              </div>
+              <h3 style={{ margin: '24px 0 0', fontSize: 28, color: '#fff', fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.1, fontFamily: FONT }}>{s.t}</h3>
+              <p style={{ marginTop: 12, fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, fontFamily: FONT }}>{s.d}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ── Athletes / testimonials ────────────────────────────────────────────────────
+function Athletes() {
+  const testimonials = [
+    { q: '"Dejé de exportar a hojas de Excel los domingos. Athly responde en un mensaje lo que me llevaba una hora."', n: 'Lucía M.', r: 'Maratonista · 2:58' },
+    { q: '"Detectó que iba sobreentrenado tres semanas antes que mi entrenador. Ahora me fío de los dos."', n: 'David R.', r: 'Triatleta · 70.3' },
+    { q: '"No sabía leer el TSS. Ahora simplemente le pregunto si puedo correr fuerte mañana y me explica el porqué."', n: 'Ana P.', r: 'Trail runner' },
+  ]
+  return (
+    <section id="atletas" style={{ padding: '120px 40px', borderTop: `1px solid ${A_LINE}` }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+        <SectionHeader eye="ATLETAS" title={<>Lo que dicen quienes <span style={{ color: A_DIM }}>ya entrenan con Athly.</span></>} />
+        <div style={{ marginTop: 64, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+          {testimonials.map((c, i) => (
+            <div key={i} style={{ padding: 28, borderRadius: 20, background: 'linear-gradient(180deg, rgba(20,28,46,0.6), rgba(10,16,32,0.6))', border: `1px solid ${A_LINE}`, display: 'flex', flexDirection: 'column', gap: 22 }}>
+              <div style={{ fontSize: 18, lineHeight: 1.45, color: '#fff', fontWeight: 500, letterSpacing: '-0.01em', fontFamily: FONT }}>{c.q}</div>
+              <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 20, background: `linear-gradient(135deg, ${A_ORANGE}, ${A_AMBER})` }} />
+                <div>
+                  <div style={{ fontSize: 14, color: '#fff', fontWeight: 600, fontFamily: FONT }}>{c.n}</div>
+                  <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.06em' }}>{c.r}</div>
                 </div>
-                <div className="min-w-0">
-                  <div className="text-[12px] font-semibold leading-tight text-white">
-                    {t.auth.rightCards[i].title}
-                  </div>
-                  <div className="mt-0.5 text-[11px] leading-tight text-white/55">
-                    {t.auth.rightCards[i].sub}
-                  </div>
-                </div>
-              </motion.div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ── Pricing ───────────────────────────────────────────────────────────────────
+function Pricing({ onLogin, isPending }: { onLogin: () => void; isPending?: boolean }) {
+  const features = [
+    'Conversaciones ilimitadas con el agente',
+    'Sincronización automática con Strava y Garmin',
+    'Plan adaptativo semanal',
+    'Detección de fatiga, PRs y asimetrías',
+    'Histórico completo, sin límite de actividades',
+  ]
+  return (
+    <section id="precio" style={{ padding: '120px 40px', borderTop: `1px solid ${A_LINE}` }}>
+      <div style={{ maxWidth: 1080, margin: '0 auto', textAlign: 'center' }}>
+        <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.14em' }}>PRECIO</div>
+        <h2 style={{ margin: '14px 0 0', fontSize: 'clamp(36px, 4.5vw, 60px)', color: '#fff', letterSpacing: '-0.03em', fontWeight: 600, lineHeight: 1.05, fontFamily: FONT }}>
+          Un solo plan.<br /><span style={{ color: A_DIM }}>Cancelas cuando quieras.</span>
+        </h2>
+        <div style={{ margin: '60px auto 0', maxWidth: 480, padding: 32, borderRadius: 24, textAlign: 'left', background: 'linear-gradient(180deg, rgba(252,76,2,0.18) 0%, rgba(20,28,46,0.6) 30%, rgba(10,16,32,0.6) 100%)', border: `1px solid rgba(252,76,2,0.35)`, boxShadow: '0 40px 80px -20px rgba(252,76,2,0.25)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: A_ORANGE, fontFamily: MONO, letterSpacing: '0.08em' }}>ATHLY PRO</div>
+            <div style={{ padding: '4px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.08)', fontFamily: MONO, fontSize: 10, color: A_DIM, letterSpacing: '0.1em' }}>14 DÍAS GRATIS</div>
+          </div>
+          <div style={{ marginTop: 18, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <div style={{ fontSize: 64, color: '#fff', fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>9€</div>
+            <div style={{ fontSize: 16, color: A_DIM, fontFamily: FONT }}>/ mes</div>
+          </div>
+          <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.06em', marginTop: 4 }}>O 79€/AÑO · AHORRA 27%</div>
+          <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {features.map(f => (
+              <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'rgba(255,255,255,0.85)', fontFamily: FONT }}>
+                <div style={{ width: 18, height: 18, borderRadius: 9, background: 'rgba(34,197,94,0.15)', color: A_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, flexShrink: 0 }}>✓</div>
+                {f}
+              </div>
             ))}
           </div>
+          <button onClick={onLogin} disabled={isPending} style={{ ...ctaPrimaryStyle, width: '100%', padding: '14px 22px', fontSize: 15, marginTop: 28, justifyContent: 'center', opacity: isPending ? 0.7 : 1 }}>
+            <StravaIcon size={16} /> Empezar prueba con Strava
+          </button>
+          <div style={{ marginTop: 12, textAlign: 'center', fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.06em' }}>
+            Sin tarjeta. Sin compromiso.
+          </div>
         </div>
+      </div>
+    </section>
+  )
+}
 
-        {/* Pain point */}
-        <PainPointSection />
+// ── Final CTA ─────────────────────────────────────────────────────────────────
+function FinalCTA({ onLogin, isPending }: { onLogin: () => void; isPending?: boolean }) {
+  return (
+    <section style={{ padding: '140px 40px', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(800px 400px at 50% 100%, rgba(252,76,2,0.25), transparent 70%)' }} />
+      <div style={{ maxWidth: 900, margin: '0 auto', textAlign: 'center', position: 'relative' }}>
+        <h2 style={{ fontSize: 'clamp(40px, 5vw, 72px)', color: '#fff', letterSpacing: '-0.035em', fontWeight: 600, lineHeight: 1, margin: 0, fontFamily: FONT }}>
+          Deja de mirar gráficas.<br />
+          <span style={{ color: A_ORANGE }}>Empieza a conversar.</span>
+        </h2>
+        <p style={{ marginTop: 24, fontSize: 18, color: 'rgba(255,255,255,0.65)', maxWidth: 560, margin: '24px auto 0', lineHeight: 1.55, fontFamily: FONT }}>
+          Conecta tu Strava y deja que Athly haga el trabajo de leer entre líneas. Tú corre.
+        </p>
+        <button onClick={onLogin} disabled={isPending} style={{ ...ctaPrimaryStyle, padding: '16px 28px', fontSize: 16, marginTop: 36, opacity: isPending ? 0.7 : 1 }}>
+          <StravaIcon size={16} /> Conectar con Strava — gratis 14 días
+        </button>
+      </div>
+    </section>
+  )
+}
 
-        {/* API CLI demo */}
-        <ApiCliSection />
+// ── Footer ────────────────────────────────────────────────────────────────────
+function Footer() {
+  const cols = [
+    { t: 'Producto', l: ['Funciones', 'Precio', 'Demo', 'Cambios'] },
+    { t: 'Empresa',  l: ['Sobre nosotros', 'Blog', 'Trabajo', 'Contacto'] },
+    { t: 'Legal',    l: ['Privacidad', 'Términos', 'Cookies'] },
+  ]
+  return (
+    <footer style={{ padding: '60px 40px 40px', borderTop: `1px solid ${A_LINE}` }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 48 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <AthlyMark size={26} />
+            <div style={{ fontSize: 17, fontWeight: 600, color: '#fff', fontFamily: FONT }}>Athly</div>
+          </div>
+          <p style={{ marginTop: 14, fontSize: 13, color: A_DIM, lineHeight: 1.55, maxWidth: 320, fontFamily: FONT }}>
+            Agente IA para corredores y triatletas. Hecho con cariño en Barcelona.
+          </p>
+        </div>
+        {cols.map(col => (
+          <div key={col.t}>
+            <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.12em' }}>{col.t.toUpperCase()}</div>
+            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {col.l.map(x => <a key={x} style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', cursor: 'pointer', fontSize: 13, fontFamily: FONT }}>{x}</a>)}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ maxWidth: 1280, margin: '40px auto 0', paddingTop: 24, borderTop: `1px solid ${A_LINE}`, display: 'flex', justifyContent: 'space-between', fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.06em' }}>
+        <div>© 2026 ATHLY · TODOS LOS DERECHOS RESERVADOS</div>
+        <div>HECHO PARA CORREDORES, NO PARA HOJAS DE CÁLCULO</div>
+      </div>
+    </footer>
+  )
+}
 
-      </main>
+// ── Mobile NAV ────────────────────────────────────────────────────────────────
+function MobileNav({ onLogin, isPending }: { onLogin: () => void; isPending?: boolean }) {
+  return (
+    <nav style={{ position: 'sticky', top: 0, zIndex: 50, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(5, 10, 24, 0.7)', backdropFilter: 'blur(20px)', borderBottom: `1px solid ${A_LINE}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <AthlyMark size={22} />
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#fff', fontFamily: FONT }}>Athly</div>
+      </div>
+      <button onClick={onLogin} disabled={isPending} style={{ padding: '8px 14px', borderRadius: 8, background: A_ORANGE, color: '#fff', border: 'none', fontSize: 13, fontWeight: 600, fontFamily: FONT, display: 'inline-flex', alignItems: 'center', gap: 6, opacity: isPending ? 0.7 : 1, cursor: 'pointer' }}>
+        <StravaIcon size={12} /> Conectar
+      </button>
+    </nav>
+  )
+}
+
+// ── Mobile HERO ───────────────────────────────────────────────────────────────
+function MiniCardM({ tone, icon, t, d }: { tone: CardTone; icon: string; t: string; d: string }) {
+  const c = tone === 'up' ? A_GREEN : tone === 'warn' ? A_ORANGE : A_BLUE
+  return (
+    <div style={{ padding: 12, borderRadius: 12, background: 'rgba(20,28,46,0.6)', border: `1px solid ${A_LINE}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 20, height: 20, borderRadius: 6, background: 'rgba(255,255,255,0.06)', color: c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontFamily: MONO }}>{icon}</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', fontFamily: FONT }}>{t}</div>
+      </div>
+      <div style={{ marginTop: 4, fontFamily: MONO, fontSize: 10, color: A_DIM }}>{d}</div>
+    </div>
+  )
+}
+
+function MobileHero({ onLogin, isPending }: { onLogin: () => void; isPending?: boolean }) {
+  return (
+    <section style={{ position: 'relative', overflow: 'hidden', padding: '40px 22px 60px', background: `radial-gradient(600px 400px at 80% 0%, rgba(252,76,2,0.25), transparent 60%), radial-gradient(500px 400px at 0% 60%, rgba(59,130,246,0.18), transparent 60%)` }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.04)', border: `1px solid ${A_LINE2}`, fontFamily: MONO, fontSize: 10, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.08em' }}>
+        <span style={{ width: 5, height: 5, borderRadius: 3, background: A_GREEN, boxShadow: `0 0 6px ${A_GREEN}` }} />
+        AGENTE IA · STRAVA
+      </div>
+      <h1 style={{ margin: '20px 0 0', fontSize: 44, lineHeight: 0.98, fontWeight: 600, letterSpacing: '-0.035em', color: '#fff', fontFamily: FONT }}>
+        Tu rendimiento,<br />
+        <span style={{ color: 'rgba(255,255,255,0.55)' }}>sin filtros.</span>
+      </h1>
+      <p style={{ marginTop: 20, fontSize: 16, lineHeight: 1.5, color: 'rgba(255,255,255,0.7)', fontFamily: FONT }}>
+        Athly lee tu Strava, conversa contigo y te dice qué entrenar — en lenguaje humano.
+      </p>
+      <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <button onClick={onLogin} disabled={isPending} style={{ padding: '14px 18px', borderRadius: 12, background: A_ORANGE, color: '#fff', border: 'none', fontSize: 15, fontWeight: 600, fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 12px 32px -8px rgba(252,76,2,0.5)', opacity: isPending ? 0.7 : 1, cursor: 'pointer' }}>
+          <StravaIcon size={14} /> Conectar con Strava
+        </button>
+        <button style={{ padding: '14px 18px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', color: '#fff', border: `1px solid ${A_LINE2}`, fontSize: 14, fontWeight: 500, fontFamily: FONT, cursor: 'pointer' }}>
+          Ver demo · 90 seg →
+        </button>
+      </div>
+      {/* Phone */}
+      <div style={{ marginTop: 56, display: 'flex', justifyContent: 'center', position: 'relative' }}>
+        <div style={{ position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)', width: 320, height: 360, borderRadius: '50%', background: 'radial-gradient(closest-side, rgba(252,76,2,0.3), transparent 70%)', filter: 'blur(20px)' }} />
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          <PhoneShell width={300} height={620}>
+            <PhoneAgentChat />
+          </PhoneShell>
+        </div>
+      </div>
+      {/* Mini cards */}
+      <div style={{ marginTop: 32, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <MiniCardM tone="up"   icon="↗" t="PR · 5K"         d="21:34 · hoy" />
+        <MiniCardM tone="warn" icon="◐" t="Carga alta"       d="847 TSS" />
+        <MiniCardM tone="info" icon="●" t="Recuperación 82%" d="Listo hoy" />
+        <MiniCardM tone="info" icon="⌖" t="Maratón"          d="38 días" />
+      </div>
+    </section>
+  )
+}
+
+// ── Mobile Features ───────────────────────────────────────────────────────────
+function MobileFeatures() {
+  const items = [
+    { tag: '01 · CONVERSA', t: 'Habla con tu agente.', d: 'Pregúntale en lenguaje natural si estás listo para una serie dura. Conoce tus zonas y tu fatiga.' },
+    { tag: '02 · DETECTA',  t: 'Encuentra patrones.',  d: 'Cruza ritmo, sueño y volumen para detectar PRs, sobreentrenamiento o asimetrías a tiempo.' },
+    { tag: '03 · DECIDE',   t: 'Plan que se reescribe.', d: 'Si duermes mal o subiste pulsaciones, el plan de mañana ya viene ajustado.' },
+  ]
+  return (
+    <section style={{ padding: '60px 22px' }}>
+      <div style={{ fontFamily: MONO, fontSize: 10, color: A_DIM, letterSpacing: '0.14em' }}>FUNCIONES</div>
+      <h2 style={{ margin: '12px 0 0', fontSize: 32, lineHeight: 1.05, color: '#fff', letterSpacing: '-0.025em', fontWeight: 600, fontFamily: FONT }}>
+        Tres cosas que tu reloj <span style={{ color: A_DIM }}>no hace.</span>
+      </h2>
+      <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {items.map(it => (
+          <div key={it.tag} style={{ padding: 22, borderRadius: 18, background: 'rgba(20,28,46,0.5)', border: `1px solid ${A_LINE}` }}>
+            <div style={{ fontFamily: MONO, fontSize: 10, color: A_ORANGE, letterSpacing: '0.14em' }}>{it.tag}</div>
+            <h3 style={{ margin: '10px 0 0', fontSize: 22, color: '#fff', fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.15, fontFamily: FONT }}>{it.t}</h3>
+            <p style={{ margin: '10px 0 0', fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, fontFamily: FONT }}>{it.d}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ── Mobile Steps ──────────────────────────────────────────────────────────────
+function MobileSteps() {
+  const steps = [
+    { n: '01', t: 'Conecta Strava', d: 'Un clic. Importa tus últimos 90 días.' },
+    { n: '02', t: 'El agente aprende', d: 'Calibra tus zonas y patrones reales.' },
+    { n: '03', t: 'Pregunta y entrena', d: 'Cada conversación afina el plan.' },
+  ]
+  return (
+    <section style={{ padding: '60px 22px', borderTop: `1px solid ${A_LINE}` }}>
+      <div style={{ fontFamily: MONO, fontSize: 10, color: A_DIM, letterSpacing: '0.14em' }}>CÓMO FUNCIONA</div>
+      <h2 style={{ margin: '12px 0 0', fontSize: 32, lineHeight: 1.05, color: '#fff', letterSpacing: '-0.025em', fontWeight: 600, fontFamily: FONT }}>
+        Listo en menos de tres minutos.
+      </h2>
+      <div style={{ marginTop: 28, display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {steps.map((s, i) => (
+          <div key={s.n} style={{ display: 'flex', gap: 14, paddingBottom: 22 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 13, background: A_ORANGE, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontFamily: MONO, fontWeight: 600 }}>{s.n}</div>
+              {i < steps.length - 1 && <div style={{ width: 1, flex: 1, background: A_LINE2, marginTop: 6 }} />}
+            </div>
+            <div style={{ paddingTop: 2 }}>
+              <div style={{ fontSize: 17, color: '#fff', fontWeight: 600, letterSpacing: '-0.01em', fontFamily: FONT }}>{s.t}</div>
+              <div style={{ marginTop: 4, fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5, fontFamily: FONT }}>{s.d}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ── Mobile Athletes ───────────────────────────────────────────────────────────
+function MobileAthletes() {
+  const t = [
+    { q: '"Dejé de exportar a Excel los domingos."', n: 'Lucía M.', r: 'Maratón · 2:58' },
+    { q: '"Detectó sobreentrenamiento tres semanas antes que mi entrenador."', n: 'David R.', r: 'Triatleta · 70.3' },
+    { q: '"Le pregunto si puedo correr fuerte y me explica el porqué."', n: 'Ana P.', r: 'Trail runner' },
+  ]
+  return (
+    <section style={{ padding: '60px 22px', borderTop: `1px solid ${A_LINE}` }}>
+      <div style={{ fontFamily: MONO, fontSize: 10, color: A_DIM, letterSpacing: '0.14em' }}>ATLETAS</div>
+      <h2 style={{ margin: '12px 0 0', fontSize: 32, lineHeight: 1.05, color: '#fff', letterSpacing: '-0.025em', fontWeight: 600, fontFamily: FONT }}>
+        Lo que dicen quienes <span style={{ color: A_DIM }}>ya entrenan con Athly.</span>
+      </h2>
+      <div style={{ marginTop: 28, display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8, scrollSnapType: 'x mandatory' }}>
+        {t.map((c, i) => (
+          <div key={i} style={{ minWidth: 280, padding: 22, borderRadius: 18, background: 'rgba(20,28,46,0.6)', border: `1px solid ${A_LINE}`, scrollSnapAlign: 'start', display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ fontSize: 16, lineHeight: 1.45, color: '#fff', fontWeight: 500, fontFamily: FONT }}>{c.q}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 'auto' }}>
+              <div style={{ width: 32, height: 32, borderRadius: 16, background: `linear-gradient(135deg, ${A_ORANGE}, ${A_AMBER})` }} />
+              <div>
+                <div style={{ fontSize: 13, color: '#fff', fontWeight: 600, fontFamily: FONT }}>{c.n}</div>
+                <div style={{ fontFamily: MONO, fontSize: 10, color: A_DIM }}>{c.r}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ── Mobile Pricing ────────────────────────────────────────────────────────────
+function MobilePricing({ onLogin, isPending }: { onLogin: () => void; isPending?: boolean }) {
+  return (
+    <section style={{ padding: '60px 22px', borderTop: `1px solid ${A_LINE}` }}>
+      <div style={{ fontFamily: MONO, fontSize: 10, color: A_DIM, letterSpacing: '0.14em' }}>PRECIO</div>
+      <h2 style={{ margin: '12px 0 0', fontSize: 32, lineHeight: 1.05, color: '#fff', letterSpacing: '-0.025em', fontWeight: 600, fontFamily: FONT }}>
+        Un plan. <span style={{ color: A_DIM }}>Cancelas cuando quieras.</span>
+      </h2>
+      <div style={{ marginTop: 28, padding: 22, borderRadius: 20, background: 'linear-gradient(180deg, rgba(252,76,2,0.18) 0%, rgba(20,28,46,0.6) 30%, rgba(10,16,32,0.6) 100%)', border: `1px solid rgba(252,76,2,0.35)` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: A_ORANGE, fontFamily: MONO, letterSpacing: '0.08em' }}>ATHLY PRO</div>
+          <div style={{ padding: '3px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.08)', fontFamily: MONO, fontSize: 9, color: A_DIM, letterSpacing: '0.1em' }}>14 DÍAS GRATIS</div>
+        </div>
+        <div style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <div style={{ fontSize: 52, color: '#fff', fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>9€</div>
+          <div style={{ fontSize: 14, color: A_DIM, fontFamily: FONT }}>/ mes</div>
+        </div>
+        <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {['Conversaciones ilimitadas', 'Strava + Garmin', 'Plan adaptativo semanal', 'Detección de fatiga y PRs'].map(f => (
+            <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.85)', fontFamily: FONT }}>
+              <div style={{ width: 16, height: 16, borderRadius: 8, background: 'rgba(34,197,94,0.15)', color: A_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, flexShrink: 0 }}>✓</div>
+              {f}
+            </div>
+          ))}
+        </div>
+        <button onClick={onLogin} disabled={isPending} style={{ marginTop: 22, width: '100%', padding: '14px 18px', borderRadius: 12, background: A_ORANGE, color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: isPending ? 0.7 : 1, cursor: 'pointer' }}>
+          <StravaIcon size={14} /> Empezar prueba con Strava
+        </button>
+        <div style={{ marginTop: 10, textAlign: 'center', fontFamily: MONO, fontSize: 10, color: A_DIM }}>SIN TARJETA · SIN COMPROMISO</div>
+      </div>
+    </section>
+  )
+}
+
+// ── Mobile Footer ─────────────────────────────────────────────────────────────
+function MobileFooter() {
+  return (
+    <footer style={{ padding: '40px 22px 32px', borderTop: `1px solid ${A_LINE}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <AthlyMark size={22} />
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#fff', fontFamily: FONT }}>Athly</div>
+      </div>
+      <p style={{ marginTop: 12, fontSize: 12, color: A_DIM, lineHeight: 1.55, fontFamily: FONT }}>
+        Agente IA para corredores y triatletas. Hecho con cariño en Barcelona.
+      </p>
+      <div style={{ marginTop: 24, display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: FONT }}>
+        <a style={{ cursor: 'pointer' }}>Funciones</a>
+        <a style={{ cursor: 'pointer' }}>Precio</a>
+        <a style={{ cursor: 'pointer' }}>Privacidad</a>
+        <a style={{ cursor: 'pointer' }}>Términos</a>
+        <a style={{ cursor: 'pointer' }}>Contacto</a>
+      </div>
+      <div style={{ marginTop: 24, fontFamily: MONO, fontSize: 10, color: A_DIM, letterSpacing: '0.06em' }}>
+        © 2026 ATHLY
+      </div>
+    </footer>
+  )
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
+export default function AuthSwitch({ onLogin, isPending, error }: AuthSwitchProps) {
+  const baseStyle: CSSProperties = {
+    background: '#050A18',
+    color: '#fff',
+    fontFamily: FONT,
+    WebkitFontSmoothing: 'antialiased' as CSSProperties['WebkitFontSmoothing'],
+  }
+
+  return (
+    <div style={baseStyle}>
+      {/* ── Desktop (> 760px) ── */}
+      <div className="hidden md:block">
+        <Nav onLogin={onLogin} isPending={isPending} />
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{ background: 'rgba(252,76,2,0.15)', borderBottom: `1px solid rgba(252,76,2,0.3)`, padding: '10px 40px', fontSize: 13, color: 'rgba(255,180,140,0.9)', fontFamily: FONT }}
+          >
+            {error}
+          </motion.div>
+        )}
+        <Hero onLogin={onLogin} isPending={isPending} />
+        <LogosStrip />
+        <Features />
+        <HowItWorks />
+        <Athletes />
+        <Pricing onLogin={onLogin} isPending={isPending} />
+        <FinalCTA onLogin={onLogin} isPending={isPending} />
+        <Footer />
+      </div>
+
+      {/* ── Mobile (≤ 760px) ── */}
+      <div className="block md:hidden">
+        <MobileNav onLogin={onLogin} isPending={isPending} />
+        {error && (
+          <div style={{ background: 'rgba(252,76,2,0.15)', borderBottom: `1px solid rgba(252,76,2,0.3)`, padding: '8px 22px', fontSize: 12, color: 'rgba(255,180,140,0.9)', fontFamily: FONT }}>
+            {error}
+          </div>
+        )}
+        <MobileHero onLogin={onLogin} isPending={isPending} />
+        <MobileFeatures />
+        <MobileSteps />
+        <MobileAthletes />
+        <MobilePricing onLogin={onLogin} isPending={isPending} />
+        <MobileFooter />
+      </div>
     </div>
   )
 }
