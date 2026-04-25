@@ -21,7 +21,6 @@ import { BouncingDots } from '@/components/ui/bouncing-dots'
 import { useToasts } from '@/components/ui/toast'
 import { Spinner } from '@/components/ui/spinner-1'
 import { PlanReactMessage } from '@/components/ui/plan-react-message'
-import { AgentFlowMessage } from '@/components/ui/agent-flow-message'
 import { A2uiRenderer } from '@/components/ui/a2ui-renderer'
 import type { A2uiPayload } from '@/types/a2ui'
 import type { AgentTracePayload } from '@/types/agent-trace'
@@ -1923,14 +1922,6 @@ function App() {
                                     </div>
                                   )
                                 )}
-
-                                {!isUser && message.agentTrace ? (
-                                  <AgentFlowMessage
-                                    trace={message.agentTrace}
-                                    isActive={isActiveAssistantMessage}
-                                    labels={t.chat.agentFlow}
-                                  />
-                                ) : null}
 
                                 {!isUser && message.a2ui ? (
                                   <A2uiRenderer payload={message.a2ui} />
