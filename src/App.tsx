@@ -1132,20 +1132,11 @@ function App() {
         throw new Error(err)
       }
 
-      // Poll /pipeline/runs until research_wiki stage reaches a terminal state
-      const POLL_INTERVAL_MS = 4000
-      const POLL_TIMEOUT_MS = 5 * 60 * 1000
-      const pollStart = Date.now()
+      // Poll /pipeline/runs every 5 seconds until research_wiki reaches a terminal state.
+      // No timeout: the backend runs async and can take arbitrarily long.
+      const POLL_INTERVAL_MS = 5000
 
       const pollRunStatus = async (): Promise<void> => {
-        if (Date.now() - pollStart > POLL_TIMEOUT_MS) {
-          toasts.error('La sincronizacion excedio el tiempo esperado.')
-          setLastSyncStatus('failed')
-          setPipelineStatus('error')
-          setTimeout(() => setPipelineStatus('idle'), 3000)
-          return
-        }
-
         try {
           const pollRes = await fetch(
             `${apiBaseUrl}/pipeline/runs?stage=research_wiki&limit=1`,
