@@ -12,6 +12,8 @@ export const DEFAULT_LANDING_PRICING: LandingPricingData = {
 
 type BackendPricingPayload = {
   id?: unknown
+  price?: unknown
+  currency?: unknown
   monthlyPrice?: unknown
   annualPrice?: unknown
   trialDays?: unknown
@@ -38,9 +40,10 @@ function parsePositiveNumber(value: unknown): number | null {
 }
 
 function normalizeLandingPricing(payload: BackendPricingPayload | undefined): LandingPricingData {
-  const monthlyPrice = parsePositiveNumber(
-    payload?.monthlyPrice,
-  ) ?? DEFAULT_LANDING_PRICING.monthlyPrice
+  const monthlyPrice =
+    parsePositiveNumber(payload?.price) ??
+    parsePositiveNumber(payload?.monthlyPrice) ??
+    DEFAULT_LANDING_PRICING.monthlyPrice
 
   const annualPrice = parsePositiveNumber(
     payload?.annualPrice,

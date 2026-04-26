@@ -100,6 +100,7 @@ type UsagePlan = {
   renewMessagesUsageEvery: string
   description: string
   features: string[]
+  priceId?: string
 }
 
 type UsageSnapshot = {
@@ -1016,10 +1017,16 @@ function App() {
     setUpgradePending(true)
 
     try {
+      const body: Record<string, unknown> = { athlete_id: athleteId }
+      const planPriceId = usage?.plan?.priceId
+      if (typeof planPriceId === 'string' && planPriceId) {
+        body.price_id = planPriceId
+      }
+
       const response = await fetch(`${apiBaseUrl}/billing/checkout-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ athlete_id: athleteId }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
