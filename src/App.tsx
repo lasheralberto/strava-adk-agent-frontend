@@ -100,7 +100,7 @@ type UsagePlan = {
   renewMessagesUsageEvery: string
   description: string
   features: string[]
-  priceId?: string
+  price_id?: string
 }
 
 type UsageSnapshot = {
@@ -1018,7 +1018,7 @@ function App() {
 
     try {
       const body: Record<string, unknown> = { athlete_id: athleteId }
-      const planPriceId = usage?.plan?.priceId
+      const planPriceId = usage?.plan?.price_id
       if (typeof planPriceId === 'string' && planPriceId) {
         body.price_id = planPriceId
       }
