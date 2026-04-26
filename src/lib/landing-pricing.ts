@@ -4,11 +4,23 @@ export type LandingPricingData = {
   trialDays: number
 }
 
+export type LandingPlan = {
+  id: string
+  monthlyPrice: number
+  annualPrice: number
+  trialDays: number
+}
+
 export const DEFAULT_LANDING_PRICING: LandingPricingData = {
   monthlyPrice: 9,
   annualPrice: 79,
   trialDays: 14,
 }
+
+export const DEFAULT_LANDING_PLANS: LandingPlan[] = [
+  { id: 'free', monthlyPrice: 0, annualPrice: 0, trialDays: 0 },
+  { id: 'pro', monthlyPrice: 9, annualPrice: 79, trialDays: 14 },
+]
 
 type BackendPricingPayload = {
   id?: unknown
@@ -39,49 +51,61 @@ function parsePositiveNumber(value: unknown): number | null {
   return null
 }
 
-function normalizeLandingPricing(payload: BackendPricingPayload | undefined): LandingPricingData {
-  const monthlyPrice =
-    parsePositiveNumber(payload?.price) ??
-    parsePositiveNumber(payload?.monthlyPrice) ??
-    DEFAULT_LANDING_PRICING.monthlyPrice
+function normalizePlan(payload: BackendPricingPayload): LandingPlan {
+  const id = typeof payload?.id === 'string' ? payload.id.trim().toLowerCase() : 'unknown'
+  const isFree = id === 'free'
 
-  const annualPrice = parsePositiveNumber(
-    payload?.annualPrice,
-  ) ?? DEFAULT_LANDING_PRICING.annualPrice
+  const monthlyPrice = isFree
+    ? 0
+    : (parsePositiveNumber(payload?.price) ??
+        parsePositiveNumber(payload?.monthlyPrice) ??
+        DEFAULT_LANDING_PRICING.monthlyPrice)
 
-  const trialDays = Math.round(
-    parsePositiveNumber(
-      payload?.trialDays,
-    ) ?? DEFAULT_LANDING_PRICING.trialDays,
-  )
+  const annualPrice = isFree
+    ? 0
+    : (parsePositiveNumber(payload?.annualPrice) ?? DEFAULT_LANDING_PRICING.annualPrice)
 
-  return {
-    monthlyPrice,
-    annualPrice,
-    trialDays,
-  }
+  const trialDays = isFree
+    ? 0
+    : Math.round(parsePositiveNumber(payload?.trialDays) ?? DEFAULT_LANDING_PRICING.trialDays)
+
+  return { id, monthlyPrice, annualPrice, trialDays }
 }
 
-export async function getLandingPricing(): Promise<LandingPricingData> {
+export async function getLandingPlans(): Promise<LandingPlan[]> {
   const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
   if (!apiBaseUrl) {
-    return DEFAULT_LANDING_PRICING
+    return DEFAULT_LANDING_PLANS
   }
 
   try {
     const response = await fetch(`${apiBaseUrl}/plans`)
     if (!response.ok) {
-      return DEFAULT_LANDING_PRICING
+      return DEFAULT_LANDING_PLANS
     }
 
     const data = (await response.json()) as BackendPlansResponse
     const plans = Array.isArray(data?.plans) ? data.plans : []
-    const proPlan = plans.find(
-      (p) => typeof p?.id === 'string' && p.id.trim().toLowerCase() === 'pro',
-    )
 
-    return normalizeLandingPricing(proPlan)
+    const mapped = plans
+      .filter((p) => typeof p?.id === 'string')
+      .map(normalizePlan)
+
+    if (mapped.length === 0) {
+      return DEFAULT_LANDING_PLANS
+    }
+
+    return mapped
   } catch {
-    return DEFAULT_LANDING_PRICING
+    return DEFAULT_LANDING_PLANS
   }
+}
+
+// kept for backward compatibility
+export async function getLandingPricing(): Promise<LandingPricingData> {
+  const plans = await getLandingPlans()
+  const pro = plans.find((p) => p.id === 'pro')
+  return pro
+    ? { monthlyPrice: pro.monthlyPrice, annualPrice: pro.annualPrice, trialDays: pro.trialDays }
+    : DEFAULT_LANDING_PRICING
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 
-import { DEFAULT_LANDING_PRICING, getLandingPricing, type LandingPricingData } from '@/lib/landing-pricing'
+import { DEFAULT_LANDING_PLANS, getLandingPlans, type LandingPlan } from '@/lib/landing-pricing'
 
 // ── Design tokens ────────────────────────────────────────────────────────────
 const A_ORANGE = '#FC4C02'
@@ -23,6 +23,18 @@ interface AuthSwitchProps {
   error?: string | null
   className?: string
 }
+
+const LANDING_FREE_FEATURES = [
+  '20 conversaciones al día con el agente',
+  'Sincronización básica con Strava',
+  'Consulta de estadísticas y actividades',
+]
+
+const MOBILE_LANDING_FREE_FEATURES = [
+  '20 conversaciones / día',
+  'Sincronización básica',
+  'Estadísticas básicas',
+]
 
 const LANDING_PRICING_FEATURES = [
   'Conversaciones ilimitadas con el agente',
@@ -48,7 +60,7 @@ function formatLandingPrice(value: number): string {
   return `${formatter.format(value)}€`
 }
 
-function getAnnualSavingsPercent(pricing: LandingPricingData): number {
+function getAnnualSavingsPercent(pricing: { monthlyPrice: number; annualPrice: number }): number {
   const fullYearMonthly = pricing.monthlyPrice * 12
   if (fullYearMonthly <= pricing.annualPrice) {
     return 0
@@ -633,39 +645,65 @@ function Athletes() {
 }
 
 // ── Pricing ───────────────────────────────────────────────────────────────────
-function Pricing({ onLogin, isPending, pricing }: { onLogin: () => void; isPending?: boolean; pricing: LandingPricingData }) {
-  const annualSavings = getAnnualSavingsPercent(pricing)
+function Pricing({ onLogin, isPending, plans }: { onLogin: () => void; isPending?: boolean; plans: LandingPlan[] }) {
+  const pro = plans.find((p) => p.id === 'pro') ?? plans[plans.length - 1]
+  const annualSavings = pro ? getAnnualSavingsPercent(pro) : 0
   return (
     <section id="precio" style={{ padding: '120px 40px', borderTop: `1px solid ${A_LINE}` }}>
       <div style={{ maxWidth: 1080, margin: '0 auto', textAlign: 'center' }}>
         <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.14em' }}>PRECIO</div>
         <h2 style={{ margin: '14px 0 0', fontSize: 'clamp(36px, 4.5vw, 60px)', color: '#fff', letterSpacing: '-0.03em', fontWeight: 600, lineHeight: 1.05, fontFamily: FONT }}>
-          Un solo plan.<br /><span style={{ color: A_DIM }}>Cancelas cuando quieras.</span>
+          Elige tu plan.<br /><span style={{ color: A_DIM }}>Cancelas cuando quieras.</span>
         </h2>
-        <div style={{ margin: '60px auto 0', maxWidth: 480, padding: 32, borderRadius: 24, textAlign: 'left', background: 'linear-gradient(180deg, rgba(252,76,2,0.18) 0%, rgba(20,28,46,0.6) 30%, rgba(10,16,32,0.6) 100%)', border: `1px solid rgba(252,76,2,0.35)`, boxShadow: '0 40px 80px -20px rgba(252,76,2,0.25)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: A_ORANGE, fontFamily: MONO, letterSpacing: '0.08em' }}>ATHLY PRO</div>
-            <div style={{ padding: '4px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.08)', fontFamily: MONO, fontSize: 10, color: A_DIM, letterSpacing: '0.1em' }}>{pricing.trialDays} DÍAS GRATIS</div>
+        <div style={{ margin: '60px auto 0', maxWidth: 960, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, textAlign: 'left' }}>
+          {/* Free card */}
+          <div style={{ padding: 32, borderRadius: 24, background: 'rgba(20,28,46,0.6)', border: `1px solid ${A_LINE}` }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: A_DIM, fontFamily: MONO, letterSpacing: '0.08em' }}>ATHLY FREE</div>
+            <div style={{ marginTop: 18, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <div style={{ fontSize: 64, color: '#fff', fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>0€</div>
+              <div style={{ fontSize: 16, color: A_DIM, fontFamily: FONT }}>/ mes</div>
+            </div>
+            <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.06em', marginTop: 4 }}>SIEMPRE GRATIS</div>
+            <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {LANDING_FREE_FEATURES.map(f => (
+                <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'rgba(255,255,255,0.85)', fontFamily: FONT }}>
+                  <div style={{ width: 18, height: 18, borderRadius: 9, background: 'rgba(34,197,94,0.15)', color: A_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, flexShrink: 0 }}>✓</div>
+                  {f}
+                </div>
+              ))}
+            </div>
+            <button onClick={onLogin} disabled={isPending} style={{ width: '100%', padding: '14px 22px', borderRadius: 12, background: 'transparent', color: '#fff', border: `1px solid ${A_LINE}`, fontSize: 15, fontWeight: 600, fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 28, cursor: 'pointer', opacity: isPending ? 0.7 : 1 }}>
+              <StravaIcon size={16} /> Empezar gratis
+            </button>
           </div>
-          <div style={{ marginTop: 18, display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <div style={{ fontSize: 64, color: '#fff', fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>{formatLandingPrice(pricing.monthlyPrice)}</div>
-            <div style={{ fontSize: 16, color: A_DIM, fontFamily: FONT }}>/ mes</div>
-          </div>
-          <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.06em', marginTop: 4 }}>{`O ${formatLandingPrice(pricing.annualPrice)}/AÑO${annualSavings > 0 ? ` · AHORRA ${annualSavings}%` : ''}`}</div>
-          <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {LANDING_PRICING_FEATURES.map(f => (
-              <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'rgba(255,255,255,0.85)', fontFamily: FONT }}>
-                <div style={{ width: 18, height: 18, borderRadius: 9, background: 'rgba(34,197,94,0.15)', color: A_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, flexShrink: 0 }}>✓</div>
-                {f}
+          {/* Pro card */}
+          {pro && (
+            <div style={{ padding: 32, borderRadius: 24, textAlign: 'left', background: 'linear-gradient(180deg, rgba(252,76,2,0.18) 0%, rgba(20,28,46,0.6) 30%, rgba(10,16,32,0.6) 100%)', border: `1px solid rgba(252,76,2,0.35)`, boxShadow: '0 40px 80px -20px rgba(252,76,2,0.25)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: A_ORANGE, fontFamily: MONO, letterSpacing: '0.08em' }}>ATHLY PRO</div>
+                {pro.trialDays > 0 && <div style={{ padding: '4px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.08)', fontFamily: MONO, fontSize: 10, color: A_DIM, letterSpacing: '0.1em' }}>{pro.trialDays} DÍAS GRATIS</div>}
               </div>
-            ))}
-          </div>
-          <button onClick={onLogin} disabled={isPending} style={{ ...ctaPrimaryStyle, width: '100%', padding: '14px 22px', fontSize: 15, marginTop: 28, justifyContent: 'center', opacity: isPending ? 0.7 : 1 }}>
-            <StravaIcon size={16} /> Empezar prueba con Strava
-          </button>
-          <div style={{ marginTop: 12, textAlign: 'center', fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.06em' }}>
-            Sin tarjeta. Sin compromiso.
-          </div>
+              <div style={{ marginTop: 18, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <div style={{ fontSize: 64, color: '#fff', fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>{formatLandingPrice(pro.monthlyPrice)}</div>
+                <div style={{ fontSize: 16, color: A_DIM, fontFamily: FONT }}>/ mes</div>
+              </div>
+              {pro.annualPrice > 0 && <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.06em', marginTop: 4 }}>{`O ${formatLandingPrice(pro.annualPrice)}/AÑO${annualSavings > 0 ? ` · AHORRA ${annualSavings}%` : ''}`}</div>}
+              <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {LANDING_PRICING_FEATURES.map(f => (
+                  <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'rgba(255,255,255,0.85)', fontFamily: FONT }}>
+                    <div style={{ width: 18, height: 18, borderRadius: 9, background: 'rgba(34,197,94,0.15)', color: A_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, flexShrink: 0 }}>✓</div>
+                    {f}
+                  </div>
+                ))}
+              </div>
+              <button onClick={onLogin} disabled={isPending} style={{ ...ctaPrimaryStyle, width: '100%', padding: '14px 22px', fontSize: 15, marginTop: 28, justifyContent: 'center', opacity: isPending ? 0.7 : 1 }}>
+                <StravaIcon size={16} /> Empezar prueba con Strava
+              </button>
+              <div style={{ marginTop: 12, textAlign: 'center', fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.06em' }}>
+                Sin tarjeta. Sin compromiso.
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </section>
@@ -889,35 +927,58 @@ function MobileAthletes() {
 }
 
 // ── Mobile Pricing ────────────────────────────────────────────────────────────
-function MobilePricing({ onLogin, isPending, pricing }: { onLogin: () => void; isPending?: boolean; pricing: LandingPricingData }) {
+function MobilePricing({ onLogin, isPending, plans }: { onLogin: () => void; isPending?: boolean; plans: LandingPlan[] }) {
+  const pro = plans.find((p) => p.id === 'pro') ?? plans[plans.length - 1]
   return (
     <section style={{ padding: '60px 22px', borderTop: `1px solid ${A_LINE}` }}>
       <div style={{ fontFamily: MONO, fontSize: 10, color: A_DIM, letterSpacing: '0.14em' }}>PRECIO</div>
       <h2 style={{ margin: '12px 0 0', fontSize: 32, lineHeight: 1.05, color: '#fff', letterSpacing: '-0.025em', fontWeight: 600, fontFamily: FONT }}>
-        Un plan. <span style={{ color: A_DIM }}>Cancelas cuando quieras.</span>
+        Elige tu plan. <span style={{ color: A_DIM }}>Cancelas cuando quieras.</span>
       </h2>
-      <div style={{ marginTop: 28, padding: 22, borderRadius: 20, background: 'linear-gradient(180deg, rgba(252,76,2,0.18) 0%, rgba(20,28,46,0.6) 30%, rgba(10,16,32,0.6) 100%)', border: `1px solid rgba(252,76,2,0.35)` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: A_ORANGE, fontFamily: MONO, letterSpacing: '0.08em' }}>ATHLY PRO</div>
-          <div style={{ padding: '3px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.08)', fontFamily: MONO, fontSize: 9, color: A_DIM, letterSpacing: '0.1em' }}>{pricing.trialDays} DÍAS GRATIS</div>
-        </div>
+      {/* Free card */}
+      <div style={{ marginTop: 28, padding: 22, borderRadius: 20, background: 'rgba(20,28,46,0.6)', border: `1px solid ${A_LINE}` }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: A_DIM, fontFamily: MONO, letterSpacing: '0.08em' }}>ATHLY FREE</div>
         <div style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 6 }}>
-          <div style={{ fontSize: 52, color: '#fff', fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>{formatLandingPrice(pricing.monthlyPrice)}</div>
+          <div style={{ fontSize: 52, color: '#fff', fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>0€</div>
           <div style={{ fontSize: 14, color: A_DIM, fontFamily: FONT }}>/ mes</div>
         </div>
         <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {MOBILE_LANDING_PRICING_FEATURES.map(f => (
+          {MOBILE_LANDING_FREE_FEATURES.map(f => (
             <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.85)', fontFamily: FONT }}>
               <div style={{ width: 16, height: 16, borderRadius: 8, background: 'rgba(34,197,94,0.15)', color: A_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, flexShrink: 0 }}>✓</div>
               {f}
             </div>
           ))}
         </div>
-        <button onClick={onLogin} disabled={isPending} style={{ marginTop: 22, width: '100%', padding: '14px 18px', borderRadius: 12, background: A_ORANGE, color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: isPending ? 0.7 : 1, cursor: 'pointer' }}>
-          <StravaIcon size={14} /> Empezar prueba con Strava
+        <button onClick={onLogin} disabled={isPending} style={{ marginTop: 22, width: '100%', padding: '14px 18px', borderRadius: 12, background: 'transparent', color: '#fff', border: `1px solid ${A_LINE}`, fontSize: 14, fontWeight: 600, fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: isPending ? 0.7 : 1, cursor: 'pointer' }}>
+          <StravaIcon size={14} /> Empezar gratis
         </button>
-        <div style={{ marginTop: 10, textAlign: 'center', fontFamily: MONO, fontSize: 10, color: A_DIM }}>SIN TARJETA · SIN COMPROMISO</div>
       </div>
+      {/* Pro card */}
+      {pro && (
+        <div style={{ marginTop: 16, padding: 22, borderRadius: 20, background: 'linear-gradient(180deg, rgba(252,76,2,0.18) 0%, rgba(20,28,46,0.6) 30%, rgba(10,16,32,0.6) 100%)', border: `1px solid rgba(252,76,2,0.35)` }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: A_ORANGE, fontFamily: MONO, letterSpacing: '0.08em' }}>ATHLY PRO</div>
+            {pro.trialDays > 0 && <div style={{ padding: '3px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.08)', fontFamily: MONO, fontSize: 9, color: A_DIM, letterSpacing: '0.1em' }}>{pro.trialDays} DÍAS GRATIS</div>}
+          </div>
+          <div style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            <div style={{ fontSize: 52, color: '#fff', fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>{formatLandingPrice(pro.monthlyPrice)}</div>
+            <div style={{ fontSize: 14, color: A_DIM, fontFamily: FONT }}>/ mes</div>
+          </div>
+          <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {MOBILE_LANDING_PRICING_FEATURES.map(f => (
+              <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.85)', fontFamily: FONT }}>
+                <div style={{ width: 16, height: 16, borderRadius: 8, background: 'rgba(34,197,94,0.15)', color: A_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, flexShrink: 0 }}>✓</div>
+                {f}
+              </div>
+            ))}
+          </div>
+          <button onClick={onLogin} disabled={isPending} style={{ marginTop: 22, width: '100%', padding: '14px 18px', borderRadius: 12, background: A_ORANGE, color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: isPending ? 0.7 : 1, cursor: 'pointer' }}>
+            <StravaIcon size={14} /> Empezar prueba con Strava
+          </button>
+          <div style={{ marginTop: 10, textAlign: 'center', fontFamily: MONO, fontSize: 10, color: A_DIM }}>SIN TARJETA · SIN COMPROMISO</div>
+        </div>
+      )}
     </section>
   )
 }
@@ -949,14 +1010,14 @@ function MobileFooter() {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 export default function AuthSwitch({ onLogin, isPending, error }: AuthSwitchProps) {
-  const [pricing, setPricing] = useState(DEFAULT_LANDING_PRICING)
+  const [plans, setPlans] = useState(DEFAULT_LANDING_PLANS)
 
   useEffect(() => {
     let cancelled = false
 
-    void getLandingPricing().then((nextPricing) => {
+    void getLandingPlans().then((nextPlans) => {
       if (!cancelled) {
-        setPricing(nextPricing)
+        setPlans(nextPlans)
       }
     })
 
@@ -991,7 +1052,7 @@ export default function AuthSwitch({ onLogin, isPending, error }: AuthSwitchProp
         <Features />
         <HowItWorks />
         <Athletes />
-        <Pricing onLogin={onLogin} isPending={isPending} pricing={pricing} />
+        <Pricing onLogin={onLogin} isPending={isPending} plans={plans} />
         <FinalCTA onLogin={onLogin} isPending={isPending} />
         <Footer />
       </div>
@@ -1008,7 +1069,7 @@ export default function AuthSwitch({ onLogin, isPending, error }: AuthSwitchProp
         <MobileFeatures />
         <MobileSteps />
         <MobileAthletes />
-        <MobilePricing onLogin={onLogin} isPending={isPending} pricing={pricing} />
+        <MobilePricing onLogin={onLogin} isPending={isPending} plans={plans} />
         <MobileFooter />
       </div>
     </div>
