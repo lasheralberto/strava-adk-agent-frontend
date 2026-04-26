@@ -1874,7 +1874,7 @@ function App() {
           </AnimatePresence>
 
           <div className="chat-canvas flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div ref={messageStreamRef} className="message-stream flex-1 space-y-2 overflow-y-auto px-4 py-8 sm:px-[7%] sm:py-10">
+          <div ref={messageStreamRef} className="message-stream flex-1 space-y-2 overflow-y-auto px-3 py-4 sm:px-[7%] sm:py-10">
             <AnimatePresence mode="wait">
               {messages.length === 0 ? (
                 <motion.div
@@ -1957,7 +1957,7 @@ function App() {
             </AnimatePresence>
           </div>
 
-          <footer className="border-t border-white/[0.06] px-3 py-3 sm:px-[5%] sm:py-4">
+          <footer className="border-t border-white/[0.06] px-2.5 py-2 sm:px-[5%] sm:py-4">
             <RuixenPromptBox
               onSend={handleSend}
               placeholder={
@@ -2007,7 +2007,7 @@ function App() {
                             transition={{ duration: 0.14, ease: 'easeOut' }}
                             role="dialog"
                             aria-label={t.plan.planDetail}
-                            className="absolute bottom-full right-0 z-50 mb-2 w-[280px] rounded-xl border border-border bg-background p-3 shadow-md"
+                            className="absolute bottom-full left-0 z-50 mb-2 w-[min(280px,calc(100vw-1.5rem))] rounded-xl border border-border bg-background p-3 shadow-md"
                           >
                             <div className="space-y-2.5">
                               <div>

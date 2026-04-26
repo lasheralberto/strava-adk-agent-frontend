@@ -43,7 +43,7 @@ export default function RuixenPromptBox({
   const [input, setInput] = useState("");
 
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
-    minHeight: 52,
+    minHeight: 40,
     maxHeight: 200,
   });
 
@@ -63,7 +63,7 @@ export default function RuixenPromptBox({
         {/* Composer box — dark blur */}
         <div
           className={cn(
-            "rounded-[14px] border border-white/10 p-3 transition-colors duration-100",
+            "rounded-[14px] border border-white/10 px-2.5 py-2 sm:p-3 transition-colors duration-100",
             "bg-[rgba(14,23,48,0.70)] backdrop-blur-xl",
             "dark:bg-[rgba(14,23,48,0.70)]",
             "light:bg-background light:border-border",
@@ -86,7 +86,7 @@ export default function RuixenPromptBox({
               }
             }}
             className={cn(
-              "min-h-[44px] sm:min-h-[44px] max-h-[160px] sm:max-h-[200px] w-full resize-none border-none bg-transparent",
+              "min-h-[40px] max-h-[160px] sm:max-h-[200px] w-full resize-none border-none bg-transparent",
               "py-1 px-1 text-[14px] leading-relaxed text-foreground",
               "placeholder:text-muted-foreground/60 focus:outline-none focus-visible:ring-0",
             )}

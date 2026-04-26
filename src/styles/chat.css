@@ -694,8 +694,16 @@
 /* ── Responsive ──────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .message-bubble {
-    max-width: 88%;
-    font-size: 13px;
+    max-width: 90%;
+    font-size: 13.5px;
+  }
+
+  .message-stream {
+    gap: 6px;
+  }
+
+  .markdown-body {
+    font-size: 14px;
   }
 
   .thinking-header {
