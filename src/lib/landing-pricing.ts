@@ -17,6 +17,10 @@ type BackendPricingPayload = {
   trialDays?: unknown
 }
 
+type BackendPlansResponse = {
+  plans?: BackendPricingPayload[]
+}
+
 function parsePositiveNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
     return value
@@ -62,12 +66,18 @@ export async function getLandingPricing(): Promise<LandingPricingData> {
   }
 
   try {
-    const response = await fetch(`${apiBaseUrl}/plans/pro`)
+    const response = await fetch(`${apiBaseUrl}/plans`)
     if (!response.ok) {
       return DEFAULT_LANDING_PRICING
     }
 
-    return normalizeLandingPricing((await response.json()) as BackendPricingPayload)
+    const data = (await response.json()) as BackendPlansResponse
+    const plans = Array.isArray(data?.plans) ? data.plans : []
+    const proPlan = plans.find(
+      (p) => typeof p?.id === 'string' && p.id.trim().toLowerCase() === 'pro',
+    )
+
+    return normalizeLandingPricing(proPlan)
   } catch {
     return DEFAULT_LANDING_PRICING
   }
