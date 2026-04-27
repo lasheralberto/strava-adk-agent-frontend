@@ -20,6 +20,7 @@ type RuixenPromptBoxProps = {
   selectedModel?: string;
   onModelChange?: (model: string) => void;
   modelLeftSlot?: React.ReactNode;
+  middleSlot?: React.ReactNode;
 };
 
 function ChevronDown() {
@@ -39,6 +40,7 @@ export default function RuixenPromptBox({
   selectedModel = "",
   onModelChange,
   modelLeftSlot,
+  middleSlot,
 }: RuixenPromptBoxProps) {
   const [input, setInput] = useState("");
 
@@ -92,7 +94,7 @@ export default function RuixenPromptBox({
             )}
           />
 
-          {/* Bottom row: left pills + send */}
+          {/* Bottom row: left pills + middle slot + send */}
           <div className="mt-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               {/* Plan badge slot */}
@@ -120,6 +122,9 @@ export default function RuixenPromptBox({
                 </div>
               )}
             </div>
+
+            {/* Middle slot (e.g. agent settings button) */}
+            {middleSlot}
 
             {/* Send button */}
             <motion.button
