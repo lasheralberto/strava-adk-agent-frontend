@@ -79,7 +79,7 @@ export async function getLandingPlans(): Promise<LandingPlan[]> {
   }
 
   try {
-    const response = await fetch(`${apiBaseUrl}/plans`)
+    const response = await fetch(`${apiBaseUrl}/plans/pricing`)
     if (!response.ok) {
       return DEFAULT_LANDING_PLANS
     }
