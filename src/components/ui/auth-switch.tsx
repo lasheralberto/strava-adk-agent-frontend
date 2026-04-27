@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 
-import { DEFAULT_LANDING_PLANS, getLandingPlans, type LandingPlan } from '@/lib/landing-pricing'
+import { getLandingPlans, type LandingPlan } from '@/lib/landing-pricing'
 
 // ── Design tokens ────────────────────────────────────────────────────────────
 const A_ORANGE = '#FC4C02'
@@ -645,7 +645,7 @@ function Athletes() {
 }
 
 // ── Pricing ───────────────────────────────────────────────────────────────────
-function Pricing({ onLogin, isPending, plans }: { onLogin: () => void; isPending?: boolean; plans: LandingPlan[] }) {
+function Pricing({ onLogin, isPending, plans, pricingError }: { onLogin: () => void; isPending?: boolean; plans: LandingPlan[]; pricingError: boolean }) {
   const pro = plans.find((p) => p.id === 'pro') ?? plans[plans.length - 1]
   const annualSavings = pro ? getAnnualSavingsPercent(pro) : 0
   return (
@@ -677,17 +677,25 @@ function Pricing({ onLogin, isPending, plans }: { onLogin: () => void; isPending
             </button>
           </div>
           {/* Pro card */}
-          {pro && (
+          {(pro || pricingError) && (
             <div style={{ padding: 32, borderRadius: 24, textAlign: 'left', background: 'linear-gradient(180deg, rgba(252,76,2,0.18) 0%, rgba(20,28,46,0.6) 30%, rgba(10,16,32,0.6) 100%)', border: `1px solid rgba(252,76,2,0.35)`, boxShadow: '0 40px 80px -20px rgba(252,76,2,0.25)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: A_ORANGE, fontFamily: MONO, letterSpacing: '0.08em' }}>ATHLY PRO</div>
-                {pro.trialDays > 0 && <div style={{ padding: '4px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.08)', fontFamily: MONO, fontSize: 10, color: A_DIM, letterSpacing: '0.1em' }}>{pro.trialDays} DÍAS GRATIS</div>}
+                {pro && pro.trialDays > 0 && <div style={{ padding: '4px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.08)', fontFamily: MONO, fontSize: 10, color: A_DIM, letterSpacing: '0.1em' }}>{pro.trialDays} DÍAS GRATIS</div>}
               </div>
-              <div style={{ marginTop: 18, display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <div style={{ fontSize: 64, color: '#fff', fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>{formatLandingPrice(pro.monthlyPrice)}</div>
-                <div style={{ fontSize: 16, color: A_DIM, fontFamily: FONT }}>/ mes</div>
-              </div>
-              {pro.annualPrice > 0 && <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.06em', marginTop: 4 }}>{`O ${formatLandingPrice(pro.annualPrice)}/AÑO${annualSavings > 0 ? ` · AHORRA ${annualSavings}%` : ''}`}</div>}
+              {pricingError ? (
+                <div style={{ marginTop: 18, fontSize: 14, color: 'rgba(255,100,80,0.9)', fontFamily: FONT }}>
+                  No se pudo cargar el precio. Inténtalo más tarde.
+                </div>
+              ) : pro ? (
+                <>
+                  <div style={{ marginTop: 18, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <div style={{ fontSize: 64, color: '#fff', fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>{formatLandingPrice(pro.monthlyPrice)}</div>
+                    <div style={{ fontSize: 16, color: A_DIM, fontFamily: FONT }}>/ mes</div>
+                  </div>
+                  {pro.annualPrice > 0 && <div style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.06em', marginTop: 4 }}>{`O ${formatLandingPrice(pro.annualPrice)}/AÑO${annualSavings > 0 ? ` · AHORRA ${annualSavings}%` : ''}`}</div>}
+                </>
+              ) : null}
               <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {LANDING_PRICING_FEATURES.map(f => (
                   <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'rgba(255,255,255,0.85)', fontFamily: FONT }}>
@@ -696,12 +704,16 @@ function Pricing({ onLogin, isPending, plans }: { onLogin: () => void; isPending
                   </div>
                 ))}
               </div>
-              <button onClick={onLogin} disabled={isPending} style={{ ...ctaPrimaryStyle, width: '100%', padding: '14px 22px', fontSize: 15, marginTop: 28, justifyContent: 'center', opacity: isPending ? 0.7 : 1 }}>
-                <StravaIcon size={16} /> Empezar prueba con Strava
-              </button>
-              <div style={{ marginTop: 12, textAlign: 'center', fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.06em' }}>
-                Sin tarjeta. Sin compromiso.
-              </div>
+              {!pricingError && (
+                <>
+                  <button onClick={onLogin} disabled={isPending} style={{ ...ctaPrimaryStyle, width: '100%', padding: '14px 22px', fontSize: 15, marginTop: 28, justifyContent: 'center', opacity: isPending ? 0.7 : 1 }}>
+                    <StravaIcon size={16} /> Empezar prueba con Strava
+                  </button>
+                  <div style={{ marginTop: 12, textAlign: 'center', fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.06em' }}>
+                    Sin tarjeta. Sin compromiso.
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -927,7 +939,7 @@ function MobileAthletes() {
 }
 
 // ── Mobile Pricing ────────────────────────────────────────────────────────────
-function MobilePricing({ onLogin, isPending, plans }: { onLogin: () => void; isPending?: boolean; plans: LandingPlan[] }) {
+function MobilePricing({ onLogin, isPending, plans, pricingError }: { onLogin: () => void; isPending?: boolean; plans: LandingPlan[]; pricingError: boolean }) {
   const pro = plans.find((p) => p.id === 'pro') ?? plans[plans.length - 1]
   return (
     <section style={{ padding: '60px 22px', borderTop: `1px solid ${A_LINE}` }}>
@@ -955,16 +967,22 @@ function MobilePricing({ onLogin, isPending, plans }: { onLogin: () => void; isP
         </button>
       </div>
       {/* Pro card */}
-      {pro && (
+      {(pro || pricingError) && (
         <div style={{ marginTop: 16, padding: 22, borderRadius: 20, background: 'linear-gradient(180deg, rgba(252,76,2,0.18) 0%, rgba(20,28,46,0.6) 30%, rgba(10,16,32,0.6) 100%)', border: `1px solid rgba(252,76,2,0.35)` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: A_ORANGE, fontFamily: MONO, letterSpacing: '0.08em' }}>ATHLY PRO</div>
-            {pro.trialDays > 0 && <div style={{ padding: '3px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.08)', fontFamily: MONO, fontSize: 9, color: A_DIM, letterSpacing: '0.1em' }}>{pro.trialDays} DÍAS GRATIS</div>}
+            {pro && pro.trialDays > 0 && <div style={{ padding: '3px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.08)', fontFamily: MONO, fontSize: 9, color: A_DIM, letterSpacing: '0.1em' }}>{pro.trialDays} DÍAS GRATIS</div>}
           </div>
-          <div style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <div style={{ fontSize: 52, color: '#fff', fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>{formatLandingPrice(pro.monthlyPrice)}</div>
-            <div style={{ fontSize: 14, color: A_DIM, fontFamily: FONT }}>/ mes</div>
-          </div>
+          {pricingError ? (
+            <div style={{ marginTop: 14, fontSize: 13, color: 'rgba(255,100,80,0.9)', fontFamily: FONT }}>
+              No se pudo cargar el precio. Inténtalo más tarde.
+            </div>
+          ) : pro ? (
+            <div style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+              <div style={{ fontSize: 52, color: '#fff', fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>{formatLandingPrice(pro.monthlyPrice)}</div>
+              <div style={{ fontSize: 14, color: A_DIM, fontFamily: FONT }}>/ mes</div>
+            </div>
+          ) : null}
           <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {MOBILE_LANDING_PRICING_FEATURES.map(f => (
               <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.85)', fontFamily: FONT }}>
@@ -973,10 +991,14 @@ function MobilePricing({ onLogin, isPending, plans }: { onLogin: () => void; isP
               </div>
             ))}
           </div>
-          <button onClick={onLogin} disabled={isPending} style={{ marginTop: 22, width: '100%', padding: '14px 18px', borderRadius: 12, background: A_ORANGE, color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: isPending ? 0.7 : 1, cursor: 'pointer' }}>
-            <StravaIcon size={14} /> Empezar prueba con Strava
-          </button>
-          <div style={{ marginTop: 10, textAlign: 'center', fontFamily: MONO, fontSize: 10, color: A_DIM }}>SIN TARJETA · SIN COMPROMISO</div>
+          {!pricingError && (
+            <>
+              <button onClick={onLogin} disabled={isPending} style={{ marginTop: 22, width: '100%', padding: '14px 18px', borderRadius: 12, background: A_ORANGE, color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: isPending ? 0.7 : 1, cursor: 'pointer' }}>
+                <StravaIcon size={14} /> Empezar prueba con Strava
+              </button>
+              <div style={{ marginTop: 10, textAlign: 'center', fontFamily: MONO, fontSize: 10, color: A_DIM }}>SIN TARJETA · SIN COMPROMISO</div>
+            </>
+          )}
         </div>
       )}
     </section>
@@ -1010,16 +1032,19 @@ function MobileFooter() {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 export default function AuthSwitch({ onLogin, isPending, error }: AuthSwitchProps) {
-  const [plans, setPlans] = useState(DEFAULT_LANDING_PLANS)
+  const [plans, setPlans] = useState<LandingPlan[]>([])
+  const [pricingError, setPricingError] = useState(false)
 
   useEffect(() => {
     let cancelled = false
 
-    void getLandingPlans().then((nextPlans) => {
-      if (!cancelled) {
-        setPlans(nextPlans)
-      }
-    })
+    getLandingPlans()
+      .then((nextPlans) => {
+        if (!cancelled) setPlans(nextPlans)
+      })
+      .catch(() => {
+        if (!cancelled) setPricingError(true)
+      })
 
     return () => {
       cancelled = true
@@ -1052,7 +1077,7 @@ export default function AuthSwitch({ onLogin, isPending, error }: AuthSwitchProp
         <Features />
         <HowItWorks />
         <Athletes />
-        <Pricing onLogin={onLogin} isPending={isPending} plans={plans} />
+        <Pricing onLogin={onLogin} isPending={isPending} plans={plans} pricingError={pricingError} />
         <FinalCTA onLogin={onLogin} isPending={isPending} />
         <Footer />
       </div>
@@ -1069,7 +1094,7 @@ export default function AuthSwitch({ onLogin, isPending, error }: AuthSwitchProp
         <MobileFeatures />
         <MobileSteps />
         <MobileAthletes />
-        <MobilePricing onLogin={onLogin} isPending={isPending} plans={plans} />
+        <MobilePricing onLogin={onLogin} isPending={isPending} plans={plans} pricingError={pricingError} />
         <MobileFooter />
       </div>
     </div>

@@ -75,37 +75,24 @@ function normalizePlan(payload: BackendPricingPayload): LandingPlan {
 export async function getLandingPlans(): Promise<LandingPlan[]> {
   const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
   if (!apiBaseUrl) {
-    return DEFAULT_LANDING_PLANS
+    throw new Error('Pricing endpoint not configured.')
   }
 
-  try {
-    const response = await fetch(`${apiBaseUrl}/plans/pricing`)
-    if (!response.ok) {
-      return DEFAULT_LANDING_PLANS
-    }
-
-    const data = (await response.json()) as BackendPlansResponse
-    const plans = Array.isArray(data?.plans) ? data.plans : []
-
-    const mapped = plans
-      .filter((p) => typeof p?.id === 'string')
-      .map(normalizePlan)
-
-    if (mapped.length === 0) {
-      return DEFAULT_LANDING_PLANS
-    }
-
-    return mapped
-  } catch {
-    return DEFAULT_LANDING_PLANS
+  const response = await fetch(`${apiBaseUrl}/plans/pricing`)
+  if (!response.ok) {
+    throw new Error(`Pricing request failed: ${response.status}`)
   }
-}
 
-// kept for backward compatibility
-export async function getLandingPricing(): Promise<LandingPricingData> {
-  const plans = await getLandingPlans()
-  const pro = plans.find((p) => p.id === 'pro')
-  return pro
-    ? { monthlyPrice: pro.monthlyPrice, annualPrice: pro.annualPrice, trialDays: pro.trialDays }
-    : DEFAULT_LANDING_PRICING
+  const data = (await response.json()) as BackendPlansResponse
+  const plans = Array.isArray(data?.plans) ? data.plans : []
+
+  const mapped = plans
+    .filter((p) => typeof p?.id === 'string')
+    .map(normalizePlan)
+
+  if (mapped.length === 0) {
+    throw new Error('No pricing plans returned.')
+  }
+
+  return mapped
 }
