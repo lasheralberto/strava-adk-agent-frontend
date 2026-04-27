@@ -544,6 +544,7 @@ function App() {
   const [authPending, setAuthPending] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   const [pipelineStatus, setPipelineStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
+  const [pipelineMessage, setPipelineMessage] = useState<string>('')
   const [lastSyncStatus, setLastSyncStatus] = useState<'success' | 'failed' | 'queued' | null>(null)
   const [activitiesRefreshKey, setActivitiesRefreshKey] = useState(0)
   const [selectedAgentId, setSelectedAgentId] = useState(DEFAULT_AGENT_ID)
@@ -1132,64 +1133,78 @@ function App() {
         throw new Error(err)
       }
 
-      // Poll /pipeline/runs every 5 seconds until research_wiki reaches a terminal state.
-      // No timeout: the backend runs async and can take arbitrarily long.
-      const POLL_INTERVAL_MS = 5000
+      // Stream progress via SSE until the pipeline reaches a terminal state.
+      const pipelineData = (await response.json()) as { run_id?: string }
+      const runId = (pipelineData.run_id ?? '').trim()
 
-      const pollRunStatus = async (): Promise<void> => {
-        try {
-          const pollRes = await fetch(
-            `${apiBaseUrl}/pipeline/runs?stage=research_wiki&limit=1`,
-            internalPipelineToken
-              ? { headers: { 'X-Internal-Token': internalPipelineToken } }
-              : undefined,
-          )
-          if (pollRes.ok) {
-            const pollData = (await pollRes.json()) as { runs?: Array<{ status?: string }> }
-            const runStatus = pollData.runs?.[0]?.status
+      const sseHeaders: Record<string, string> = {}
+      if (internalPipelineToken) sseHeaders['X-Internal-Token'] = internalPipelineToken
 
-            if (runStatus === 'success') {
+      const sseRes = await fetch(
+        `${apiBaseUrl}/pipeline/daily/stream?run_id=${encodeURIComponent(runId)}`,
+        { headers: sseHeaders },
+      )
+
+      if (!sseRes.ok || !sseRes.body) {
+        throw new Error('No se pudo conectar al stream de sincronización.')
+      }
+
+      const reader = sseRes.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      let streamDone = false
+
+      while (!streamDone) {
+        const { done, value } = await reader.read()
+        buf += decoder.decode(value ?? new Uint8Array(), { stream: !done })
+
+        let idx = buf.indexOf('\n\n')
+        while (idx !== -1) {
+          const block = buf.slice(0, idx)
+          buf = buf.slice(idx + 2)
+          idx = buf.indexOf('\n\n')
+
+          const parsed = parseSseEventBlock(block)
+          if (!parsed) continue
+
+          if (parsed.event === 'progress') {
+            const payload = JSON.parse(parsed.data) as { stage: string; message: string }
+            setPipelineMessage(payload.message)
+            if (payload.stage === 'error') {
+              toasts.error(payload.message || 'Error en la sincronización.')
+              setLastSyncStatus('failed')
+              setPipelineStatus('error')
+              setTimeout(() => { setPipelineStatus('idle'); setPipelineMessage('') }, 3000)
+              streamDone = true
+              break
+            }
+          }
+
+          if (parsed.event === 'done') {
+            const payload = JSON.parse(parsed.data) as { status?: string }
+            if (payload.status === 'error') {
+              // already handled by the preceding 'progress' error event
+            } else {
               toasts.success('Sincronizacion completada.')
               setLastSyncStatus('success')
               setPipelineStatus('success')
               setActivitiesRefreshKey((k) => k + 1)
-              setTimeout(() => setPipelineStatus('idle'), 3000)
-              return
+              setTimeout(() => { setPipelineStatus('idle'); setPipelineMessage('') }, 3000)
             }
-
-            if (runStatus === 'skipped') {
-              toasts.message({ text: 'No hay actividades nuevas para sincronizar.' })
-              setLastSyncStatus(null)
-              setPipelineStatus('idle')
-              return
-            }
-
-            if (runStatus === 'failed' || runStatus === 'partial_failure') {
-              toasts.error('La sincronizacion fallo. Intenta de nuevo en unos minutos.')
-              setLastSyncStatus('failed')
-              setPipelineStatus('error')
-              setTimeout(() => setPipelineStatus('idle'), 3000)
-              return
-            }
-
-            // queued or running — keep spinner + yellow
-            setLastSyncStatus(runStatus === 'running' ? 'queued' : 'queued')
+            streamDone = true
+            break
           }
-        } catch {
-          // network hiccup — keep polling
         }
 
-        setTimeout(pollRunStatus, POLL_INTERVAL_MS)
+        if (done) break
       }
-
-      setTimeout(pollRunStatus, POLL_INTERVAL_MS)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error ejecutando pipeline.'
       toasts.error(message)
       setAuthError(message)
       setLastSyncStatus('failed')
       setPipelineStatus('error')
-      setTimeout(() => setPipelineStatus('idle'), 3000)
+      setTimeout(() => { setPipelineStatus('idle'); setPipelineMessage('') }, 3000)
     }
   }
 
@@ -1733,7 +1748,7 @@ function App() {
                                 className={`flex w-full items-center gap-2 px-3 py-2 text-[13px] transition-colors hover:bg-muted disabled:cursor-not-allowed ${syncIconColor}`}
                               >
                                 <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} aria-hidden="true" />
-                                {syncing ? t.header.syncing : lastSyncStatus === 'failed' ? t.header.retrySync : t.header.sync}
+                                {syncing ? (pipelineMessage || t.header.syncing) : lastSyncStatus === 'failed' ? t.header.retrySync : t.header.sync}
                               </button>
                               <div className="h-px bg-border" />
                               <div className="px-3 py-2">
