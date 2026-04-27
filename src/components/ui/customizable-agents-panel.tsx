@@ -21,9 +21,6 @@ import {
   ArrowDown,
   ArrowUp,
   Bot,
-  Check,
-  Copy,
-  Globe,
   Plus,
   X,
 } from 'lucide-react'
@@ -390,7 +387,6 @@ function buildFlowGraph(
   const columnWidth = 280
   const agentsY = 96
   const consensusY = 340
-  const apiY = 560
   const nodes: FlowNode[] = []
 
   for (let i = 0; i < ordered.length; i++) {
@@ -425,18 +421,6 @@ function buildFlowGraph(
       },
     })
 
-    nodes.push({
-      id: '__api_endpoint__',
-      type: 'agent',
-      position: { x: centerX, y: apiY },
-      data: {
-        agentId: 'api_public_endpoint',
-        name: 'Public API',
-        type: 'api',
-        promptPreview: 'GET /v1/ask — endpoint exposed to users',
-        subAgentsCount: 0,
-      },
-    })
   }
 
   const agentIds = new Set(ordered.map((a) => a.id))
@@ -458,21 +442,6 @@ function buildFlowGraph(
       markerEnd: { type: MarkerType.ArrowClosed },
       animated: true,
       deletable: true,
-    })
-  }
-
-  if (ordered.length > 0) {
-    edges.push({
-      id: 'api__consensus__endpoint',
-      source: '__consensus__',
-      target: '__api_endpoint__',
-      type: 'smoothstep',
-      label: 'final response',
-      style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.6, strokeDasharray: '6 3' },
-      labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
-      markerEnd: { type: MarkerType.ArrowClosed },
-      animated: false,
-      deletable: false,
     })
   }
 
@@ -505,8 +474,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorDraft, setEditorDraft] = useState<AgentEntry | null>(null)
   const [isMobileEditorViewport, setIsMobileEditorViewport] = useState(false)
-  const [curlPanelOpen, setCurlPanelOpen] = useState(false)
-  const [curlCopied, setCurlCopied] = useState(false)
 
   const triggerRef = useRef<HTMLButtonElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
@@ -878,16 +845,8 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
   const closePanel = useCallback(() => {
     closeEditor()
-    setCurlPanelOpen(false)
     setOpen(false)
   }, [closeEditor])
-
-  const handleCopyCurl = useCallback((text: string) => {
-    void navigator.clipboard.writeText(text).then(() => {
-      setCurlCopied(true)
-      setTimeout(() => setCurlCopied(false), 2000)
-    })
-  }, [])
 
   // ── Render ─────────────────────────────────────────────────────────
 
@@ -1122,18 +1081,10 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         deleteKeyCode="Delete"
                         onNodeClick={(_, node) => {
                           if (node.id === '__consensus__') return
-                          if (node.id === '__api_endpoint__') {
-                            setCurlPanelOpen(true)
-                            return
-                          }
                           setActiveAndNotify(node.id)
                         }}
                         onNodeDoubleClick={(_, node) => {
                           if (node.id === '__consensus__') return
-                          if (node.id === '__api_endpoint__') {
-                            setCurlPanelOpen(true)
-                            return
-                          }
                           openEditorFor(node.id)
                         }}
                         className="bg-background"
@@ -1151,136 +1102,12 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         <span className="inline-block h-2 w-4 rounded-sm border border-success bg-transparent" />
                         Output to consensus
                       </span>
-                      <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
-                        <Globe className="h-2.5 w-2.5 text-violet-500" />
-                        Public API — click to see curl
-                      </span>
                     </div>
                   </div>
                 </section>
               </div>
               )}
             </motion.aside>
-
-            <AnimatePresence>
-              {curlPanelOpen ? (() => {
-                const curlSnippet = `curl -X GET \\
-  "${apiBaseUrl}/v1/ask?question=How+much+did+I+run+this+week?&strava_athlete_id=YOUR_ATHLETE_ID" \\
-  -H "Authorization: Bearer YOUR_STRAVA_ACCESS_TOKEN" \\
-  -H "Accept: application/json"`
-                return (
-                  <>
-                    <motion.div
-                      key="curl-backdrop"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: reduceMotion ? 0 : NOTICE_ANIMATION_DURATION_S }}
-                      onClick={() => setCurlPanelOpen(false)}
-                      className="fixed inset-0 z-[60] bg-foreground/40"
-                      aria-hidden="true"
-                    />
-
-                    <div className="pointer-events-none fixed inset-0 z-[70] flex items-end justify-center md:items-center md:p-4">
-                      <motion.section
-                        key="curl-panel"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-label="Curl code for public API"
-                        initial={
-                          reduceMotion
-                            ? { opacity: 0 }
-                            : isMobileEditorViewport
-                              ? { opacity: 0, y: '100%' }
-                              : { opacity: 0, y: EDITOR_ENTER_Y_PX }
-                        }
-                        animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-                        exit={
-                          reduceMotion
-                            ? { opacity: 0 }
-                            : isMobileEditorViewport
-                              ? { opacity: 0, y: '100%' }
-                              : { opacity: 0, y: EDITOR_EXIT_Y_PX }
-                        }
-                        transition={{ duration: reduceMotion ? 0 : EDITOR_ANIMATION_DURATION_S, ease: 'easeOut' }}
-                        className="pointer-events-auto w-full max-h-[88dvh] overflow-y-auto rounded-t-2xl border border-violet-500/30 bg-popover p-4 pb-6 shadow-2xl md:w-[min(92vw,38rem)] md:max-h-[86vh] md:rounded-xl md:pb-4"
-                      >
-                        <header className="mb-3 flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2">
-                            <Globe className="h-4 w-4 text-violet-500" aria-hidden="true" />
-                            <div>
-                              <h3 className="text-[15px] font-semibold text-foreground">Public API</h3>
-                              <p className="text-[11px] text-muted-foreground">GET {apiBaseUrl}/v1/ask</p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setCurlPanelOpen(false)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-                            aria-label="Close curl panel"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </header>
-
-                        <div className="space-y-4">
-                          <p className="text-[12px] text-muted-foreground">
-                            Public endpoint that returns the same response as <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">/chat</code>. No internal token required — use your Strava access token in the <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">Authorization</code> header.
-                          </p>
-
-                          <div>
-                            <div className="mb-1.5 flex items-center justify-between">
-                              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Curl example
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleCopyCurl(curlSnippet)}
-                                className="inline-flex h-6 items-center gap-1 rounded border border-border px-2 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
-                              >
-                                {curlCopied ? (
-                                  <><Check className="h-3 w-3 text-success" /> Copied</>
-                                ) : (
-                                  <><Copy className="h-3 w-3" /> Copy</>
-                                )}
-                              </button>
-                            </div>
-                            <pre className="overflow-x-auto rounded-md border border-border bg-muted/50 p-3 font-mono text-[11px] leading-relaxed text-foreground">
-                              {curlSnippet}
-                            </pre>
-                          </div>
-
-                          <div className="rounded-md border border-border bg-background/60 p-3 text-[11px] text-muted-foreground space-y-1.5">
-                            <p className="font-semibold text-foreground text-[12px]">Parameters</p>
-                            <div className="grid grid-cols-[1fr_2fr] gap-x-3 gap-y-1">
-                              <span className="font-mono text-violet-500">question</span>
-                              <span>Question to the agent (query param, required)</span>
-                              <span className="font-mono text-violet-500">strava_athlete_id</span>
-                              <span>Strava athlete ID (query param, required)</span>
-                              <span className="font-mono text-violet-500">model</span>
-                              <span>LLM model (query param, optional)</span>
-                              <span className="font-mono text-violet-500">top_k</span>
-                              <span>Wiki results to retrieve (query param, optional)</span>
-                              <span className="font-mono text-violet-500">Authorization</span>
-                              <span>Bearer YOUR_STRAVA_ACCESS_TOKEN (header, required)</span>
-                            </div>
-                          </div>
-
-                          <div className="rounded-md border border-border bg-background/60 p-3 text-[11px] text-muted-foreground">
-                            <p className="font-semibold text-foreground text-[12px] mb-1">Response</p>
-                            <pre className="font-mono text-[10px] leading-relaxed">{`{
-  "response": "This week you ran 42 km...",
-  "tool_calls": [...],
-  "structured": { ... }
-}`}</pre>
-                          </div>
-                        </div>
-                      </motion.section>
-                    </div>
-                  </>
-                )
-              })() : null}
-            </AnimatePresence>
 
             <AnimatePresence>
               {editorOpen && editorDraft ? (
