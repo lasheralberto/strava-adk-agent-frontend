@@ -22,6 +22,7 @@ import {
   ArrowUp,
   Bot,
   Plus,
+  Settings2,
   X,
 } from 'lucide-react'
 import { parse as parseToml, stringify as stringifyToml } from 'smol-toml'
@@ -475,6 +476,10 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   const [editorDraft, setEditorDraft] = useState<AgentEntry | null>(null)
   const [isMobileEditorViewport, setIsMobileEditorViewport] = useState(false)
 
+  const [consensusEditorOpen, setConsensusEditorOpen] = useState(false)
+  const [consensusPromptDraft, setConsensusPromptDraft] = useState('')
+  const [consensusPromptSaving, setConsensusPromptSaving] = useState(false)
+
   const triggerRef = useRef<HTMLButtonElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   const selectedAgentIdRef = useRef(selectedAgentId)
@@ -848,6 +853,48 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     setOpen(false)
   }, [closeEditor])
 
+  const openConsensusEditor = useCallback(async () => {
+    if (!apiBaseUrl) return
+    try {
+      const res = await fetch(`${apiBaseUrl}/agents/consensus_final_answer`, {
+        headers: authHeaders(),
+      })
+      if (res.ok) {
+        const data = (await res.json()) as { instruction_template?: string }
+        setConsensusPromptDraft(data.instruction_template ?? '')
+      } else {
+        setConsensusPromptDraft('')
+      }
+    } catch {
+      setConsensusPromptDraft('')
+    }
+    setConsensusEditorOpen(true)
+  }, [])
+
+  const saveConsensusPrompt = useCallback(async () => {
+    if (!apiBaseUrl) return
+    setConsensusPromptSaving(true)
+    try {
+      const res = await fetch(`${apiBaseUrl}/agents/consensus_final_answer`, {
+        method: 'PUT',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ instruction_template: consensusPromptDraft }),
+      })
+      if (res.ok) {
+        setConsensusEditorOpen(false)
+        setNotice('Consensus prompt saved.')
+        setTimeout(() => setNotice(null), 2500)
+      } else {
+        const err = (await res.json().catch(() => ({}))) as { error?: string }
+        setError(err.error ?? 'Error saving consensus prompt.')
+      }
+    } catch {
+      setError('Network error saving consensus prompt.')
+    } finally {
+      setConsensusPromptSaving(false)
+    }
+  }, [consensusPromptDraft])
+
   // ── Render ─────────────────────────────────────────────────────────
 
   return (
@@ -1041,6 +1088,26 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                       })}
                     </div>
                   </section>
+
+                  {/* ── Final Consensus settings ── */}
+                  <section className="mt-3 rounded-md border border-border bg-background/40 p-2">
+                    <div className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Final Consensus
+                    </div>
+                    <div className="rounded-md border border-border bg-background p-2">
+                      <p className="text-[11px] text-muted-foreground">
+                        Synthesizes all agent outputs after {CONSENSUS_ROUNDS} rounds into a final response.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void openConsensusEditor()}
+                        className="mt-2 inline-flex h-6 items-center gap-1 rounded border border-border px-2 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        <Settings2 className="h-3 w-3" />
+                        Edit prompt
+                      </button>
+                    </div>
+                  </section>
                 </aside>
 
                 {/* ── Main canvas pane ── */}
@@ -1084,7 +1151,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                           setActiveAndNotify(node.id)
                         }}
                         onNodeDoubleClick={(_, node) => {
-                          if (node.id === '__consensus__') return
+                          if (node.id === '__consensus__') { void openConsensusEditor(); return }
                           openEditorFor(node.id)
                         }}
                         className="bg-background"
@@ -1251,6 +1318,94 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         Apply changes
                       </button>
                     </footer>
+                    </motion.section>
+                  </div>
+                </>
+              ) : null}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {consensusEditorOpen ? (
+                <>
+                  <motion.div
+                    key="consensus-editor-backdrop"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: reduceMotion ? 0 : NOTICE_ANIMATION_DURATION_S }}
+                    onClick={() => setConsensusEditorOpen(false)}
+                    className="fixed inset-0 z-[60] bg-foreground/40"
+                    aria-hidden="true"
+                  />
+
+                  <div className="pointer-events-none fixed inset-0 z-[70] flex items-end justify-center md:items-center md:p-4">
+                    <motion.section
+                      key="consensus-editor"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-label="Edit consensus prompt"
+                      initial={
+                        reduceMotion
+                          ? { opacity: 0 }
+                          : isMobileEditorViewport
+                            ? { opacity: 0, y: '100%' }
+                            : { opacity: 0, y: EDITOR_ENTER_Y_PX }
+                      }
+                      animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                      exit={
+                        reduceMotion
+                          ? { opacity: 0 }
+                          : isMobileEditorViewport
+                            ? { opacity: 0, y: '100%' }
+                            : { opacity: 0, y: EDITOR_EXIT_Y_PX }
+                      }
+                      transition={{ duration: reduceMotion ? 0 : EDITOR_ANIMATION_DURATION_S, ease: 'easeOut' }}
+                      className="pointer-events-auto w-full max-h-[88dvh] overflow-y-auto rounded-t-2xl border border-border bg-popover p-4 pb-6 shadow-2xl md:w-[min(92vw,34rem)] md:max-h-[86vh] md:rounded-xl md:pb-4"
+                    >
+                      <header className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-[15px] font-semibold text-foreground">Final Consensus</h3>
+                          <p className="text-[11px] text-muted-foreground">consensus_final_answer</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setConsensusEditorOpen(false)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                          aria-label="Close editor"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </header>
+
+                      <div>
+                        <label className="mb-1 block text-[12px] text-muted-foreground">Prompt</label>
+                        <textarea
+                          value={consensusPromptDraft}
+                          onChange={(e) => setConsensusPromptDraft(e.target.value)}
+                          rows={10}
+                          spellCheck={false}
+                          placeholder="Instructions for the final consensus agent..."
+                          className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground"
+                        />
+                      </div>
+
+                      <footer className="mt-4 flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setConsensusEditorOpen(false)}
+                          className="inline-flex h-8 items-center rounded-md border border-border px-3 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void saveConsensusPrompt()}
+                          disabled={consensusPromptSaving}
+                          className="inline-flex h-8 items-center rounded-md border border-primary/40 bg-primary/10 px-3 text-[12px] font-medium text-primary hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {consensusPromptSaving ? 'Saving…' : 'Save'}
+                        </button>
+                      </footer>
                     </motion.section>
                   </div>
                 </>

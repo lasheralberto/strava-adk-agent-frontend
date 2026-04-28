@@ -8,7 +8,6 @@ import {
   Menu,
   Moon,
   RefreshCw,
-  Settings2,
   Sun,
 } from 'lucide-react'
 import { nanoid } from 'nanoid'
@@ -556,10 +555,6 @@ function App() {
   const [cancelPending, setCancelPending] = useState(false)
   const [cancelConfirm, setCancelConfirm] = useState(false)
   const [planBadgeOpen, setPlanBadgeOpen] = useState(false)
-  const [agentSettingsOpen, setAgentSettingsOpen] = useState(false)
-  const [agentPromptDraft, setAgentPromptDraft] = useState('')
-  const [agentPromptSaving, setAgentPromptSaving] = useState(false)
-  const agentSettingsRef = useRef<HTMLDivElement | null>(null)
   const authSessionRef = useRef<StravaAuthSession | null>(authSession)
   const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
@@ -633,65 +628,6 @@ function App() {
       document.removeEventListener('keydown', handleEsc)
     }
   }, [planBadgeOpen])
-
-  const openAgentSettings = useCallback(async () => {
-    if (!apiBaseUrl) return
-    try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (internalPipelineToken) headers['X-Internal-Token'] = internalPipelineToken
-      const res = await fetch(`${apiBaseUrl}/agents/${selectedAgentId}`, { headers })
-      if (res.ok) {
-        const data = (await res.json()) as { instruction_template?: string }
-        setAgentPromptDraft(data.instruction_template ?? '')
-      }
-    } catch {
-      // si no existe, draft vacío
-    }
-    setAgentSettingsOpen(true)
-  }, [apiBaseUrl, internalPipelineToken, selectedAgentId])
-
-  const saveAgentPrompt = useCallback(async () => {
-    if (!apiBaseUrl || !agentPromptDraft.trim()) return
-    setAgentPromptSaving(true)
-    try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (internalPipelineToken) headers['X-Internal-Token'] = internalPipelineToken
-      const res = await fetch(`${apiBaseUrl}/agents/${selectedAgentId}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ instruction_template: agentPromptDraft }),
-      })
-      if (res.ok) {
-        setAgentSettingsOpen(false)
-        toasts.success('Prompt del agente guardado.')
-      } else {
-        const err = (await res.json().catch(() => ({}))) as { error?: string }
-        toasts.error(err.error ?? 'Error al guardar el prompt.')
-      }
-    } catch {
-      toasts.error('Error de red al guardar el prompt.')
-    } finally {
-      setAgentPromptSaving(false)
-    }
-  }, [apiBaseUrl, internalPipelineToken, selectedAgentId, agentPromptDraft, toasts])
-
-  useEffect(() => {
-    if (!agentSettingsOpen) return
-    const handleOutside = (event: MouseEvent) => {
-      if (agentSettingsRef.current && !agentSettingsRef.current.contains(event.target as Node)) {
-        setAgentSettingsOpen(false)
-      }
-    }
-    const handleEsc = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setAgentSettingsOpen(false)
-    }
-    document.addEventListener('mousedown', handleOutside)
-    document.addEventListener('keydown', handleEsc)
-    return () => {
-      document.removeEventListener('mousedown', handleOutside)
-      document.removeEventListener('keydown', handleEsc)
-    }
-  }, [agentSettingsOpen])
 
   const clearAuthSession = useCallback((message?: string) => {
     authSessionRef.current = null
@@ -2167,68 +2103,6 @@ function App() {
                       </AnimatePresence>
                     </div>
                   ) : null
-                ) : null
-              }
-              middleSlot={
-                authSession ? (
-                  <div ref={agentSettingsRef} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => { agentSettingsOpen ? setAgentSettingsOpen(false) : void openAgentSettings() }}
-                      aria-label="Configurar prompt del agente"
-                      className="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-muted-foreground transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <Settings2 className="h-3 w-3" aria-hidden="true" />
-                    </button>
-
-                    <AnimatePresence>
-                      {agentSettingsOpen ? (
-                        <motion.div
-                          key="agent-settings-popover"
-                          initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 4, scale: 0.98 }}
-                          transition={{ duration: 0.14, ease: 'easeOut' }}
-                          role="dialog"
-                          aria-label="Editar prompt del agente"
-                          className="absolute bottom-full left-0 z-50 mb-2 w-[min(480px,calc(100vw-2rem))] rounded-xl border border-border bg-background p-3 shadow-md"
-                        >
-                          <p
-                            className="mb-2 text-[10px] uppercase tracking-[0.12em] text-muted-foreground/70"
-                            style={{ fontFamily: "'Geist Mono', ui-monospace, monospace" }}
-                          >
-                            PROMPT · {selectedAgentId}
-                          </p>
-                          <textarea
-                            value={agentPromptDraft}
-                            onChange={(e) => setAgentPromptDraft(e.target.value)}
-                            rows={10}
-                            spellCheck={false}
-                            className="w-full resize-y rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12px] leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
-                            style={{ fontFamily: "'Geist Mono', ui-monospace, monospace", minHeight: '160px' }}
-                            placeholder="Escribe las instrucciones del agente..."
-                          />
-                          <div className="mt-2 flex items-center justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setAgentSettingsOpen(false)}
-                              className="inline-flex h-7 items-center rounded-md border border-border bg-muted/50 px-3 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            >
-                              Cancelar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void saveAgentPrompt()}
-                              disabled={agentPromptSaving || !agentPromptDraft.trim()}
-                              className="inline-flex h-7 items-center rounded-md border border-primary/40 bg-primary/10 px-3 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            >
-                              {agentPromptSaving ? 'Guardando…' : 'Guardar'}
-                            </button>
-                          </div>
-                        </motion.div>
-                      ) : null}
-                    </AnimatePresence>
-                  </div>
                 ) : null
               }
             />
