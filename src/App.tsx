@@ -1181,9 +1181,12 @@ function App() {
           }
 
           if (parsed.event === 'done') {
-            const payload = JSON.parse(parsed.data) as { status?: string }
+            const payload = JSON.parse(parsed.data) as { status?: string; message?: string }
             if (payload.status === 'error') {
-              // already handled by the preceding 'progress' error event
+              toasts.error(payload.message || 'Error en la sincronización.')
+              setLastSyncStatus('failed')
+              setPipelineStatus('error')
+              setTimeout(() => { setPipelineStatus('idle'); setPipelineMessage('') }, 3000)
             } else {
               toasts.success('Sincronizacion completada.')
               setLastSyncStatus('success')
@@ -1197,6 +1200,13 @@ function App() {
         }
 
         if (done) break
+      }
+
+      if (!streamDone) {
+        // Stream closed without a terminal SSE event — treat as failure
+        setLastSyncStatus('failed')
+        setPipelineStatus('error')
+        setTimeout(() => { setPipelineStatus('idle'); setPipelineMessage('') }, 3000)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error ejecutando pipeline.'
