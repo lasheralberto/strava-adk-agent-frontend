@@ -51,9 +51,6 @@ const RESERVED_AGENT_IDS = new Set([
 const AGENT_TYPES = ['llm'] as const
 type AgentType = (typeof AGENT_TYPES)[number]
 
-const AGENT_TYPE_META: Record<AgentType, { label: string; icon: typeof Bot; color: string }> = {
-  llm: { label: 'LLM', icon: Bot, color: 'text-blue-500' },
-}
 
 const MODEL_OPTIONS = [
   { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
