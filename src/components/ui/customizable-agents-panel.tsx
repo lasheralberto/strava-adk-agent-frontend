@@ -443,6 +443,24 @@ function buildFlowGraph(
 }
 
 // ---------------------------------------------------------------------------
+// Popover positioning
+// ---------------------------------------------------------------------------
+
+function calcPopoverPos(clickX: number, clickY: number): { left: number; top: number } {
+  const POP_W = 364
+  const POP_H = 530
+  const margin = 12
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  let left = clickX + 20
+  let top = clickY - POP_H / 2
+  if (left + POP_W > vw - margin) left = clickX - POP_W - 20
+  left = Math.max(margin, left)
+  top = Math.max(margin + 48, Math.min(vh - POP_H - margin, top))
+  return { left, top }
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -471,6 +489,9 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   const [consensusEditorOpen, setConsensusEditorOpen] = useState(false)
   const [consensusPromptDraft, setConsensusPromptDraft] = useState('')
   const [consensusPromptSaving, setConsensusPromptSaving] = useState(false)
+
+  const [popoverPosition, setPopoverPosition] = useState<{ x: number; y: number } | null>(null)
+  const [consensusPopoverPosition, setConsensusPopoverPosition] = useState<{ x: number; y: number } | null>(null)
 
   const triggerRef = useRef<HTMLButtonElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
@@ -593,11 +614,12 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     }))
   }, [])
 
-  const openEditorFor = useCallback((agentId: string) => {
+  const openEditorFor = useCallback((agentId: string, clickPos?: { x: number; y: number }) => {
     const candidate = orderedAgents.find((agent) => agent.id === agentId)
     if (!candidate) return
     setEditorDraft({ ...candidate, sub_agents: [...candidate.sub_agents] })
     setEditorOpen(true)
+    if (clickPos) setPopoverPosition(clickPos)
     setActiveAndNotify(agentId)
   }, [orderedAgents, setActiveAndNotify])
 
@@ -635,6 +657,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     setActiveAndNotify(candidateId)
     setEditorDraft({ ...newAgent, sub_agents: [] })
     setEditorOpen(true)
+    setPopoverPosition({ x: Math.round(window.innerWidth / 2), y: Math.round(window.innerHeight / 2) })
     setNotice('Agent added.')
     setTimeout(() => setNotice(null), 2500)
   }, [canAddAgent, definition.agents, setActiveAndNotify])
@@ -832,9 +855,10 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     setOpen(false)
   }, [closeEditor])
 
-  const openConsensusEditor = useCallback(async () => {
+  const openConsensusEditor = useCallback(async (clickPos?: { x: number; y: number }) => {
     setConsensusPromptDraft('')
     setConsensusEditorOpen(true)
+    if (clickPos) setConsensusPopoverPosition(clickPos)
     if (!apiBaseUrl) return
     try {
       const res = await fetch(`${apiBaseUrl}/agents/consensus_final_answer`, {
@@ -942,6 +966,17 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     ) : null}
                   </AnimatePresence>
 
+                  {definition.connections.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearConnections}
+                      className="inline-flex h-8 items-center gap-1 rounded-md border border-destructive/40 px-2 text-[11px] text-destructive hover:bg-destructive/10"
+                    >
+                      <X className="h-3 w-3" />
+                      Clear wiring
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={handleAddAgent}
@@ -988,35 +1023,6 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                 </div>
               ) : (
               <div className="flex flex-1 flex-col overflow-hidden">
-                {/* ── Info bar ── */}
-                <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-2">
-                  <p className="text-[12px] text-muted-foreground">
-                    {definition.connections.length > 0
-                      ? 'Custom flow — drag handles to wire agents. Select a connection and press Delete to remove it.'
-                      : 'Automatic flow — agents iterate for ' + CONSENSUS_ROUNDS + ' rounds then pass outputs to Final Consensus. Click any agent to edit it.'}
-                  </p>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {definition.connections.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleClearConnections}
-                        className="inline-flex h-6 items-center gap-1 rounded border border-destructive/40 px-2 text-[10px] text-destructive hover:bg-destructive/10"
-                      >
-                        <X className="h-3 w-3" />
-                        Clear wiring
-                      </button>
-                    )}
-                    <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                      <span className="inline-block h-2 w-4 rounded-sm bg-primary" />
-                      {definition.connections.length > 0 ? 'Custom' : 'Iteration'}
-                    </span>
-                    <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                      <span className="inline-block h-2 w-4 rounded-sm border border-success bg-transparent" />
-                      Consensus
-                    </span>
-                  </div>
-                </div>
-
                 {/* ── Canvas ── */}
                 <div className="flex-1 overflow-hidden">
                   <ReactFlow
@@ -1034,9 +1040,9 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     edgesReconnectable={false}
                     elementsSelectable
                     deleteKeyCode="Delete"
-                    onNodeClick={(_, node) => {
-                      if (node.id === '__consensus__') { void openConsensusEditor(); return }
-                      openEditorFor(node.id)
+                    onNodeClick={(event, node) => {
+                      if (node.id === '__consensus__') { void openConsensusEditor({ x: event.clientX, y: event.clientY }); return }
+                      openEditorFor(node.id, { x: event.clientX, y: event.clientY })
                     }}
                     className="h-full w-full bg-background"
                   >
@@ -1049,16 +1055,12 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
             </motion.aside>
 
             <AnimatePresence>
-              {editorOpen && editorDraft ? (
+              {editorOpen && editorDraft && popoverPosition ? (
                 <>
-                  <motion.div
+                  <div
                     key="agent-editor-backdrop"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: reduceMotion ? 0 : NOTICE_ANIMATION_DURATION_S }}
+                    className="fixed inset-0 z-[10000]"
                     onClick={closeEditor}
-                    className="fixed inset-0 z-[10000] bg-foreground/20"
                     aria-hidden="true"
                   />
 
@@ -1067,15 +1069,17 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     role="dialog"
                     aria-modal="true"
                     aria-label="Edit agent"
-                    initial={reduceMotion ? { opacity: 0 } : { x: '100%' }}
-                    animate={reduceMotion ? { opacity: 1 } : { x: 0 }}
-                    exit={reduceMotion ? { opacity: 0 } : { x: '100%' }}
+                    initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: -6 }}
+                    animate={reduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+                    exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: -6 }}
                     transition={{ duration: reduceMotion ? 0 : EDITOR_ANIMATION_DURATION_S, ease: 'easeOut' }}
-                    className="fixed right-0 top-0 bottom-0 z-[10001] flex w-[min(92vw,400px)] flex-col border-l border-border bg-popover shadow-2xl"
+                    style={{ ...calcPopoverPos(popoverPosition.x, popoverPosition.y), width: 364 }}
+                    className="fixed z-[10001] flex flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
                       <div>
-                        <h3 className="text-[15px] font-semibold text-foreground">Edit agent</h3>
+                        <h3 className="text-[14px] font-semibold text-foreground">Edit agent</h3>
                         <p className="text-[11px] text-muted-foreground">{editorDraft.id}</p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1090,32 +1094,32 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         <button
                           type="button"
                           onClick={closeEditor}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                           aria-label="Close editor"
                         >
-                          <X className="h-4 w-4" />
+                          <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </header>
 
-                    <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+                    <div className="space-y-3 overflow-y-auto px-4 py-3" style={{ maxHeight: 420 }}>
                       <div>
-                        <label className="mb-1 block text-[12px] text-muted-foreground">Name</label>
+                        <label className="mb-1 block text-[11px] text-muted-foreground">Name</label>
                         <input
                           type="text"
                           value={editorDraft.name}
                           onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, name: event.target.value } : cur))}
                           placeholder="E.g.: Training Analyst"
-                          className="h-9 w-full rounded-md border border-border bg-background px-2 text-[13px] text-foreground"
+                          className="h-8 w-full rounded-md border border-border bg-background px-2 text-[13px] text-foreground"
                         />
                       </div>
 
                       <div>
-                        <label className="mb-1 block text-[12px] text-muted-foreground">Prompt</label>
+                        <label className="mb-1 block text-[11px] text-muted-foreground">Prompt</label>
                         <textarea
                           value={editorDraft.prompt}
                           onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, prompt: event.target.value } : cur))}
-                          rows={9}
+                          rows={7}
                           spellCheck={false}
                           placeholder="Write simple instructions for this agent..."
                           className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground"
@@ -1123,11 +1127,11 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                       </div>
 
                       <div>
-                        <label className="mb-1 block text-[12px] text-muted-foreground">Model</label>
+                        <label className="mb-1 block text-[11px] text-muted-foreground">Model</label>
                         <select
                           value={editorDraft.model}
                           onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, model: event.target.value } : cur))}
-                          className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
+                          className="h-8 w-full rounded-md border border-border bg-background px-2 text-[12px]"
                         >
                           {MODEL_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
@@ -1138,18 +1142,18 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                       </div>
 
                       <div>
-                        <label className="mb-1 block text-[12px] text-muted-foreground">Description</label>
+                        <label className="mb-1 block text-[11px] text-muted-foreground">Description</label>
                         <input
                           type="text"
                           value={editorDraft.description}
                           onChange={(event) => setEditorDraft((cur) => (cur ? { ...cur, description: event.target.value } : cur))}
                           placeholder="Short description"
-                          className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12px]"
+                          className="h-8 w-full rounded-md border border-border bg-background px-2 text-[12px]"
                         />
                       </div>
 
                       <div>
-                        <label className="mb-1 block text-[12px] font-medium text-foreground">Output key</label>
+                        <label className="mb-1 block text-[11px] font-medium text-foreground">Output key</label>
                         <input
                           type="text"
                           value={editorDraft.output_key}
@@ -1158,17 +1162,17 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                             setEditorDraft((cur) => (cur ? { ...cur, output_key: raw } : cur))
                           }}
                           placeholder={`${editorDraft.id}_output`}
-                          className="h-9 w-full rounded-md border border-border bg-background px-2 font-mono text-[13px] text-foreground"
+                          className="h-8 w-full rounded-md border border-border bg-background px-2 font-mono text-[12px] text-foreground"
                         />
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          Downstream agents reference this as{' '}
-                          <code className="rounded bg-muted px-1 font-mono text-[10px]">
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          Referenced downstream as{' '}
+                          <code className="rounded bg-muted px-1 font-mono">
                             {'{' + (editorDraft.output_key || `${editorDraft.id}_output`) + '}'}
                           </code>
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-1 pt-1">
+                      <div className="flex items-center gap-1 pb-1">
                         <button
                           type="button"
                           onClick={() => handleMoveAgent(editorDraft.id, -1)}
@@ -1192,20 +1196,20 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                       </div>
                     </div>
 
-                    <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-4 py-3">
+                    <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-4 py-2.5">
                       <button
                         type="button"
                         onClick={closeEditor}
-                        className="inline-flex h-8 items-center rounded-md border border-border px-3 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                        className="inline-flex h-7 items-center rounded-md border border-border px-3 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground"
                       >
                         Cancel
                       </button>
                       <button
                         type="button"
                         onClick={saveEditor}
-                        className="inline-flex h-8 items-center rounded-md border border-primary/40 bg-primary/10 px-3 text-[12px] font-medium text-primary hover:bg-primary/15"
+                        className="inline-flex h-7 items-center rounded-md border border-primary/40 bg-primary/10 px-3 text-[12px] font-medium text-primary hover:bg-primary/15"
                       >
-                        Apply changes
+                        Apply
                       </button>
                     </footer>
                   </motion.section>
@@ -1214,16 +1218,12 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
             </AnimatePresence>
 
             <AnimatePresence>
-              {consensusEditorOpen ? (
+              {consensusEditorOpen && consensusPopoverPosition ? (
                 <>
-                  <motion.div
+                  <div
                     key="consensus-editor-backdrop"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: reduceMotion ? 0 : NOTICE_ANIMATION_DURATION_S }}
+                    className="fixed inset-0 z-[10000]"
                     onClick={() => setConsensusEditorOpen(false)}
-                    className="fixed inset-0 z-[10000] bg-foreground/20"
                     aria-hidden="true"
                   />
 
@@ -1232,44 +1232,46 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     role="dialog"
                     aria-modal="true"
                     aria-label="Edit consensus prompt"
-                    initial={reduceMotion ? { opacity: 0 } : { x: '100%' }}
-                    animate={reduceMotion ? { opacity: 1 } : { x: 0 }}
-                    exit={reduceMotion ? { opacity: 0 } : { x: '100%' }}
+                    initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: -6 }}
+                    animate={reduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+                    exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: -6 }}
                     transition={{ duration: reduceMotion ? 0 : EDITOR_ANIMATION_DURATION_S, ease: 'easeOut' }}
-                    className="fixed right-0 top-0 bottom-0 z-[10001] flex w-[min(92vw,400px)] flex-col border-l border-border bg-popover shadow-2xl"
+                    style={{ ...calcPopoverPos(consensusPopoverPosition.x, consensusPopoverPosition.y), width: 364 }}
+                    className="fixed z-[10001] flex flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
                       <div>
-                        <h3 className="text-[15px] font-semibold text-foreground">Final Consensus</h3>
+                        <h3 className="text-[14px] font-semibold text-foreground">Final Consensus</h3>
                         <p className="text-[11px] text-muted-foreground">consensus_final_answer</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => setConsensusEditorOpen(false)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                         aria-label="Close editor"
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-3.5 w-3.5" />
                       </button>
                     </header>
 
-                    <div className="flex-1 overflow-y-auto px-4 py-4">
-                      <label className="mb-1 block text-[12px] text-muted-foreground">Prompt</label>
+                    <div className="overflow-y-auto px-4 py-3" style={{ maxHeight: 380 }}>
+                      <label className="mb-1 block text-[11px] text-muted-foreground">Prompt</label>
                       <textarea
                         value={consensusPromptDraft}
                         onChange={(e) => setConsensusPromptDraft(e.target.value)}
-                        rows={14}
+                        rows={12}
                         spellCheck={false}
                         placeholder="Instructions for the final consensus agent..."
                         className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground"
                       />
                     </div>
 
-                    <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-4 py-3">
+                    <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-4 py-2.5">
                       <button
                         type="button"
                         onClick={() => setConsensusEditorOpen(false)}
-                        className="inline-flex h-8 items-center rounded-md border border-border px-3 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                        className="inline-flex h-7 items-center rounded-md border border-border px-3 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground"
                       >
                         Cancel
                       </button>
@@ -1277,7 +1279,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                         type="button"
                         onClick={() => void saveConsensusPrompt()}
                         disabled={consensusPromptSaving}
-                        className="inline-flex h-8 items-center rounded-md border border-primary/40 bg-primary/10 px-3 text-[12px] font-medium text-primary hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex h-7 items-center rounded-md border border-primary/40 bg-primary/10 px-3 text-[12px] font-medium text-primary hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {consensusPromptSaving ? 'Saving…' : 'Save'}
                       </button>
