@@ -25,6 +25,7 @@ import { A2uiRenderer } from '@/components/ui/a2ui-renderer'
 import type { A2uiPayload } from '@/types/a2ui'
 import type { AgentTracePayload } from '@/types/agent-trace'
 import { ActivitiesRunsPanel } from '@/components/ui/activities-runs-panel'
+import { WikiKnowledgeModal } from '@/components/ui/wiki-knowledge-modal'
 import { CustomizableAgentsPanel } from '@/components/ui/customizable-agents-panel'
 import {
   planReactSectionOrder,
@@ -1704,6 +1705,10 @@ function App() {
               {authSession ? (
                 <>
                   <div className="flex items-center gap-2">
+                  <WikiKnowledgeModal
+                    athleteId={authSession.athlete?.id ?? null}
+                    apiBaseUrl={apiBaseUrl}
+                  />
                   <ActivitiesRunsPanel
                     athleteId={authSession.athlete?.id ?? null}
                     refreshKey={activitiesRefreshKey}
