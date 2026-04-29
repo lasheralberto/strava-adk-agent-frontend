@@ -1661,7 +1661,7 @@ function App() {
 
   const hasUsageRemaining = usage ? usage.usageMessagesRemaining > 0 : true
   const currentPlanId = (usage?.plan?.id ?? usage?.planId ?? '').trim().toLowerCase()
-  const isFreePlan = currentPlanId === 'free'
+  const isFreePlan = !usage || currentPlanId === 'free' || currentPlanId === ''
 
   if (!authSession) {
     return (
