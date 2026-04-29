@@ -1371,6 +1371,7 @@ function App() {
             athlete_id: activeSession.athlete?.id,
             agent_id: selectedAgentId,
             model: model || DEFAULT_MODEL,
+            session_id: activeSessionId,
           }),
         })
       }
