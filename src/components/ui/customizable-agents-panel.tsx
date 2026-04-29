@@ -860,8 +860,8 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
     if (!upgradePopoverOpen) return
     function handleOutside(e: MouseEvent) {
       if (
-        upgradePopoverRef.current && !upgradePopoverRef.current.contains(e.target as Node) &&
-        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+        upgradePopoverRef.current && !upgradePopoverRef.current.contains(e.target as Element) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Element)
       ) {
         setUpgradePopoverOpen(false)
       }
