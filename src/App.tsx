@@ -26,6 +26,7 @@ import type { A2uiPayload } from '@/types/a2ui'
 import type { AgentTracePayload } from '@/types/agent-trace'
 import { ActivitiesRunsPanel } from '@/components/ui/activities-runs-panel'
 import { WikiKnowledgeModal } from '@/components/ui/wiki-knowledge-modal'
+import { DailyReportModal } from '@/components/ui/daily-report-modal'
 import { CustomizableAgentsPanel } from '@/components/ui/customizable-agents-panel'
 import {
   planReactSectionOrder,
@@ -1709,6 +1710,11 @@ function App() {
                   <WikiKnowledgeModal
                     athleteId={authSession.athlete?.id ?? null}
                     apiBaseUrl={apiBaseUrl}
+                  />
+                  <DailyReportModal
+                    athleteId={authSession.athlete?.id ?? null}
+                    apiBaseUrl={apiBaseUrl}
+                    internalToken={internalPipelineToken}
                   />
                   <ActivitiesRunsPanel
                     athleteId={authSession.athlete?.id ?? null}
