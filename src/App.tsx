@@ -1718,6 +1718,9 @@ function App() {
                     athleteId={authSession.athlete?.id ?? null}
                     selectedAgentId={selectedAgentId}
                     onAgentChange={setSelectedAgentId}
+                    isFreePlan={isFreePlan}
+                    onUpgrade={() => void handleUpgradePlan()}
+                    upgradePending={upgradePending}
                   />
                   </div>
                   <div className="relative" ref={userMenuRef}>

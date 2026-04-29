@@ -21,6 +21,7 @@ import {
   ArrowDown,
   ArrowUp,
   Bot,
+  Lock,
   Plus,
   X,
 } from 'lucide-react'
@@ -116,6 +117,9 @@ type Props = {
   athleteId: number | null
   selectedAgentId: string
   onAgentChange: (agentId: string) => void
+  isFreePlan?: boolean
+  onUpgrade?: () => void
+  upgradePending?: boolean
 }
 
 function authHeaders(base: Record<string, string> = {}): Record<string, string> {
@@ -464,7 +468,7 @@ function calcPopoverPos(clickX: number, clickY: number): { left: number; top: nu
 // Component
 // ---------------------------------------------------------------------------
 
-export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, onAgentChange }: Props) {
+export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, onAgentChange, isFreePlan = false, onUpgrade, upgradePending = false }: Props) {
   const reduceMotion = useReducedMotion()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -492,6 +496,10 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
   const [popoverPosition, setPopoverPosition] = useState<{ x: number; y: number } | null>(null)
   const [consensusPopoverPosition, setConsensusPopoverPosition] = useState<{ x: number; y: number } | null>(null)
+
+  const [upgradePopoverOpen, setUpgradePopoverOpen] = useState(false)
+  const [upgradePopoverPos, setUpgradePopoverPos] = useState<{ top: number; left: number } | null>(null)
+  const upgradePopoverRef = useRef<HTMLDivElement>(null)
 
   const triggerRef = useRef<HTMLButtonElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
@@ -848,6 +856,20 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
   const disabled = athleteId === null || athleteId <= 0 || !apiBaseUrl
 
+  useEffect(() => {
+    if (!upgradePopoverOpen) return
+    function handleOutside(e: MouseEvent) {
+      if (
+        upgradePopoverRef.current && !upgradePopoverRef.current.contains(e.target as Node) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+      ) {
+        setUpgradePopoverOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [upgradePopoverOpen])
+
   // ── Modal editor helpers ───────────────────────────────────────────
 
   const closePanel = useCallback(() => {
@@ -904,16 +926,60 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          if (isFreePlan) {
+            if (triggerRef.current) {
+              const rect = triggerRef.current.getBoundingClientRect()
+              setUpgradePopoverPos({ top: rect.bottom + 8, left: rect.left })
+            }
+            setUpgradePopoverOpen((o) => !o)
+          } else {
+            setOpen(true)
+          }
+        }}
         disabled={disabled}
-        aria-expanded={open}
+        aria-expanded={isFreePlan ? upgradePopoverOpen : open}
         aria-controls="customizable-agents-drawer"
         aria-label="Manage agents"
         className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border bg-background px-2 text-[13px] text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Bot className="h-4 w-4" aria-hidden="true" />
+        {isFreePlan && <Lock className="h-3 w-3 -ml-0.5 text-muted-foreground/70" aria-hidden="true" />}
         <span className="hidden sm:inline">Design agents</span>
       </button>
+
+      {upgradePopoverOpen && upgradePopoverPos && createPortal(
+        <AnimatePresence>
+          <motion.div
+            ref={upgradePopoverRef}
+            key="upgrade-popover"
+            initial={{ opacity: 0, scale: 0.95, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -4 }}
+            transition={{ duration: 0.12, ease: 'easeOut' }}
+            style={{ top: upgradePopoverPos.top, left: upgradePopoverPos.left }}
+            className="fixed z-[10002] w-56 rounded-xl border border-border bg-popover p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center gap-2">
+              <Lock className="h-4 w-4 text-primary" aria-hidden="true" />
+              <span className="text-[13px] font-semibold text-foreground">Feature premium</span>
+            </div>
+            <p className="mb-3 text-[12px] text-muted-foreground">
+              Design agents solo disponible en el plan Pro.
+            </p>
+            <button
+              type="button"
+              onClick={() => { setUpgradePopoverOpen(false); onUpgrade?.() }}
+              disabled={upgradePending}
+              className="inline-flex h-7 w-full items-center justify-center rounded-md border border-primary/40 bg-primary/10 text-[12px] font-medium text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {upgradePending ? 'Upgrading…' : 'Upgrade'}
+            </button>
+          </motion.div>
+        </AnimatePresence>,
+        document.body,
+      )}
 
       {createPortal(
       <AnimatePresence>
