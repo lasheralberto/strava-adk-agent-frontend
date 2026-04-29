@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 interface WikiFile {
   name: string
   path: string
+  updated_at: string | null
 }
 
 interface WikiKnowledgeModalProps {
@@ -93,6 +94,18 @@ export function WikiKnowledgeModal({ athleteId, apiBaseUrl }: WikiKnowledgeModal
   const displayName = (name: string) =>
     name.replace(/\.md$/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
+  const formatUpdated = (iso: string | null) => {
+    if (!iso) return null
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(new Date(iso))
+    } catch {
+      return null
+    }
+  }
+
   const panelContent = (
     <>
       {/* Header */}
@@ -165,12 +178,16 @@ export function WikiKnowledgeModal({ athleteId, apiBaseUrl }: WikiKnowledgeModal
                 )}
               >
                 <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="flex-1 truncate text-[13px] font-medium text-foreground">
-                  {displayName(file.name)}
-                </span>
-                <span className="shrink-0 text-[11px] text-muted-foreground/50">
-                  {file.name}
-                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="truncate text-[13px] font-medium text-foreground">
+                    {displayName(file.name)}
+                  </span>
+                  {formatUpdated(file.updated_at) && (
+                    <span className="text-[11px] text-muted-foreground/60">
+                      Updated {formatUpdated(file.updated_at)}
+                    </span>
+                  )}
+                </div>
               </button>
             ))}
           </div>
