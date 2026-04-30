@@ -1561,6 +1561,7 @@ function App() {
       const contentType = response.headers.get('content-type') ?? ''
       const isEventStream = contentType.includes('text/event-stream')
 
+      
       if (!isEventStream) {
         const payload = (await response.json()) as ChatApiPayload
         const structuredBlocks = parseStructuredBlocks(payload)
