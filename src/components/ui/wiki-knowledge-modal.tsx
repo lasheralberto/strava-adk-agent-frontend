@@ -15,6 +15,8 @@ interface WikiFile {
 interface WikiKnowledgeModalProps {
   athleteId: number | null
   apiBaseUrl: string
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 function useIsMobile() {
@@ -30,8 +32,14 @@ function useIsMobile() {
   return mobile
 }
 
-export function WikiKnowledgeModal({ athleteId, apiBaseUrl }: WikiKnowledgeModalProps) {
-  const [open, setOpen] = useState(false)
+export function WikiKnowledgeModal({ athleteId, apiBaseUrl, open: openProp, onOpenChange }: WikiKnowledgeModalProps) {
+  const isControlled = openProp !== undefined
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = isControlled ? openProp! : internalOpen
+  const setOpen = (v: boolean) => {
+    if (isControlled) onOpenChange?.(v)
+    else setInternalOpen(v)
+  }
   const [files, setFiles] = useState<WikiFile[]>([])
   const [loadingFiles, setLoadingFiles] = useState(false)
   const [filesError, setFilesError] = useState<string | null>(null)
@@ -207,14 +215,16 @@ export function WikiKnowledgeModal({ athleteId, apiBaseUrl }: WikiKnowledgeModal
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Knowledge base"
-        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <Brain className="h-4 w-4" aria-hidden="true" />
-      </button>
+      {!isControlled && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="Knowledge base"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Brain className="h-4 w-4" aria-hidden="true" />
+        </button>
+      )}
 
       {createPortal(
         <AnimatePresence>

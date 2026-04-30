@@ -35,6 +35,8 @@ type ActivitiesRunsResponse = {
 type Props = {
   athleteId: number | null
   refreshKey?: number
+  inlineMode?: boolean
+  active?: boolean
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -119,7 +121,7 @@ function sortByDateDesc(runs: ActivityRun[]): ActivityRun[] {
   })
 }
 
-export function ActivitiesRunsPanel({ athleteId, refreshKey = 0 }: Props) {
+export function ActivitiesRunsPanel({ athleteId, refreshKey = 0, inlineMode = false, active = false }: Props) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [runs, setRuns] = useState<ActivityRun[]>([])
@@ -167,6 +169,10 @@ export function ActivitiesRunsPanel({ athleteId, refreshKey = 0 }: Props) {
   }, [open, athleteId, refreshKey, fetchRuns])
 
   useEffect(() => {
+    if (inlineMode && active && athleteId) fetchRuns()
+  }, [inlineMode, active, athleteId, refreshKey, fetchRuns])
+
+  useEffect(() => {
     if (!athleteId) {
       setOpen(false)
       setRuns([])
@@ -196,6 +202,84 @@ export function ActivitiesRunsPanel({ athleteId, refreshKey = 0 }: Props) {
   if (!athleteId) return null
 
   const sortedRuns = sortByDateDesc(runs)
+
+  if (inlineMode) {
+    return (
+      <div className="flex flex-col">
+        <div className="flex items-center justify-between border-b border-border px-3 py-2">
+          <div className="flex items-center gap-2">
+            <ListChecks className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="text-[13px] font-medium text-foreground">Actividades indexadas</span>
+            {!loading && runs.length > 0 ? (
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                {runs.length}
+              </span>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={fetchRuns}
+            disabled={loading}
+            aria-label="Recargar actividades"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} aria-hidden="true" />
+          </button>
+        </div>
+        <div className="max-h-[320px] overflow-y-auto">
+          {loading && runs.length === 0 ? (
+            <ul className="divide-y divide-border">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <li key={i} className="space-y-1.5 px-3 py-2.5">
+                  <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+                  <div className="h-2.5 w-1/2 animate-pulse rounded bg-muted" />
+                </li>
+              ))}
+            </ul>
+          ) : error ? (
+            <div className="m-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
+              {error}
+            </div>
+          ) : sortedRuns.length === 0 ? (
+            <div className="flex flex-col items-center gap-1 px-4 py-6 text-center">
+              <p className="text-[13px] text-foreground">Sin actividades indexadas</p>
+              <p className="text-[11px] text-muted-foreground">Pulsa Sync para comenzar.</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-border">
+              {sortedRuns.map((run) => {
+                const status = (run.status ?? 'unknown') as ActivityRunStatus
+                const label = STATUS_LABELS[status] ?? status
+                const sport = run.sport_type || run.type
+                const dist = formatDistance(run.distance)
+                const dur = formatDuration(run.moving_time)
+                const date = formatDate(run.start_date)
+                return (
+                  <li key={String(run.activity_id)} className="px-3 py-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="flex-1 truncate text-[12px] font-medium leading-snug text-foreground">
+                        {run.name || `Actividad ${run.activity_id}`}
+                      </span>
+                      <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium', statusClasses(status))}>
+                        <span aria-hidden="true" className={cn('h-1.5 w-1.5 rounded-full', statusDotClass(status))} />
+                        {label}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      {sport ? <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{sport}</span> : null}
+                      <span className="text-[11px] text-muted-foreground">{date}</span>
+                      {dist ? <><span className="text-[10px] text-muted-foreground/40">·</span><span className="text-[11px] text-muted-foreground">{dist}</span></> : null}
+                      {dur ? <><span className="text-[10px] text-muted-foreground/40">·</span><span className="text-[11px] text-muted-foreground">{dur}</span></> : null}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>

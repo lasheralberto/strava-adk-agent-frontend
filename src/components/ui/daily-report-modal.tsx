@@ -10,6 +10,8 @@ interface DailyReportModalProps {
   athleteId: number | null
   apiBaseUrl: string
   internalToken: string
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 type Status = 'idle' | 'loading' | 'content' | 'generating' | 'error'
@@ -27,11 +29,17 @@ function useIsMobile() {
   return mobile
 }
 
-const POLL_INTERVAL_MS = 3000
-const POLL_TIMEOUT_MS = 3 * 60 * 1000 // 3 minutes
+const POLL_INTERVAL_MS = 5000
+const POLL_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 
-export function DailyReportModal({ athleteId, apiBaseUrl, internalToken }: DailyReportModalProps) {
-  const [open, setOpen] = useState(false)
+export function DailyReportModal({ athleteId, apiBaseUrl, internalToken, open: openProp, onOpenChange }: DailyReportModalProps) {
+  const isControlled = openProp !== undefined
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = isControlled ? openProp! : internalOpen
+  const setOpen = (v: boolean) => {
+    if (isControlled) onOpenChange?.(v)
+    else setInternalOpen(v)
+  }
   const [status, setStatus] = useState<Status>('idle')
   const [content, setContent] = useState<string | null>(null)
   const [generatedAt, setGeneratedAt] = useState<string | null>(null)
@@ -83,7 +91,7 @@ export function DailyReportModal({ athleteId, apiBaseUrl, internalToken }: Daily
     // Hard timeout after 3 minutes
     pollTimeoutRef.current = setTimeout(() => {
       clearPolling()
-      setErrorMsg('Timeout: the report is taking too long to generate. Please try again.')
+      setErrorMsg('La generación del informe está tardando más de lo esperado. Puedes esperar unos minutos y volver a intentarlo.')
       setStatus('error')
     }, POLL_TIMEOUT_MS)
   }, [athleteId, apiBaseUrl, clearPolling])
@@ -279,14 +287,16 @@ export function DailyReportModal({ athleteId, apiBaseUrl, internalToken }: Daily
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Informe diario"
-        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <BarChart2 className="h-4 w-4" aria-hidden="true" />
-      </button>
+      {!isControlled && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="Informe diario"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <BarChart2 className="h-4 w-4" aria-hidden="true" />
+        </button>
+      )}
 
       {createPortal(
         <AnimatePresence>

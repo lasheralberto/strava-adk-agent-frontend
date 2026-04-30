@@ -2,7 +2,10 @@ import { startTransition, useCallback, useEffect, useRef, useState } from 'react
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
+  Brain,
   ChevronDown,
+  ChevronRight,
+  ListChecks,
   LogIn,
   LogOut,
   Menu,
@@ -574,6 +577,11 @@ function App() {
   const initialSyncDoneRef = useRef(false)
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [hubOpen, setHubOpen] = useState(false)
+  const [hubView, setHubView] = useState<'menu' | 'activities'>('menu')
+  const [wikiOpen, setWikiOpen] = useState(false)
+  const [dailyReportOpen, setDailyReportOpen] = useState(false)
+  const hubRef = useRef<HTMLDivElement>(null)
 
   const {
     sessions,
@@ -630,6 +638,24 @@ function App() {
       document.removeEventListener('keydown', handleEsc)
     }
   }, [planBadgeOpen])
+
+  useEffect(() => {
+    if (!hubOpen) return
+    const handleOutside = (event: MouseEvent) => {
+      if (hubRef.current && !hubRef.current.contains(event.target as Node)) {
+        setHubOpen(false)
+      }
+    }
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setHubOpen(false)
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('keydown', handleEsc)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('keydown', handleEsc)
+    }
+  }, [hubOpen])
 
   const clearAuthSession = useCallback((message?: string) => {
     authSessionRef.current = null
@@ -1710,16 +1736,81 @@ function App() {
                   <WikiKnowledgeModal
                     athleteId={authSession.athlete?.id ?? null}
                     apiBaseUrl={apiBaseUrl}
+                    open={wikiOpen}
+                    onOpenChange={setWikiOpen}
                   />
                   <DailyReportModal
                     athleteId={authSession.athlete?.id ?? null}
                     apiBaseUrl={apiBaseUrl}
                     internalToken={internalPipelineToken}
+                    open={dailyReportOpen}
+                    onOpenChange={setDailyReportOpen}
                   />
-                  <ActivitiesRunsPanel
-                    athleteId={authSession.athlete?.id ?? null}
-                    refreshKey={activitiesRefreshKey}
-                  />
+                  <div ref={hubRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => { setHubOpen((o) => !o); setHubView('menu') }}
+                      aria-label="Knowledge hub"
+                      aria-expanded={hubOpen}
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <Brain className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                    <AnimatePresence>
+                      {hubOpen && (
+                        <motion.div
+                          key="hub-popover"
+                          initial={{ opacity: 0, y: 4, scale: 0.97 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 2, scale: 0.97 }}
+                          transition={{ duration: 0.12, ease: 'easeOut' }}
+                          className="absolute right-0 top-full z-50 mt-1 w-[220px] overflow-hidden rounded-xl border border-white/[0.08] bg-popover shadow-xl"
+                          style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.36), 0 0 0 1px rgba(255,255,255,0.06)' }}
+                        >
+                          {hubView === 'menu' ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => { setHubOpen(false); setWikiOpen(true) }}
+                                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-[13px] text-foreground transition-colors hover:bg-muted"
+                              >
+                                <Brain className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                                Knowledge base
+                              </button>
+                              <div className="h-px bg-border" />
+                              <button
+                                type="button"
+                                onClick={() => { setHubOpen(false); setDailyReportOpen(true) }}
+                                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-[13px] text-foreground transition-colors hover:bg-muted"
+                              >
+                                <Brain className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                                Tu resumen
+                              </button>
+                              <div className="h-px bg-border" />
+                              <button
+                                type="button"
+                                onClick={() => setHubView('activities')}
+                                className="flex w-full items-center justify-between gap-2.5 px-3 py-2.5 text-[13px] text-foreground transition-colors hover:bg-muted"
+                              >
+                                <span className="flex items-center gap-2.5">
+                                  <ListChecks className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                                  Actividades indexadas
+                                </span>
+                                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                              </button>
+                            </>
+                          ) : (
+                            <ActivitiesRunsPanel
+                              athleteId={authSession.athlete?.id ?? null}
+                              refreshKey={activitiesRefreshKey}
+                              inlineMode
+                              active={hubView === 'activities'}
+                            />
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                   <CustomizableAgentsPanel
                     isDark={isDark}
                     athleteId={authSession.athlete?.id ?? null}
