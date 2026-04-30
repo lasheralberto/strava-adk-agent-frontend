@@ -1930,7 +1930,7 @@ function App() {
                               type="button"
                               onClick={() => { setConnectorsOpen(false); void handleStartStravaLogin() }}
                               disabled={authPending}
-                              className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-[13px] text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                              className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 transition-colors hover:bg-muted disabled:opacity-50"
                             >
                               <div className="relative shrink-0">
                                 <LogIn className="h-4 w-4 text-[#FC4C02]" aria-hidden="true" />
@@ -1938,13 +1938,16 @@ function App() {
                                   <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-green-500 ring-1 ring-popover" />
                                 )}
                               </div>
-                              <span className="truncate text-left">
-                                {authSession
-                                  ? (authSession.athlete?.firstname
-                                      ? `${authSession.athlete.firstname}${authSession.athlete.lastname ? ' ' + authSession.athlete.lastname : ''}`
-                                      : 'Strava')
-                                  : 'Conectar con Strava'}
-                              </span>
+                              <div className="flex min-w-0 flex-col items-start">
+                                <span className="text-[11px] font-semibold leading-tight text-[#FC4C02]">Strava</span>
+                                <span className="truncate text-[12px] leading-tight text-foreground">
+                                  {authSession
+                                    ? (authSession.athlete?.firstname
+                                        ? `${authSession.athlete.firstname}${authSession.athlete.lastname ? ' ' + authSession.athlete.lastname : ''}`
+                                        : 'Conectado')
+                                    : 'No conectado'}
+                                </span>
+                              </div>
                             </button>
                             {authSession && (
                               <button
