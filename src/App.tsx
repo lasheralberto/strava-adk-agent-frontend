@@ -1910,58 +1910,53 @@ function App() {
                             Conectores
                           </div>
                           <div className="h-px bg-border" />
-                          <button
-                            type="button"
-                            onClick={() => { setConnectorsOpen(false); void handleStartStravaLogin() }}
-                            disabled={authPending}
-                            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-[13px] text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-                          >
-                            <div className="relative shrink-0">
-                              <LogIn className="h-4 w-4 text-[#FC4C02]" aria-hidden="true" />
-                              {authSession && (
-                                <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-green-500 ring-1 ring-popover" />
-                              )}
-                            </div>
-                            <span className="flex-1 text-left">
-                              {authSession
-                                ? (authSession.athlete?.firstname
-                                    ? `${authSession.athlete.firstname}${authSession.athlete.lastname ? ' ' + authSession.athlete.lastname : ''}`
-                                    : 'Strava')
-                                : 'Conectar con Strava'}
-                            </span>
-                            {authSession && (
-                              <span className="text-[10px] font-medium text-green-500">Conectado</span>
-                            )}
-                          </button>
-                          {authSession && (
+                          <div className="flex items-center gap-1 px-2 py-1.5">
+                            {authSession && (() => {
+                              const _syncing = pipelineStatus === 'running' || lastSyncStatus === 'queued'
+                              const _color = _syncing ? 'text-warning' : lastSyncStatus === 'failed' ? 'text-destructive' : lastSyncStatus === 'success' ? 'text-success' : 'text-muted-foreground'
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRunDailyPipeline()}
+                                  disabled={_syncing}
+                                  title={_syncing ? (pipelineMessage || t.header.syncing) : t.header.sync}
+                                  className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-muted disabled:cursor-not-allowed ${_color}`}
+                                >
+                                  <RefreshCw className={`h-3.5 w-3.5 ${_syncing ? 'animate-spin' : ''}`} aria-hidden="true" />
+                                </button>
+                              )
+                            })()}
                             <button
                               type="button"
-                              onClick={() => {
-                                setConnectorsOpen(false)
-                                handleRunDailyPipeline()
-                              }}
-                              disabled={pipelineStatus === 'running' || lastSyncStatus === 'queued'}
-                              className={`flex w-full items-center gap-2 px-3 py-2.5 text-[13px] transition-colors hover:bg-muted disabled:cursor-not-allowed ${
-                                pipelineStatus === 'running' || lastSyncStatus === 'queued'
-                                  ? 'text-warning'
-                                  : lastSyncStatus === 'failed'
-                                  ? 'text-destructive'
-                                  : lastSyncStatus === 'success'
-                                  ? 'text-success'
-                                  : 'text-muted-foreground'
-                              }`}
+                              onClick={() => { setConnectorsOpen(false); void handleStartStravaLogin() }}
+                              disabled={authPending}
+                              className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-[13px] text-foreground transition-colors hover:bg-muted disabled:opacity-50"
                             >
-                              <RefreshCw
-                                className={`h-4 w-4 shrink-0 ${pipelineStatus === 'running' || lastSyncStatus === 'queued' ? 'animate-spin' : ''}`}
-                                aria-hidden="true"
-                              />
-                              {pipelineStatus === 'running' || lastSyncStatus === 'queued'
-                                ? (pipelineMessage || t.header.syncing)
-                                : lastSyncStatus === 'failed'
-                                ? t.header.retrySync
-                                : t.header.sync}
+                              <div className="relative shrink-0">
+                                <LogIn className="h-4 w-4 text-[#FC4C02]" aria-hidden="true" />
+                                {authSession && (
+                                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-green-500 ring-1 ring-popover" />
+                                )}
+                              </div>
+                              <span className="truncate text-left">
+                                {authSession
+                                  ? (authSession.athlete?.firstname
+                                      ? `${authSession.athlete.firstname}${authSession.athlete.lastname ? ' ' + authSession.athlete.lastname : ''}`
+                                      : 'Strava')
+                                  : 'Conectar con Strava'}
+                              </span>
                             </button>
-                          )}
+                            {authSession && (
+                              <button
+                                type="button"
+                                onClick={() => { setConnectorsOpen(false); handleLogout() }}
+                                title="Desconectar Strava"
+                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                              >
+                                <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+                              </button>
+                            )}
+                          </div>
                           <div className="h-px bg-border" />
                           <button
                             type="button"
