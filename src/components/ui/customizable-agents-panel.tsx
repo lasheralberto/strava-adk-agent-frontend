@@ -1001,20 +1001,24 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
               )}
             >
               {/* ── Header ── */}
-              <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-popover/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-popover/90">
-                <div className="flex items-center gap-2">
-                  <Bot className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                  <h2 id="agents-drawer-title" className="text-[16px] font-semibold text-foreground">
+              <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-border/40 bg-popover/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-popover/90">
+                <div className="flex items-center gap-3">
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em]',
+                      isDefaultDefinition
+                        ? 'border-warning/40 bg-warning/10 text-warning'
+                        : 'border-emerald-400/40 bg-emerald-400/10 text-emerald-400',
+                    )}
+                  >
+                    {isDefaultDefinition ? 'Default' : 'Custom'}
+                  </span>
+                  <span className="text-xs uppercase tracking-[0.25em] text-foreground/50">
                     Multi-Agent Designer
-                  </h2>
-                  <span className="text-[12px] text-muted-foreground">
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
                     {definition.agents.length}/{MAX_AGENTS}
                   </span>
-                  {isDefaultDefinition ? (
-                    <span className="rounded-sm border border-warning/40 bg-warning/10 px-1.5 py-0.5 text-[10px] text-warning">
-                      default
-                    </span>
-                  ) : null}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -1036,7 +1040,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     <button
                       type="button"
                       onClick={handleClearConnections}
-                      className="inline-flex h-8 items-center gap-1 rounded-md border border-destructive/40 px-2 text-[11px] text-destructive hover:bg-destructive/10"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-destructive/40 px-3 text-[11px] uppercase tracking-[0.15em] text-destructive hover:bg-destructive/10"
                     >
                       <X className="h-3 w-3" />
                       Clear wiring
@@ -1047,14 +1051,14 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     type="button"
                     onClick={handleAddAgent}
                     disabled={!canAddAgent}
-                    className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background px-2 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-[11px] uppercase tracking-[0.2em] text-foreground/70 hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    New
+                    <span className="hidden sm:inline">New agent</span>
                   </button>
 
                   {saving ? (
-                    <span className="text-[12px] text-muted-foreground animate-pulse">Saving...</span>
+                    <span className="text-[12px] uppercase tracking-[0.15em] text-muted-foreground animate-pulse">Saving…</span>
                   ) : null}
 
                   <button
@@ -1062,7 +1066,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                     type="button"
                     onClick={closePanel}
                     aria-label="Close panel"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -1088,9 +1092,9 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                   </div>
                 </div>
               ) : (
-              <div className="flex flex-1 flex-col overflow-hidden">
+              <div className="flex flex-1 flex-col overflow-hidden p-4 gap-4">
                 {/* ── Canvas ── */}
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 overflow-hidden rounded-xl border border-border/30 bg-background/40 backdrop-blur">
                   <ReactFlow
                     nodes={flowNodes}
                     edges={flowEdges}
@@ -1110,11 +1114,36 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
                       if (node.id === '__consensus__') { void openConsensusEditor({ x: event.clientX, y: event.clientY }); return }
                       openEditorFor(node.id, { x: event.clientX, y: event.clientY })
                     }}
-                    className="h-full w-full bg-background"
+                    className="h-full w-full bg-transparent"
                   >
                     <Background gap={18} size={1} color="hsl(var(--border))" />
                     <Controls showInteractive={false} />
                   </ReactFlow>
+                </div>
+
+                {/* ── Footer stats ── */}
+                <div
+                  className="flex-none flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/30 bg-background/40 px-4 py-2.5 backdrop-blur-sm"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <div className="flex flex-wrap items-center gap-4 text-xs text-foreground/60">
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-blue-500" aria-hidden="true" />
+                      <span className="uppercase tracking-[0.15em]">
+                        {definition.agents.length} {definition.agents.length === 1 ? 'Agent' : 'Agents'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                      <span className="uppercase tracking-[0.15em]">
+                        {definition.connections.length} {definition.connections.length === 1 ? 'Connection' : 'Connections'}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-foreground/40">
+                    Click node to edit · drag to connect
+                  </p>
                 </div>
               </div>
               )}
