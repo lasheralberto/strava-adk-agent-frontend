@@ -439,7 +439,7 @@ function Nav({ onLogin, isPending }: { onLogin: () => void; isPending?: boolean 
         <button onClick={onLogin} disabled={isPending} style={{ ...ctaPrimaryStyle, opacity: isPending ? 0.7 : 1 }}>
           {isPending
             ? <><span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: 7, display: 'inline-block', animation: 'spin 0.8s linear infinite' }} /> Conectando…</>
-            : <><StravaIcon size={14} /> Conectar con Strava</>
+            : <><StravaIcon size={14} /> Comenzar</>
           }
         </button>
       </div>
@@ -477,7 +477,7 @@ function Hero({ onLogin, isPending }: { onLogin: () => void; isPending?: boolean
           <button onClick={onLogin} disabled={isPending} style={{ ...ctaPrimaryStyle, padding: '14px 22px', fontSize: 15 }}>
             {isPending
               ? <><span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: 7, display: 'inline-block' }} /> Conectando…</>
-              : <><StravaIcon size={16} /> Conectar con Strava</>
+              : <>Comenzar</>
             }
           </button>
           <button style={{ padding: '14px 22px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', color: '#fff', border: `1px solid ${A_LINE2}`, fontSize: 15, fontWeight: 500, fontFamily: FONT, cursor: 'pointer' }}>
@@ -736,7 +736,7 @@ function FinalCTA({ onLogin, isPending }: { onLogin: () => void; isPending?: boo
           Conecta tu Strava y deja que Athly haga el trabajo de leer entre líneas. Tú corre.
         </p>
         <button onClick={onLogin} disabled={isPending} style={{ ...ctaPrimaryStyle, padding: '16px 28px', fontSize: 16, marginTop: 36, opacity: isPending ? 0.7 : 1 }}>
-          <StravaIcon size={16} /> Conectar con Strava — gratis 14 días
+          Comenzar — gratis 14 días
         </button>
       </div>
     </section>
@@ -824,7 +824,7 @@ function MobileHero({ onLogin, isPending }: { onLogin: () => void; isPending?: b
       </p>
       <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <button onClick={onLogin} disabled={isPending} style={{ padding: '14px 18px', borderRadius: 12, background: A_ORANGE, color: '#fff', border: 'none', fontSize: 15, fontWeight: 600, fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 12px 32px -8px rgba(252,76,2,0.5)', opacity: isPending ? 0.7 : 1, cursor: 'pointer' }}>
-          <StravaIcon size={14} /> Conectar con Strava
+          Comenzar
         </button>
         <button style={{ padding: '14px 18px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', color: '#fff', border: `1px solid ${A_LINE2}`, fontSize: 14, fontWeight: 500, fontFamily: FONT, cursor: 'pointer' }}>
           Ver demo · 90 seg →

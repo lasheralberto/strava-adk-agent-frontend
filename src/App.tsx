@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   Brain,
+  Cable,
   ChevronDown,
   ChevronRight,
   ListChecks,
@@ -12,6 +13,8 @@ import {
   Moon,
   RefreshCw,
   Sun,
+  Upload,
+  X,
 } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { ChatSidebar } from '@/components/ui/chat-sidebar'
@@ -582,6 +585,14 @@ function App() {
   const [wikiOpen, setWikiOpen] = useState(false)
   const [dailyReportOpen, setDailyReportOpen] = useState(false)
   const hubRef = useRef<HTMLDivElement>(null)
+  const [connectorsOpen, setConnectorsOpen] = useState(false)
+  const connectorsRef = useRef<HTMLDivElement>(null)
+  const [fitUploadOpen, setFitUploadOpen] = useState(false)
+  const [fitUploading, setFitUploading] = useState(false)
+  const [fitUploadStatus, setFitUploadStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [fitUploadMessage, setFitUploadMessage] = useState('')
+  const [fitDragOver, setFitDragOver] = useState(false)
+  const fitFileInputRef = useRef<HTMLInputElement>(null)
 
   const {
     sessions,
@@ -656,6 +667,24 @@ function App() {
       document.removeEventListener('keydown', handleEsc)
     }
   }, [hubOpen])
+
+  useEffect(() => {
+    if (!connectorsOpen) return
+    const handleOutside = (event: MouseEvent) => {
+      if (connectorsRef.current && !connectorsRef.current.contains(event.target as Node)) {
+        setConnectorsOpen(false)
+      }
+    }
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setConnectorsOpen(false)
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('keydown', handleEsc)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('keydown', handleEsc)
+    }
+  }, [connectorsOpen])
 
   const clearAuthSession = useCallback((message?: string) => {
     authSessionRef.current = null
@@ -1025,6 +1054,49 @@ function App() {
     setUsageLoading(false)
     setUpgradePending(false)
   }
+
+  const handleFitUpload = useCallback(async (files: FileList | File[]) => {
+    const fileArr = Array.from(files).filter(f => f.name.endsWith('.fit'))
+    if (fileArr.length === 0) {
+      setFitUploadStatus('error')
+      setFitUploadMessage('Selecciona archivos .fit válidos.')
+      return
+    }
+    const athleteId = authSessionRef.current?.athlete?.id
+    if (!athleteId) return
+
+    setFitUploading(true)
+    setFitUploadStatus('idle')
+    setFitUploadMessage('')
+
+    const formData = new FormData()
+    formData.append('athlete_id', String(athleteId))
+    fileArr.forEach(f => formData.append('files', f))
+
+    const headers: Record<string, string> = {}
+    if (internalPipelineToken) headers['X-Internal-Token'] = internalPipelineToken
+
+    try {
+      const resp = await fetch(`${apiBaseUrl}/pipeline/fit-upload`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      })
+      if (!resp.ok) {
+        const payload = await resp.json().catch(() => ({})) as { error?: string }
+        throw new Error(payload.error ?? `HTTP ${resp.status}`)
+      }
+      const report = await resp.json() as { activities_count?: number; run_id?: string }
+      setFitUploadStatus('success')
+      setFitUploadMessage(`${report.activities_count ?? fileArr.length} actividad${fileArr.length !== 1 ? 'es' : ''} en proceso. Sincronizando…`)
+      setActivitiesRefreshKey(k => k + 1)
+    } catch (err) {
+      setFitUploadStatus('error')
+      setFitUploadMessage(err instanceof Error ? err.message : 'Error al subir archivo.')
+    } finally {
+      setFitUploading(false)
+    }
+  }, [])
 
   const handleUpgradePlan = useCallback(async () => {
     const athleteId = authSessionRef.current?.athlete?.id
@@ -1811,6 +1883,53 @@ function App() {
                       )}
                     </AnimatePresence>
                   </div>
+                  <div ref={connectorsRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setConnectorsOpen((o) => !o)}
+                      aria-label="Conectores"
+                      aria-expanded={connectorsOpen}
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors duration-80 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <Cable className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                    <AnimatePresence>
+                      {connectorsOpen && (
+                        <motion.div
+                          key="connectors-popover"
+                          initial={{ opacity: 0, y: 4, scale: 0.97 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 2, scale: 0.97 }}
+                          transition={{ duration: 0.12, ease: 'easeOut' }}
+                          className="absolute right-0 top-full z-50 mt-1 w-[240px] overflow-hidden rounded-xl border border-white/[0.08] bg-popover shadow-xl"
+                          style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.36), 0 0 0 1px rgba(255,255,255,0.06)' }}
+                        >
+                          <div className="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                            Conectores
+                          </div>
+                          <div className="h-px bg-border" />
+                          <button
+                            type="button"
+                            onClick={() => { setConnectorsOpen(false); void handleStartStravaLogin() }}
+                            disabled={authPending}
+                            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-[13px] text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                          >
+                            <LogIn className="h-4 w-4 shrink-0 text-[#FC4C02]" aria-hidden="true" />
+                            Conectar con Strava
+                          </button>
+                          <div className="h-px bg-border" />
+                          <button
+                            type="button"
+                            onClick={() => { setConnectorsOpen(false); setFitUploadStatus('idle'); setFitUploadMessage(''); setFitUploadOpen(true) }}
+                            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-[13px] text-foreground transition-colors hover:bg-muted"
+                          >
+                            <Upload className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                            Importar actividad manual (.fit)
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                   <CustomizableAgentsPanel
                     isDark={isDark}
                     athleteId={authSession.athlete?.id ?? null}
@@ -2227,6 +2346,91 @@ function App() {
         </section>
       </main>
     </div>
+
+    {/* FIT upload modal */}
+    <AnimatePresence>
+      {fitUploadOpen && (
+        <motion.div
+          key="fit-upload-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) { setFitUploadOpen(false) } }}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 4 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/[0.08] bg-card shadow-2xl"
+            style={{ boxShadow: '0 8px 48px rgba(0,0,0,0.48), 0 0 0 1px rgba(255,255,255,0.06)' }}
+          >
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <div className="flex items-center gap-2.5">
+                <Upload className="h-4 w-4 text-primary" aria-hidden="true" />
+                <span className="text-[14px] font-semibold text-foreground">Importar actividad .fit</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFitUploadOpen(false)}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="p-5">
+              <div
+                onDragOver={(e) => { e.preventDefault(); setFitDragOver(true) }}
+                onDragLeave={() => setFitDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  setFitDragOver(false)
+                  void handleFitUpload(e.dataTransfer.files)
+                }}
+                onClick={() => fitFileInputRef.current?.click()}
+                className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 transition-colors ${fitDragOver ? 'border-primary bg-primary/10' : 'border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50'}`}
+              >
+                <Upload className={`h-8 w-8 ${fitDragOver ? 'text-primary' : 'text-muted-foreground'}`} aria-hidden="true" />
+                <div className="text-center">
+                  <p className="text-[13px] font-medium text-foreground">Arrastra archivos .fit aquí</p>
+                  <p className="mt-0.5 text-[12px] text-muted-foreground">o haz clic para seleccionar</p>
+                </div>
+                <input
+                  ref={fitFileInputRef}
+                  type="file"
+                  accept=".fit"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => { if (e.target.files?.length) void handleFitUpload(e.target.files) }}
+                />
+              </div>
+
+              {fitUploading && (
+                <div className="mt-4 flex items-center gap-2 text-[13px] text-muted-foreground">
+                  <Spinner size={14} color="hsl(var(--muted-foreground))" />
+                  <span>Procesando actividades…</span>
+                </div>
+              )}
+
+              {!fitUploading && fitUploadStatus === 'success' && (
+                <div className="mt-4 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2.5 text-[13px] text-green-400">
+                  {fitUploadMessage}
+                </div>
+              )}
+
+              {!fitUploading && fitUploadStatus === 'error' && (
+                <div className="mt-4 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2.5 text-[13px] text-destructive">
+                  {fitUploadMessage}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
     </MotionConfig>
   )
 }
