@@ -1068,6 +1068,7 @@ function App() {
     setFitUploading(true)
     setFitUploadStatus('idle')
     setFitUploadMessage('')
+    setFitUploadOpen(false)
 
     const formData = new FormData()
     formData.append('athlete_id', String(athleteId))
@@ -1964,11 +1965,14 @@ function App() {
                           <div className="h-px bg-border" />
                           <button
                             type="button"
-                            onClick={() => { setConnectorsOpen(false); setFitUploadStatus('idle'); setFitUploadMessage(''); setFitUploadOpen(true) }}
-                            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-[13px] text-foreground transition-colors hover:bg-muted"
+                            onClick={() => { if (fitUploading) return; setConnectorsOpen(false); setFitUploadStatus('idle'); setFitUploadMessage(''); setFitUploadOpen(true) }}
+                            disabled={fitUploading}
+                            className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-[13px] transition-colors hover:bg-muted disabled:cursor-not-allowed ${fitUploading ? 'text-warning' : 'text-foreground'}`}
                           >
-                            <Upload className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                            Importar actividad manual (.fit)
+                            {fitUploading
+                              ? <RefreshCw className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+                              : <Upload className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+                            {fitUploading ? 'Subiendo actividad…' : 'Importar actividad manual (.fit)'}
                           </button>
                         </motion.div>
                       )}
