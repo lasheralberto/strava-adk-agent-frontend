@@ -1915,9 +1915,52 @@ function App() {
                             disabled={authPending}
                             className="flex w-full items-center gap-2.5 px-3 py-2.5 text-[13px] text-foreground transition-colors hover:bg-muted disabled:opacity-50"
                           >
-                            <LogIn className="h-4 w-4 shrink-0 text-[#FC4C02]" aria-hidden="true" />
-                            Conectar con Strava
+                            <div className="relative shrink-0">
+                              <LogIn className="h-4 w-4 text-[#FC4C02]" aria-hidden="true" />
+                              {authSession && (
+                                <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-green-500 ring-1 ring-popover" />
+                              )}
+                            </div>
+                            <span className="flex-1 text-left">
+                              {authSession
+                                ? (authSession.athlete?.firstname
+                                    ? `${authSession.athlete.firstname}${authSession.athlete.lastname ? ' ' + authSession.athlete.lastname : ''}`
+                                    : 'Strava')
+                                : 'Conectar con Strava'}
+                            </span>
+                            {authSession && (
+                              <span className="text-[10px] font-medium text-green-500">Conectado</span>
+                            )}
                           </button>
+                          {authSession && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConnectorsOpen(false)
+                                handleRunDailyPipeline()
+                              }}
+                              disabled={pipelineStatus === 'running' || lastSyncStatus === 'queued'}
+                              className={`flex w-full items-center gap-2 px-3 py-2.5 text-[13px] transition-colors hover:bg-muted disabled:cursor-not-allowed ${
+                                pipelineStatus === 'running' || lastSyncStatus === 'queued'
+                                  ? 'text-warning'
+                                  : lastSyncStatus === 'failed'
+                                  ? 'text-destructive'
+                                  : lastSyncStatus === 'success'
+                                  ? 'text-success'
+                                  : 'text-muted-foreground'
+                              }`}
+                            >
+                              <RefreshCw
+                                className={`h-4 w-4 shrink-0 ${pipelineStatus === 'running' || lastSyncStatus === 'queued' ? 'animate-spin' : ''}`}
+                                aria-hidden="true"
+                              />
+                              {pipelineStatus === 'running' || lastSyncStatus === 'queued'
+                                ? (pipelineMessage || t.header.syncing)
+                                : lastSyncStatus === 'failed'
+                                ? t.header.retrySync
+                                : t.header.sync}
+                            </button>
+                          )}
                           <div className="h-px bg-border" />
                           <button
                             type="button"
@@ -1977,16 +2020,6 @@ function App() {
                           </button>
                           {userMenuOpen && (
                             <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-xl border border-white/[0.08] bg-popover shadow-xl" style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.36), 0 0 0 1px rgba(255,255,255,0.06)' }}>
-                              <button
-                                type="button"
-                                onClick={() => { setUserMenuOpen(false); handleRunDailyPipeline() }}
-                                disabled={syncing}
-                                className={`flex w-full items-center gap-2 px-3 py-2 text-[13px] transition-colors hover:bg-muted disabled:cursor-not-allowed ${syncIconColor}`}
-                              >
-                                <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} aria-hidden="true" />
-                                {syncing ? (pipelineMessage || t.header.syncing) : lastSyncStatus === 'failed' ? t.header.retrySync : t.header.sync}
-                              </button>
-                              <div className="h-px bg-border" />
                               <div className="px-3 py-2">
                                 <div className="flex items-center justify-between gap-2 text-[12px]">
                                   <span className="text-muted-foreground">{t.header.currentPlan}</span>
