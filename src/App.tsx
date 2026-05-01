@@ -1,6 +1,5 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
-import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth'
-import { firebaseAuth, googleProvider } from '@/lib/firebase'
+import { useGoogleLogin } from '@react-oauth/google'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -1053,63 +1052,63 @@ function App() {
     }
   }
 
-  const handleFirebaseSession = useCallback(async (idToken: string) => {
-    setAuthPending(true)
-    setAuthError(null)
-    try {
-      const response = await fetch(`${apiBaseUrl}/auth/firebase/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_token: idToken }),
-      })
-      if (!response.ok) {
-        const err = (await response.json().catch(() => ({}))) as { error?: string; details?: string }
-        throw new Error(err.error ?? err.details ?? 'Error verificando cuenta.')
-      }
-      const user = (await response.json()) as {
-        uid: string
-        email?: string
-        displayName?: string
-        firstname?: string
-        lastname?: string
-        photoURL?: string
-      }
-      const session: StravaAuthSession = {
-        provider: 'firebase',
-        access_token: user.uid,
-        refresh_token: 'firebase',
-        expires_at: Math.floor(Date.now() / 1000) + 365 * 24 * 3600,
-        athlete: {
-          id: user.uid,
-          firstname: user.firstname,
-          lastname: user.lastname,
-          email: user.email,
-          photoURL: user.photoURL,
-        },
-      }
-      setAuthSession(session)
-      writeStoredSession(session)
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Error inesperado al iniciar sesión.')
-    } finally {
-      setAuthPending(false)
+  const applyBackendAuthResult = useCallback(async (result: Response) => {
+    if (!result.ok) {
+      const err = (await result.json().catch(() => ({}))) as { error?: string; details?: string }
+      throw new Error(err.error ?? err.details ?? 'Error verificando cuenta.')
     }
+    const user = (await result.json()) as {
+      uid: string
+      email?: string
+      displayName?: string
+      firstname?: string
+      lastname?: string
+      photoURL?: string
+    }
+    const session: StravaAuthSession = {
+      provider: 'firebase',
+      access_token: user.uid,
+      refresh_token: 'firebase',
+      expires_at: Math.floor(Date.now() / 1000) + 365 * 24 * 3600,
+      athlete: {
+        id: user.uid,
+        firstname: user.firstname,
+        lastname: user.lastname,
+        email: user.email,
+        photoURL: user.photoURL,
+      },
+    }
+    setAuthSession(session)
+    writeStoredSession(session)
   }, [])
 
-  const handleGoogleLogin = useCallback(async () => {
-    if (authPending) return
-    try {
-      const result = await signInWithPopup(firebaseAuth, googleProvider)
-      const idToken = await result.user.getIdToken()
-      await handleFirebaseSession(idToken)
-    } catch (error: unknown) {
-      const code = (error as { code?: string }).code
-      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+  const googleOAuthLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        const res = await fetch(`${apiBaseUrl}/auth/google/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_token: tokenResponse.access_token }),
+        })
+        await applyBackendAuthResult(res)
+      } catch (error) {
         setAuthError(error instanceof Error ? error.message : 'Error al iniciar sesión con Google.')
+      } finally {
+        setAuthPending(false)
       }
+    },
+    onError: () => {
+      setAuthError('Error al iniciar sesión con Google.')
       setAuthPending(false)
-    }
-  }, [authPending, handleFirebaseSession])
+    },
+  })
+
+  const handleGoogleLogin = useCallback(() => {
+    if (authPending) return
+    setAuthPending(true)
+    setAuthError(null)
+    googleOAuthLogin()
+  }, [authPending, googleOAuthLogin])
 
   const handleEmailLogin = useCallback(async (
     email: string,
@@ -1118,30 +1117,22 @@ function App() {
     isRegister: boolean,
   ) => {
     if (authPending) return
+    setAuthPending(true)
+    setAuthError(null)
     try {
-      if (isRegister) {
-        const cred = await createUserWithEmailAndPassword(firebaseAuth, email, password)
-        if (name.trim()) {
-          await updateProfile(cred.user, { displayName: name.trim() })
-        }
-        const idToken = await cred.user.getIdToken()
-        await handleFirebaseSession(idToken)
-      } else {
-        const cred = await signInWithEmailAndPassword(firebaseAuth, email, password)
-        const idToken = await cred.user.getIdToken()
-        await handleFirebaseSession(idToken)
-      }
+      const res = await fetch(`${apiBaseUrl}/auth/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name, is_register: isRegister }),
+      })
+      await applyBackendAuthResult(res)
     } catch (error: unknown) {
-      const code = (error as { code?: string }).code
-      const msg =
-        code === 'auth/email-already-in-use' ? 'Este email ya está registrado. Inicia sesión.' :
-        code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential' ? 'Email o contraseña incorrectos.' :
-        code === 'auth/weak-password' ? 'La contraseña debe tener al menos 6 caracteres.' :
-        error instanceof Error ? error.message : 'Error al iniciar sesión.'
+      const msg = error instanceof Error ? error.message : 'Error al iniciar sesión.'
       setAuthError(msg)
+    } finally {
       setAuthPending(false)
     }
-  }, [authPending, handleFirebaseSession])
+  }, [authPending, applyBackendAuthResult])
 
   const handleLogout = () => {
     setAuthError(null)
