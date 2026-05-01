@@ -33,7 +33,7 @@ type ActivitiesRunsResponse = {
 }
 
 type Props = {
-  athleteId: number | null
+  athleteId: number | string | null
   refreshKey?: number
   inlineMode?: boolean
   active?: boolean

@@ -13,7 +13,7 @@ interface WikiFile {
 }
 
 interface WikiKnowledgeModalProps {
-  athleteId: number | null
+  athleteId: number | string | null
   apiBaseUrl: string
   open?: boolean
   onOpenChange?: (open: boolean) => void

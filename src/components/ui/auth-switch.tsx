@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 
 import { getLandingPlans, type LandingPlan } from '@/lib/landing-pricing'
@@ -18,7 +18,9 @@ const MONO     = `'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace`
 
 // ── Props ────────────────────────────────────────────────────────────────────
 interface AuthSwitchProps {
-  onLogin: () => void
+  onStravaLogin: () => void
+  onGoogleLogin: () => void
+  onEmailLogin: (email: string, name: string, password: string, isRegister: boolean) => void
   isPending?: boolean
   error?: string | null
   className?: string
@@ -401,6 +403,213 @@ function FeatPlan() {
             {d.updated && <div style={{ fontFamily: MONO, fontSize: 10, color: A_AMBER }}>actualizado</div>}
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+function GoogleIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+  )
+}
+
+// ── Login Modal ───────────────────────────────────────────────────────────────
+function LoginModal({
+  open,
+  onClose,
+  onStravaLogin,
+  onGoogleLogin,
+  onEmailLogin,
+  isPending,
+}: {
+  open: boolean
+  onClose: () => void
+  onStravaLogin: () => void
+  onGoogleLogin: () => void
+  onEmailLogin: (email: string, name: string, password: string, isRegister: boolean) => void
+  isPending?: boolean
+}) {
+  const [mode, setMode] = useState<'choose' | 'email'>('choose')
+  const [isRegister, setIsRegister] = useState(true)
+  const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
+  const [password, setPassword] = useState('')
+  const overlayRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) {
+      setMode('choose')
+      setEmail('')
+      setName('')
+      setPassword('')
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [open, onClose])
+
+  if (!open) return null
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    onEmailLogin(email, name, password, isRegister)
+  }
+
+  const inputStyle: CSSProperties = {
+    width: '100%', padding: '10px 12px', borderRadius: 8,
+    background: 'rgba(255,255,255,0.05)', border: `1px solid ${A_LINE2}`,
+    color: '#fff', fontSize: 14, fontFamily: FONT, outline: 'none',
+    boxSizing: 'border-box',
+  }
+
+  return (
+    <div
+      ref={overlayRef}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(5,10,24,0.85)', backdropFilter: 'blur(8px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 20,
+      }}
+    >
+      <div style={{
+        width: '100%', maxWidth: 420,
+        background: 'linear-gradient(180deg, #131b2e 0%, #0a1020 100%)',
+        border: `1px solid ${A_LINE2}`, borderRadius: 20,
+        padding: 32, position: 'relative',
+        boxShadow: '0 40px 80px -20px rgba(0,0,0,0.7)',
+      }}>
+        {/* Close */}
+        <button
+          onClick={onClose}
+          style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', color: A_DIM, cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+        >✕</button>
+
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+          <AthlyMark size={22} />
+          <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', fontFamily: FONT }}>Athly</div>
+        </div>
+
+        {mode === 'choose' ? (
+          <>
+            <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 600, color: '#fff', fontFamily: FONT, letterSpacing: '-0.02em' }}>
+              Empieza gratis
+            </h2>
+            <p style={{ margin: '0 0 24px', fontSize: 14, color: A_DIM, fontFamily: FONT, lineHeight: 1.5 }}>
+              Conecta Strava o crea una cuenta para empezar.
+            </p>
+
+            {/* Strava */}
+            <button
+              onClick={onStravaLogin}
+              disabled={isPending}
+              style={{ width: '100%', padding: '13px 16px', borderRadius: 10, background: A_ORANGE, color: '#fff', border: 'none', fontSize: 15, fontWeight: 600, fontFamily: FONT, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer', opacity: isPending ? 0.7 : 1, marginBottom: 10 }}
+            >
+              <StravaIcon size={16} /> Continuar con Strava
+            </button>
+
+            {/* Google */}
+            <button
+              onClick={onGoogleLogin}
+              disabled={isPending}
+              style={{ width: '100%', padding: '13px 16px', borderRadius: 10, background: '#fff', color: '#1a1a1a', border: 'none', fontSize: 15, fontWeight: 600, fontFamily: FONT, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer', opacity: isPending ? 0.7 : 1, marginBottom: 20 }}
+            >
+              <GoogleIcon size={18} /> Continuar con Google
+            </button>
+
+            {/* Divider */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+              <div style={{ flex: 1, height: 1, background: A_LINE }} />
+              <span style={{ fontFamily: MONO, fontSize: 11, color: A_DIM, letterSpacing: '0.08em' }}>O CON EMAIL</span>
+              <div style={{ flex: 1, height: 1, background: A_LINE }} />
+            </div>
+
+            {/* Email CTA */}
+            <button
+              onClick={() => setMode('email')}
+              disabled={isPending}
+              style={{ width: '100%', padding: '13px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', color: '#fff', border: `1px solid ${A_LINE2}`, fontSize: 15, fontWeight: 500, fontFamily: FONT, cursor: 'pointer', opacity: isPending ? 0.7 : 1 }}
+            >
+              Continuar con email
+            </button>
+
+            <p style={{ marginTop: 20, fontSize: 12, color: A_DIM2, fontFamily: FONT, textAlign: 'center', lineHeight: 1.5 }}>
+              Al continuar aceptas nuestros Términos y Política de privacidad.
+            </p>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => setMode('choose')}
+              style={{ background: 'none', border: 'none', color: A_DIM, cursor: 'pointer', fontSize: 13, fontFamily: FONT, padding: 0, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              ← Volver
+            </button>
+
+            <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 600, color: '#fff', fontFamily: FONT, letterSpacing: '-0.02em' }}>
+              {isRegister ? 'Crear cuenta' : 'Iniciar sesión'}
+            </h2>
+            <p style={{ margin: '0 0 24px', fontSize: 14, color: A_DIM, fontFamily: FONT }}>
+              {isRegister ? 'Empieza gratis, sin tarjeta.' : 'Bienvenido de nuevo.'}
+            </p>
+
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {isRegister && (
+                <input
+                  type="text"
+                  placeholder="Nombre"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  style={inputStyle}
+                  required
+                />
+              )}
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={inputStyle}
+                required
+              />
+              <input
+                type="password"
+                placeholder="Contraseña"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={inputStyle}
+                required
+                minLength={6}
+              />
+              <button
+                type="submit"
+                disabled={isPending}
+                style={{ padding: '13px 16px', borderRadius: 10, background: A_ORANGE, color: '#fff', border: 'none', fontSize: 15, fontWeight: 600, fontFamily: FONT, cursor: 'pointer', opacity: isPending ? 0.7 : 1, marginTop: 4 }}
+              >
+                {isPending ? 'Cargando…' : isRegister ? 'Crear cuenta' : 'Iniciar sesión'}
+              </button>
+            </form>
+
+            <button
+              onClick={() => setIsRegister(r => !r)}
+              style={{ background: 'none', border: 'none', color: A_DIM, cursor: 'pointer', fontSize: 13, fontFamily: FONT, marginTop: 16, width: '100%', textAlign: 'center' }}
+            >
+              {isRegister ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
@@ -1031,9 +1240,12 @@ function MobileFooter() {
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
-export default function AuthSwitch({ onLogin, isPending, error }: AuthSwitchProps) {
+export default function AuthSwitch({ onStravaLogin, onGoogleLogin, onEmailLogin, isPending, error }: AuthSwitchProps) {
   const [plans, setPlans] = useState<LandingPlan[]>([])
   const [pricingError, setPricingError] = useState(false)
+  const [loginOpen, setLoginOpen] = useState(false)
+
+  const openLogin = () => setLoginOpen(true)
 
   useEffect(() => {
     let cancelled = false
@@ -1060,9 +1272,18 @@ export default function AuthSwitch({ onLogin, isPending, error }: AuthSwitchProp
 
   return (
     <div style={baseStyle}>
+      <LoginModal
+        open={loginOpen}
+        onClose={() => setLoginOpen(false)}
+        onStravaLogin={() => { setLoginOpen(false); onStravaLogin() }}
+        onGoogleLogin={() => { setLoginOpen(false); onGoogleLogin() }}
+        onEmailLogin={(email, name, password, isRegister) => { onEmailLogin(email, name, password, isRegister) }}
+        isPending={isPending}
+      />
+
       {/* ── Desktop (> 760px) ── */}
       <div className="hidden md:block">
-        <Nav onLogin={onLogin} isPending={isPending} />
+        <Nav onLogin={openLogin} isPending={isPending} />
         {error && (
           <motion.div
             initial={{ opacity: 0, y: -6 }}
@@ -1072,29 +1293,29 @@ export default function AuthSwitch({ onLogin, isPending, error }: AuthSwitchProp
             {error}
           </motion.div>
         )}
-        <Hero onLogin={onLogin} isPending={isPending} />
+        <Hero onLogin={openLogin} isPending={isPending} />
         <LogosStrip />
         <Features />
         <HowItWorks />
         <Athletes />
-        <Pricing onLogin={onLogin} isPending={isPending} plans={plans} pricingError={pricingError} />
-        <FinalCTA onLogin={onLogin} isPending={isPending} />
+        <Pricing onLogin={openLogin} isPending={isPending} plans={plans} pricingError={pricingError} />
+        <FinalCTA onLogin={openLogin} isPending={isPending} />
         <Footer />
       </div>
 
       {/* ── Mobile (≤ 760px) ── */}
       <div className="block md:hidden">
-        <MobileNav onLogin={onLogin} isPending={isPending} />
+        <MobileNav onLogin={openLogin} isPending={isPending} />
         {error && (
           <div style={{ background: 'rgba(252,76,2,0.15)', borderBottom: `1px solid rgba(252,76,2,0.3)`, padding: '8px 22px', fontSize: 12, color: 'rgba(255,180,140,0.9)', fontFamily: FONT }}>
             {error}
           </div>
         )}
-        <MobileHero onLogin={onLogin} isPending={isPending} />
+        <MobileHero onLogin={openLogin} isPending={isPending} />
         <MobileFeatures />
         <MobileSteps />
         <MobileAthletes />
-        <MobilePricing onLogin={onLogin} isPending={isPending} plans={plans} pricingError={pricingError} />
+        <MobilePricing onLogin={openLogin} isPending={isPending} plans={plans} pricingError={pricingError} />
         <MobileFooter />
       </div>
     </div>

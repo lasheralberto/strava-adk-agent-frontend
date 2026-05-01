@@ -114,7 +114,7 @@ function inferConnectionsFromSubAgents(agents: AgentEntry[]): AgentConnection[] 
 
 type Props = {
   isDark: boolean
-  athleteId: number | null
+  athleteId: number | string | null
   selectedAgentId: string
   onAgentChange: (agentId: string) => void
   isFreePlan?: boolean

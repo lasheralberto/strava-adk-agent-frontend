@@ -8,11 +8,11 @@ const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/
 type UseChatSessionsReturn = {
   sessions: ChatSession[]
   loadingSessions: boolean
-  loadSessions: (athleteId: number) => Promise<void>
-  createSession: (athleteId: number, sessionId: string, title: string) => Promise<void>
-  loadSessionMessages: (athleteId: number, sessionId: string) => Promise<ChatSessionMessage[]>
+  loadSessions: (athleteId: number | string) => Promise<void>
+  createSession: (athleteId: number | string, sessionId: string, title: string) => Promise<void>
+  loadSessionMessages: (athleteId: number | string, sessionId: string) => Promise<ChatSessionMessage[]>
   addMessage: (params: {
-    athleteId: number
+    athleteId: number | string
     sessionId: string
     messageId: string
     role: 'user' | 'assistant'
@@ -21,7 +21,7 @@ type UseChatSessionsReturn = {
     structured?: StructuredChatContent
     agentTrace?: AgentTracePayload
   }) => Promise<void>
-  deleteSession: (athleteId: number, sessionId: string) => Promise<void>
+  deleteSession: (athleteId: number | string, sessionId: string) => Promise<void>
   clearSessions: () => void
 }
 
@@ -29,7 +29,7 @@ export function useChatSessions(): UseChatSessionsReturn {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [loadingSessions, setLoadingSessions] = useState(false)
 
-  const loadSessions = useCallback(async (athleteId: number) => {
+  const loadSessions = useCallback(async (athleteId: number | string) => {
     if (!apiBaseUrl) return
     setLoadingSessions(true)
     try {
@@ -45,7 +45,7 @@ export function useChatSessions(): UseChatSessionsReturn {
   }, [])
 
   const createSession = useCallback(async (
-    athleteId: number,
+    athleteId: number | string,
     sessionId: string,
     title: string,
   ) => {
@@ -70,7 +70,7 @@ export function useChatSessions(): UseChatSessionsReturn {
   }, [])
 
   const loadSessionMessages = useCallback(async (
-    athleteId: number,
+    athleteId: number | string,
     sessionId: string,
   ): Promise<ChatSessionMessage[]> => {
     if (!apiBaseUrl) return []
@@ -96,7 +96,7 @@ export function useChatSessions(): UseChatSessionsReturn {
     structured,
     agentTrace,
   }: {
-    athleteId: number
+    athleteId: number | string
     sessionId: string
     messageId: string
     role: 'user' | 'assistant'
@@ -133,7 +133,7 @@ export function useChatSessions(): UseChatSessionsReturn {
     }
   }, [])
 
-  const deleteSession = useCallback(async (athleteId: number, sessionId: string) => {
+  const deleteSession = useCallback(async (athleteId: number | string, sessionId: string) => {
     if (!apiBaseUrl) return
     try {
       await fetch(

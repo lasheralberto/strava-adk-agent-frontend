@@ -7,7 +7,7 @@ import { BarChart2, RefreshCw, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface DailyReportModalProps {
-  athleteId: number | null
+  athleteId: number | string | null
   apiBaseUrl: string
   internalToken: string
   open?: boolean
