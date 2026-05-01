@@ -542,7 +542,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   // ── Fetch ──────────────────────────────────────────────────────────
 
   const fetchDefinition = useCallback(async () => {
-    if (!apiBaseUrl || athleteId === null || athleteId <= 0) return
+    if (!apiBaseUrl || !athleteId || (typeof athleteId === 'number' && athleteId <= 0)) return
 
     setLoading(true)
     setError(null)
@@ -770,7 +770,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
 
   const validateTomlContent = useCallback(
     async (tomlContent: string): Promise<void> => {
-      if (!apiBaseUrl || athleteId === null || athleteId <= 0) {
+      if (!apiBaseUrl || !athleteId || (typeof athleteId === 'number' && athleteId <= 0)) {
         throw new Error('Invalid athlete to validate definition.')
       }
 
@@ -798,7 +798,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   )
 
   const handleSave = useCallback(async () => {
-    if (!apiBaseUrl || athleteId === null || athleteId <= 0) {
+    if (!apiBaseUrl || !athleteId || (typeof athleteId === 'number' && athleteId <= 0)) {
       setError('No active athlete.')
       return
     }
@@ -854,7 +854,7 @@ export function CustomizableAgentsPanel({ isDark, athleteId, selectedAgentId, on
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [definition])
 
-  const disabled = athleteId === null || athleteId <= 0 || !apiBaseUrl
+  const disabled = !athleteId || (typeof athleteId === 'number' && athleteId <= 0) || !apiBaseUrl
 
   useEffect(() => {
     if (!upgradePopoverOpen) return
