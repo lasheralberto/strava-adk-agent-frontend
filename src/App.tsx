@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   ListChecks,
+  LogOut,
   Menu,
   Moon,
   RefreshCw,
@@ -37,6 +38,8 @@ import {
   type StructuredChatContent,
 } from '@/types/plan-react'
 import { useLocale } from '@/hooks/use-locale'
+import { useAuth } from '@/hooks/use-auth'
+import AuthSwitch from '@/components/ui/auth-switch'
 import './styles/chat.css'
 
 // ── Animation constants ───────────────────────────────────────────────────────
@@ -447,6 +450,32 @@ function formatUsageDate(isoString?: string): string {
 
 function App() {
   const { t } = useLocale()
+  const { user, loading: authLoading, error: authError, signInWithGoogle, signInWithEmail, signOut } = useAuth()
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Spinner size={24} color="hsl(var(--muted-foreground))" />
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <AuthSwitch
+        onStravaLogin={() => {}}
+        onGoogleLogin={signInWithGoogle}
+        onEmailLogin={signInWithEmail}
+        isPending={authLoading}
+        error={authError}
+      />
+    )
+  }
+
+  return <AuthenticatedApp user={user} signOut={signOut} t={t} />
+}
+
+function AuthenticatedApp({ user, signOut, t }: { user: import('@/hooks/use-auth').AuthUser; signOut: () => void; t: ReturnType<typeof useLocale>['t'] }) {
   const [messages, setMessages] = useState(initialMessages)
   const [requestStatus, setRequestStatus] = useState<RequestStatus>('idle')
   const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<number | null>(null)
@@ -735,7 +764,7 @@ function App() {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          athlete_id: null,
+          athlete_id: user.uid,
           latest_limit: 10,
         }),
       })
@@ -928,7 +957,7 @@ function App() {
         body: JSON.stringify({
           message: requestMessage,
           stream: true,
-          athlete_id: null,
+          athlete_id: user.uid,
           agent_id: selectedAgentId,
           model: model || DEFAULT_MODEL,
           session_id: currentSessionId,
@@ -1185,13 +1214,13 @@ function App() {
               <>
                   <div className="flex items-center gap-2">
                   <WikiKnowledgeModal
-                    athleteId={null}
+                    athleteId={user.uid}
                     apiBaseUrl={apiBaseUrl}
                     open={wikiOpen}
                     onOpenChange={setWikiOpen}
                   />
                   <DailyReportModal
-                    athleteId={null}
+                    athleteId={user.uid}
                     apiBaseUrl={apiBaseUrl}
                     internalToken={internalPipelineToken}
                     open={dailyReportOpen}
@@ -1252,7 +1281,7 @@ function App() {
                             </>
                           ) : (
                             <ActivitiesRunsPanel
-                              athleteId={null}
+                              athleteId={user.uid}
                               refreshKey={activitiesRefreshKey}
                               inlineMode
                               active={hubView === 'activities'}
@@ -1322,7 +1351,7 @@ function App() {
                   </div>
                   <CustomizableAgentsPanel
                     isDark={isDark}
-                    athleteId={null}
+                    athleteId={user.uid}
                     selectedAgentId={selectedAgentId}
                     onAgentChange={setSelectedAgentId}
                     isFreePlan={isFreePlan}
@@ -1342,6 +1371,14 @@ function App() {
                     ) : (
                       <Moon className="h-4 w-4" aria-hidden="true" />
                     )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void signOut()}
+                    aria-label="Cerrar sesión"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.03] text-muted-foreground transition-colors duration-100 hover:bg-white/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <LogOut className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </>
             </div>
