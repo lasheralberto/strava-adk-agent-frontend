@@ -1,5 +1,4 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
-import { useGoogleLogin } from '@react-oauth/google'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -8,8 +7,6 @@ import {
   ChevronDown,
   ChevronRight,
   ListChecks,
-  LogIn,
-  LogOut,
   Menu,
   Moon,
   RefreshCw,
@@ -17,12 +14,10 @@ import {
   Upload,
   X,
 } from 'lucide-react'
-import { nanoid } from 'nanoid'
 import { ChatSidebar } from '@/components/ui/chat-sidebar'
 import { useChatSessions } from '@/hooks/use-chat-sessions'
 import type { ChatSessionMessage } from '@/types/chat-sessions'
 import { AnimatePresence, MotionConfig, motion, type Variants } from 'motion/react'
-import AuthSwitch from '@/components/ui/auth-switch'
 import RuixenPromptBox from '@/components/ui/ruixen-prompt-box'
 import { BouncingDots } from '@/components/ui/bouncing-dots'
 import { useToasts } from '@/components/ui/toast'
@@ -41,7 +36,6 @@ import {
   type PlanReactSection,
   type StructuredChatContent,
 } from '@/types/plan-react'
-import { parse as parseToml } from 'smol-toml'
 import { useLocale } from '@/hooks/use-locale'
 import './styles/chat.css'
 
@@ -128,40 +122,12 @@ type UsageSnapshot = {
 
 
 
-type StravaAthlete = {
-  id?: number | string
-  firstname?: string
-  lastname?: string
-  username?: string
-  email?: string
-  photoURL?: string
-}
-
-type StravaAuthSession = {
-  provider?: 'strava' | 'firebase'
-  access_token: string
-  refresh_token: string
-  expires_at: number
-  token_type?: string
-  athlete?: StravaAthlete
-}
 
 const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
 const internalPipelineToken = (import.meta.env.VITE_INTERNAL_PIPELINE_TOKEN ?? '').trim()
-const stravaScope = (import.meta.env.VITE_STRAVA_SCOPE ?? 'read,activity:read_all,profile:read_all').trim()
-const sessionStorageAuthKey = 'strava_oauth_session_v1'
 const DEFAULT_AGENT_ID = 'wiki_research_chat'
 const MODEL_OPTIONS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash']
 const DEFAULT_MODEL = MODEL_OPTIONS[0]
-const RESERVED_AGENT_IDS = new Set([
-  'intent_router',
-  'plan_react_planner',
-  'strava_ingestion_agent',
-  'query_agent',
-  'answer_agent',
-  'orchestrator',
-  DEFAULT_AGENT_ID,
-])
 const planReactPhaseEvents = new Set<PlanReactSection>(planReactSectionOrder)
 
 const planReactOrderIndex = planReactSectionOrder.reduce(
@@ -443,41 +409,6 @@ function parseSseEventBlock(block: string): { event: string; data: string } | nu
   }
 }
 
-function getDefaultRedirectUri(): string {
-  if (typeof window === 'undefined') {
-    return ''
-  }
-
-  const configured = (import.meta.env.VITE_STRAVA_REDIRECT_URI ?? '').trim()
-  if (configured) {
-    return configured
-  }
-
-  return `${window.location.origin}/`
-}
-
-
-function isTokenExpired(expiresAt: number): boolean {
-  const now = Math.floor(Date.now() / 1000)
-  return expiresAt <= now + 60
-}
-
-function isAuthorizationFailure(status: number, errorMessage: string): boolean {
-  if (status === 401 || status === 403) {
-    return true
-  }
-
-  const normalized = errorMessage.toLowerCase()
-  return (
-    normalized.includes('unauthorized') ||
-    normalized.includes('authorization') ||
-    normalized.includes('access token') ||
-    normalized.includes('invalid token') ||
-    normalized.includes('expired token') ||
-    normalized.includes('token expired') ||
-    normalized.includes('401')
-  )
-}
 
 async function readBackendErrorMessage(response: Response): Promise<string> {
   let backendError = 'No se pudo obtener respuesta del backend.'
@@ -495,39 +426,6 @@ async function readBackendErrorMessage(response: Response): Promise<string> {
   return backendError
 }
 
-function readStoredSession(): StravaAuthSession | null {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  const raw = sessionStorage.getItem(sessionStorageAuthKey)
-  if (!raw) {
-    return null
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as StravaAuthSession
-    if (!parsed.access_token || !parsed.refresh_token || !parsed.expires_at) {
-      return null
-    }
-    return parsed
-  } catch {
-    return null
-  }
-}
-
-function writeStoredSession(session: StravaAuthSession | null): void {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  if (!session) {
-    sessionStorage.removeItem(sessionStorageAuthKey)
-    return
-  }
-
-  sessionStorage.setItem(sessionStorageAuthKey, JSON.stringify(session))
-}
 
 function formatUsageDate(isoString?: string): string {
   if (!isoString) {
@@ -552,9 +450,6 @@ function App() {
   const [messages, setMessages] = useState(initialMessages)
   const [requestStatus, setRequestStatus] = useState<RequestStatus>('idle')
   const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<number | null>(null)
-  const [authSession, setAuthSession] = useState<StravaAuthSession | null>(() => readStoredSession())
-  const [authPending, setAuthPending] = useState(false)
-  const [authError, setAuthError] = useState<string | null>(null)
   const [pipelineStatus, setPipelineStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const [pipelineMessage, setPipelineMessage] = useState<string>('')
   const [lastSyncStatus, setLastSyncStatus] = useState<'success' | 'failed' | 'queued' | null>(null)
@@ -562,13 +457,11 @@ function App() {
   const [selectedAgentId, setSelectedAgentId] = useState(DEFAULT_AGENT_ID)
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
   const [usage, setUsage] = useState<UsageSnapshot | null>(null)
-  const [usageLoading, setUsageLoading] = useState(false)
+  const usageLoading = false
   const [upgradePending, setUpgradePending] = useState(false)
   const [cancelPending, setCancelPending] = useState(false)
   const [cancelConfirm, setCancelConfirm] = useState(false)
   const [planBadgeOpen, setPlanBadgeOpen] = useState(false)
-  const authSessionRef = useRef<StravaAuthSession | null>(authSession)
-  const refreshInFlightRef = useRef<Promise<StravaAuthSession | null> | null>(null)
   const messageStreamRef = useRef<HTMLDivElement | null>(null)
   const finalAssistantContentRef = useRef<{ content: string; tag: string; structured?: import('@/types/plan-react').StructuredChatContent; a2ui?: A2uiPayload; agentTrace?: AgentTracePayload } | null>(null)
   const planBadgeRef = useRef<HTMLDivElement | null>(null)
@@ -581,7 +474,6 @@ function App() {
   })
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
-  const initialSyncDoneRef = useRef(false)
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [hubOpen, setHubOpen] = useState(false)
@@ -606,12 +498,7 @@ function App() {
     loadSessionMessages,
     addMessage,
     deleteSession,
-    clearSessions,
   } = useChatSessions()
-
-  useEffect(() => {
-    authSessionRef.current = authSession
-  }, [authSession])
 
   useEffect(() => {
     if (!userMenuOpen) {
@@ -690,59 +577,6 @@ function App() {
     }
   }, [connectorsOpen])
 
-  const clearAuthSession = useCallback((message?: string) => {
-    authSessionRef.current = null
-    setAuthSession(null)
-    writeStoredSession(null)
-    if (message) {
-      setAuthError(message)
-    }
-  }, [])
-
-  const refreshStravaSession = useCallback(
-    async (currentSession: StravaAuthSession): Promise<StravaAuthSession> => {
-      const response = await fetch(`${apiBaseUrl}/auth/strava/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          refresh_token: currentSession.refresh_token,
-          strava_athlete_id: currentSession.athlete?.id,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorPayload = (await response.json().catch(() => ({}))) as {
-          error?: string
-          details?: string
-        }
-        throw new Error(
-          errorPayload.error ??
-            errorPayload.details ??
-            'Tu sesion de Strava expiro. Inicia sesion de nuevo.',
-        )
-      }
-
-      const refreshed = (await response.json()) as StravaAuthSession
-      if (!refreshed.access_token || !refreshed.refresh_token || !refreshed.expires_at) {
-        throw new Error('Respuesta de refresh invalida desde backend.')
-      }
-
-      // Strava does not return athlete in refresh responses, so preserve it from the current session.
-      const mergedSession: StravaAuthSession = {
-        ...refreshed,
-        athlete: refreshed.athlete?.id ? refreshed.athlete : currentSession.athlete,
-      }
-
-      authSessionRef.current = mergedSession
-      setAuthSession(mergedSession)
-      writeStoredSession(mergedSession)
-      return mergedSession
-    },
-    [],
-  )
-
   useEffect(() => {
     const root = document.documentElement
     if (isDark) {
@@ -753,142 +587,6 @@ function App() {
       localStorage.setItem('theme', 'light')
     }
   }, [isDark])
-
-  useEffect(() => {
-    const runOAuthCallbackExchange = async () => {
-      if (!apiBaseUrl || typeof window === 'undefined') {
-        return
-      }
-
-      const url = new URL(window.location.href)
-      const code = url.searchParams.get('code')?.trim()
-      const state = url.searchParams.get('state')?.trim()
-      const callbackScope = url.searchParams.get('scope')?.trim()
-      const oauthError = url.searchParams.get('error')?.trim()
-
-      if (!code && !state && !oauthError) {
-        return
-      }
-
-      if (oauthError) {
-        setAuthError(`Strava devolvio error en autorizacion: ${oauthError}`)
-        url.search = ''
-        window.history.replaceState({}, document.title, url.toString())
-        return
-      }
-
-      if (!code || !state) {
-        setAuthError('Callback incompleto de Strava: faltan code o state.')
-        url.search = ''
-        window.history.replaceState({}, document.title, url.toString())
-        return
-      }
-
-      setAuthPending(true)
-      setAuthError(null)
-
-      try {
-        const redirectUri = getDefaultRedirectUri()
-        const response = await fetch(`${apiBaseUrl}/auth/strava/exchange`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            code,
-            state,
-            scope: callbackScope,
-            redirect_uri: redirectUri,
-          }),
-        })
-
-        if (!response.ok) {
-          const errorPayload = (await response.json().catch(() => ({}))) as {
-            error?: string
-            details?: string
-          }
-          throw new Error(errorPayload.error ?? errorPayload.details ?? 'Fallo el intercambio de token con Strava.')
-        }
-
-        const tokenPayload = (await response.json()) as StravaAuthSession
-        if (!tokenPayload.access_token || !tokenPayload.refresh_token || !tokenPayload.expires_at) {
-          throw new Error('Respuesta de token invalida desde backend.')
-        }
-
-        setAuthSession(tokenPayload)
-        writeStoredSession(tokenPayload)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Error inesperado completando OAuth.'
-        setAuthError(message)
-      } finally {
-        setAuthPending(false)
-        url.search = ''
-        window.history.replaceState({}, document.title, url.toString())
-      }
-    }
-
-    runOAuthCallbackExchange()
-  }, [])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const url = new URL(window.location.href)
-    const checkoutStatus = url.searchParams.get('checkout_status')
-    if (!checkoutStatus) return
-
-    url.searchParams.delete('checkout_status')
-    url.searchParams.delete('session_id')
-    window.history.replaceState({}, document.title, url.toString())
-
-    if (checkoutStatus === 'success') {
-      toasts.success('¡Suscripción activada! Bienvenido a Athly Pro.')
-      const athleteId = authSessionRef.current?.athlete?.id
-      if (athleteId) {
-        setTimeout(() => void fetchUsage(athleteId), 2500)
-      }
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const ensureValidStravaSession = useCallback(async (): Promise<StravaAuthSession | null> => {
-    const currentSession = authSessionRef.current
-    if (!currentSession) {
-      return null
-    }
-
-    // Firebase sessions use a far-future expires_at; skip Strava token refresh for them
-    if (currentSession.provider === 'firebase') {
-      return currentSession
-    }
-
-    if (!isTokenExpired(currentSession.expires_at)) {
-      return currentSession
-    }
-
-    if (refreshInFlightRef.current) {
-      return refreshInFlightRef.current
-    }
-
-    const refreshPromise = (async () => {
-      try {
-        return await refreshStravaSession(currentSession)
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'Tu sesion de Strava expiro. Inicia sesion de nuevo.'
-        clearAuthSession(message)
-        throw new Error(message)
-      }
-    })()
-
-    refreshInFlightRef.current = refreshPromise
-
-    return refreshPromise.finally(() => {
-      if (refreshInFlightRef.current === refreshPromise) {
-        refreshInFlightRef.current = null
-      }
-    })
-  }, [clearAuthSession, refreshStravaSession])
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -903,248 +601,8 @@ function App() {
     container.scrollTop = container.scrollHeight
   }, [messages, requestStatus])
 
-  const fetchIndexingStatus = useCallback(async () => {
-    const athleteId = authSessionRef.current?.athlete?.id
-    if (!apiBaseUrl || !athleteId) return
-    try {
-      const res = await fetch(`${apiBaseUrl}/pipeline/indexing-status?athlete_id=${athleteId}`)
-      if (!res.ok) return
-      const data = (await res.json()) as { last_sync_status?: string }
-      const status = data.last_sync_status
-      if (status === 'success' || status === 'failed' || status === 'queued') {
-        setLastSyncStatus(status)
-      } else {
-        setLastSyncStatus(null)
-      }
-    } catch {
-      // silently ignore
-    }
-  }, [apiBaseUrl])
-
-  const fetchUsage = useCallback(
-    async (athleteId: number | string) => {
-      if (!apiBaseUrl || !athleteId) {
-        setUsageLoading(false)
-        return
-      }
-
-      setUsageLoading(true)
-
-      try {
-        const response = await fetch(`${apiBaseUrl}/usage/${athleteId}`)
-        if (!response.ok) return
-        const payload = (await response.json()) as UsageSnapshot
-        setUsage(payload)
-      } catch {
-        // silently ignore usage read failures
-      } finally {
-        setUsageLoading(false)
-      }
-    },
-    [apiBaseUrl],
-  )
-
-  useEffect(() => {
-    if (authSession?.athlete?.id) {
-      fetchIndexingStatus()
-    } else {
-      setLastSyncStatus(null)
-    }
-  }, [authSession, fetchIndexingStatus])
-
-  useEffect(() => {
-    if (authSession?.athlete?.id) {
-      fetchUsage(authSession.athlete.id)
-    } else {
-      setUsage(null)
-      setPlanBadgeOpen(false)
-      setUsageLoading(false)
-    }
-  }, [authSession, fetchUsage])
-
-  const fetchSavedAgentId = useCallback(async () => {
-    const athleteId = authSessionRef.current?.athlete?.id
-    if (!apiBaseUrl || !athleteId) return
-    try {
-      const headers: Record<string, string> = {}
-      if (internalPipelineToken) headers['X-Internal-Token'] = internalPipelineToken
-      const res = await fetch(`${apiBaseUrl}/agent-definition/${athleteId}`, { headers })
-      if (!res.ok) return
-      const payload = (await res.json()) as { toml_content?: string; is_default?: boolean }
-      if (payload.is_default || !payload.toml_content) return
-
-      const root = parseToml(payload.toml_content) as Record<string, unknown>
-      const agents = Array.isArray(root.agents) ? root.agents : []
-      const firstCustom = agents.find((a): a is Record<string, unknown> =>
-        a !== null && typeof a === 'object' && !Array.isArray(a) &&
-        typeof (a as Record<string, unknown>).id === 'string' &&
-        !RESERVED_AGENT_IDS.has(((a as Record<string, unknown>).id as string).trim()),
-      )
-      if (firstCustom && typeof firstCustom.id === 'string' && firstCustom.id.trim()) {
-        setSelectedAgentId(firstCustom.id.trim())
-      }
-    } catch {
-      // silently ignore — fall back to default agent
-    }
-  }, [])
-
-  useEffect(() => {
-    if (authSession?.athlete?.id) {
-      fetchSavedAgentId()
-    } else {
-      setSelectedAgentId(DEFAULT_AGENT_ID)
-    }
-  }, [authSession, fetchSavedAgentId])
-
-  useEffect(() => {
-    if (authSession?.athlete?.id) {
-      loadSessions(authSession.athlete.id)
-    } else {
-      clearSessions()
-      setCurrentSessionId(null)
-    }
-  }, [authSession, loadSessions, clearSessions])
 
   const handleRunDailyPipelineRef = useRef<(() => void) | null>(null)
-  useEffect(() => {
-    if (authSession?.athlete?.id && !initialSyncDoneRef.current) {
-      initialSyncDoneRef.current = true
-      // small delay so session state settles before sync starts
-      const t = setTimeout(() => handleRunDailyPipelineRef.current?.(), 500)
-      return () => clearTimeout(t)
-    }
-    if (!authSession) {
-      initialSyncDoneRef.current = false
-    }
-  }, [authSession])
-
-  const handleStartStravaLogin = async () => {
-    if (!apiBaseUrl || authPending) {
-      return
-    }
-
-    setAuthPending(true)
-    setAuthError(null)
-
-    try {
-      const redirectUri = getDefaultRedirectUri()
-      const query = new URLSearchParams({
-        redirect_uri: redirectUri,
-        scope: stravaScope,
-      })
-      const response = await fetch(`${apiBaseUrl}/auth/strava/start?${query.toString()}`)
-
-      if (!response.ok) {
-        const errorPayload = (await response.json().catch(() => ({}))) as { error?: string }
-        throw new Error(errorPayload.error ?? 'No se pudo iniciar OAuth de Strava.')
-      }
-
-      const payload = (await response.json()) as { auth_url?: string }
-      if (!payload.auth_url) {
-        throw new Error('Backend no devolvio auth_url.')
-      }
-
-      window.location.href = payload.auth_url
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Error inesperado iniciando login con Strava.'
-      setAuthError(message)
-      setAuthPending(false)
-    }
-  }
-
-  const applyBackendAuthResult = useCallback(async (result: Response) => {
-    if (!result.ok) {
-      const err = (await result.json().catch(() => ({}))) as { error?: string; details?: string }
-      throw new Error(err.error ?? err.details ?? 'Error verificando cuenta.')
-    }
-    const user = (await result.json()) as {
-      uid: string
-      email?: string
-      displayName?: string
-      firstname?: string
-      lastname?: string
-      photoURL?: string
-    }
-    const session: StravaAuthSession = {
-      provider: 'firebase',
-      access_token: user.uid,
-      refresh_token: 'firebase',
-      expires_at: Math.floor(Date.now() / 1000) + 365 * 24 * 3600,
-      athlete: {
-        id: user.uid,
-        firstname: user.firstname,
-        lastname: user.lastname,
-        email: user.email,
-        photoURL: user.photoURL,
-      },
-    }
-    setAuthSession(session)
-    writeStoredSession(session)
-  }, [])
-
-  const googleOAuthLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      try {
-        const res = await fetch(`${apiBaseUrl}/auth/google/verify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ access_token: tokenResponse.access_token }),
-        })
-        await applyBackendAuthResult(res)
-      } catch (error) {
-        setAuthError(error instanceof Error ? error.message : 'Error al iniciar sesión con Google.')
-      } finally {
-        setAuthPending(false)
-      }
-    },
-    onError: () => {
-      setAuthError('Error al iniciar sesión con Google.')
-      setAuthPending(false)
-    },
-  })
-
-  const handleGoogleLogin = useCallback(() => {
-    if (authPending) return
-    setAuthPending(true)
-    setAuthError(null)
-    googleOAuthLogin()
-  }, [authPending, googleOAuthLogin])
-
-  const handleEmailLogin = useCallback(async (
-    email: string,
-    name: string,
-    password: string,
-    isRegister: boolean,
-  ) => {
-    if (authPending) return
-    setAuthPending(true)
-    setAuthError(null)
-    try {
-      const res = await fetch(`${apiBaseUrl}/auth/email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name, is_register: isRegister }),
-      })
-      await applyBackendAuthResult(res)
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'Error al iniciar sesión.'
-      setAuthError(msg)
-    } finally {
-      setAuthPending(false)
-    }
-  }, [authPending, applyBackendAuthResult])
-
-  const handleLogout = () => {
-    setAuthError(null)
-    clearAuthSession()
-    clearSessions()
-    setCurrentSessionId(null)
-    setMessages([])
-    setUsage(null)
-    setPlanBadgeOpen(false)
-    setUsageLoading(false)
-    setUpgradePending(false)
-  }
 
   const handleFitUpload = useCallback(async (files: FileList | File[]) => {
     const fileArr = Array.from(files).filter(f => f.name.endsWith('.fit'))
@@ -1153,16 +611,12 @@ function App() {
       setFitUploadMessage('Selecciona archivos .fit válidos.')
       return
     }
-    const athleteId = authSessionRef.current?.athlete?.id
-    if (!athleteId) return
-
     setFitUploading(true)
     setFitUploadStatus('idle')
     setFitUploadMessage('')
     setFitUploadOpen(false)
 
     const formData = new FormData()
-    formData.append('athlete_id', String(athleteId))
     fileArr.forEach(f => formData.append('files', f))
 
     const headers: Record<string, string> = {}
@@ -1191,12 +645,6 @@ function App() {
   }, [])
 
   const handleUpgradePlan = useCallback(async () => {
-    const athleteId = authSessionRef.current?.athlete?.id
-    if (!athleteId) {
-      toasts.warning('No hay una sesión activa para actualizar el plan.')
-      return
-    }
-
     const currentPlanId = (usage?.plan?.id ?? usage?.planId ?? '').trim().toLowerCase()
     if (currentPlanId !== 'free') {
       return
@@ -1210,7 +658,7 @@ function App() {
     setUpgradePending(true)
 
     try {
-      const body: Record<string, unknown> = { athlete_id: athleteId }
+      const body: Record<string, unknown> = {}
       const planPriceId = usage?.plan?.price_id
       if (typeof planPriceId === 'string' && planPriceId) {
         body.price_id = planPriceId
@@ -1237,12 +685,6 @@ function App() {
   }, [apiBaseUrl, toasts, usage?.plan?.id, usage?.planId])
 
   const handleCancelSubscription = useCallback(async () => {
-    const athleteId = authSessionRef.current?.athlete?.id
-    if (!athleteId) {
-      toasts.warning('No hay una sesión activa.')
-      return
-    }
-
     const currentPlanId = (usage?.plan?.id ?? usage?.planId ?? '').trim().toLowerCase()
     if (currentPlanId === 'free') {
       return
@@ -1260,7 +702,7 @@ function App() {
       const response = await fetch(`${apiBaseUrl}/billing/cancel-subscription`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ athlete_id: athleteId }),
+        body: JSON.stringify({}),
       })
 
       if (!response.ok) {
@@ -1269,34 +711,16 @@ function App() {
       }
 
       toasts.message({ text: 'Suscripción cancelada. Has vuelto al plan gratuito.' })
-      await fetchUsage(athleteId)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo cancelar la suscripción.'
       toasts.error(message)
     } finally {
       setCancelPending(false)
     }
-  }, [apiBaseUrl, toasts, usage?.plan?.id, usage?.planId, fetchUsage])
+  }, [apiBaseUrl, toasts, usage?.plan?.id, usage?.planId])
 
   const handleRunDailyPipeline = async () => {
     if (pipelineStatus === 'running' || lastSyncStatus === 'queued') return
-
-    if (!authSession) {
-      handleStartStravaLogin()
-      return
-    }
-
-    let session: StravaAuthSession | null = null
-    try {
-      session = await ensureValidStravaSession()
-    } catch {
-      // ensureValidStravaSession already clears the session on error
-    }
-
-    if (!session?.athlete?.id) {
-      handleStartStravaLogin()
-      return
-    }
 
     setPipelineStatus('running')
     setLastSyncStatus('queued')
@@ -1311,16 +735,11 @@ function App() {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          athlete_id: session.athlete.id,
+          athlete_id: null,
           latest_limit: 10,
         }),
       })
       if (!response.ok) {
-        if (response.status === 401) {
-          clearAuthSession()
-          handleStartStravaLogin()
-          return
-        }
         const err = await readBackendErrorMessage(response)
         throw new Error(err)
       }
@@ -1403,7 +822,6 @@ function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error ejecutando pipeline.'
       toasts.error(message)
-      setAuthError(message)
       setLastSyncStatus('failed')
       setPipelineStatus('error')
       setTimeout(() => { setPipelineStatus('idle'); setPipelineMessage('') }, 3000)
@@ -1420,10 +838,7 @@ function App() {
   }, [])
 
   const handleSelectSession = useCallback(async (sessionId: string) => {
-    const athleteId = authSessionRef.current?.athlete?.id
-    if (!athleteId) return
-
-    const loaded: ChatSessionMessage[] = await loadSessionMessages(athleteId, sessionId)
+    const loaded: ChatSessionMessage[] = await loadSessionMessages(null, sessionId)
     const restored: ChatMessage[] = loaded.map((m) => ({
       id: Number(m.messageId),
       role: m.role,
@@ -1440,10 +855,7 @@ function App() {
   }, [loadSessionMessages])
 
   const handleDeleteSession = useCallback(async (sessionId: string) => {
-    const athleteId = authSessionRef.current?.athlete?.id
-    if (!athleteId) return
-
-    await deleteSession(athleteId, sessionId)
+    await deleteSession(null, sessionId)
     if (currentSessionId === sessionId) {
       setMessages([])
       setCurrentSessionId(null)
@@ -1483,18 +895,6 @@ function App() {
       setMessages((currentMessages) => [...currentMessages, userMessage])
     })
 
-    if (!authSession) {
-      toasts.warning('Inicia sesion con Strava para comenzar.')
-      setMessages((currentMessages) => [
-        ...currentMessages,
-        buildAssistantMessage(
-          'Inicia sesión con Strava para comenzar.',
-          'Autenticación requerida',
-        ),
-      ])
-      return
-    }
-
     if (!apiBaseUrl) {
       toasts.error('El servicio no esta disponible en este momento.')
       setMessages((currentMessages) => [
@@ -1507,40 +907,12 @@ function App() {
       return
     }
 
-    // Create session on first message
-    const athleteId = authSession?.athlete?.id
-    let activeSessionId = currentSessionId
-    if (athleteId && !activeSessionId) {
-      const newSessionId = nanoid()
-      const sessionTitle = composedMessage.slice(0, 20)
-      activeSessionId = newSessionId
-      setCurrentSessionId(newSessionId)
-      await createSession(athleteId, newSessionId, sessionTitle)
-    }
-
-    // Persist user message
-    if (athleteId && activeSessionId) {
-      await addMessage({
-        athleteId,
-        sessionId: activeSessionId,
-        messageId: String(userMessage.id),
-        role: 'user',
-        content: userMessage.content,
-        tag: userMessage.tag,
-      })
-    }
-
     const assistantMessageId = Date.now() + 1
     setRequestStatus('requesting')
     setActiveAssistantMessageId(assistantMessageId)
     let chatErrorToastShown = false
 
     try {
-      let session = await ensureValidStravaSession()
-      if (!session) {
-        throw new Error('No hay sesion Strava activa. Inicia sesion para continuar.')
-      }
-
       let streamedResponse = ''
       let accumulatedBlocks: PlanReactBlock[] = []
       let streamedA2ui: A2uiPayload | undefined
@@ -1550,24 +922,18 @@ function App() {
         updateAssistantMessage(currentMessages, assistantMessageId, '', transform ?? 'Streaming'),
       )
 
-      const sendChatRequest = (activeSession: StravaAuthSession): Promise<Response> => {
-        return fetch(`${apiBaseUrl}/chat/wiki`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: requestMessage,
-            stream: true,
-            athlete_id: activeSession.athlete?.id,
-            agent_id: selectedAgentId,
-            model: model || DEFAULT_MODEL,
-            session_id: activeSessionId,
-          }),
-        })
-      }
-
-      let response = await sendChatRequest(session)
+      let response = await fetch(`${apiBaseUrl}/chat/wiki`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: requestMessage,
+          stream: true,
+          athlete_id: null,
+          agent_id: selectedAgentId,
+          model: model || DEFAULT_MODEL,
+          session_id: currentSessionId,
+        }),
+      })
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({})) as {
@@ -1597,57 +963,7 @@ function App() {
           )
         }
 
-        let backendError = errorPayload.error ?? errorPayload.details ?? errorPayload.message ?? 'No se pudo obtener respuesta del backend.'
-        if (isAuthorizationFailure(response.status, backendError)) {
-          try {
-            session = await refreshStravaSession(session)
-            setAuthError(null)
-          } catch (error) {
-            const message =
-              error instanceof Error
-                ? error.message
-                : 'Tu sesion de Strava expiro. Inicia sesion de nuevo.'
-            clearAuthSession(message)
-            throw new Error(message)
-          }
-
-          response = await sendChatRequest(session)
-          if (!response.ok) {
-            const retriedErrorPayload = (await response.json().catch(() => ({}))) as {
-              error?: string
-              details?: string
-              message?: string
-              usage?: UsageSnapshot
-            }
-
-            if (response.status === 429 && retriedErrorPayload.error === 'usage_limit_exceeded') {
-              if (retriedErrorPayload.usage) {
-                setUsage(retriedErrorPayload.usage)
-              }
-              const usagePayload = retriedErrorPayload.usage
-              const limitMessage = usagePayload
-                ? `Has alcanzado tu limite diario (${usagePayload.usageMessagesUsed}/${usagePayload.usageMessagesDailyMax}).`
-                : 'Has alcanzado tu limite diario de mensajes.'
-              toasts.warning(limitMessage)
-              chatErrorToastShown = true
-              throw new Error(limitMessage)
-            }
-
-            backendError =
-              retriedErrorPayload.error ??
-              retriedErrorPayload.details ??
-              retriedErrorPayload.message ??
-              'No se pudo obtener respuesta del backend.'
-            if (isAuthorizationFailure(response.status, backendError)) {
-              const message = 'La sesion de Strava no pudo renovarse. Autoriza de nuevo.'
-              clearAuthSession(message)
-              throw new Error(message)
-            }
-            throw new Error(backendError)
-          }
-        } else {
-          throw new Error(backendError)
-        }
+        throw new Error(errorPayload.error ?? errorPayload.details ?? errorPayload.message ?? 'No se pudo obtener respuesta del backend.')
       }
 
       const contentType = response.headers.get('content-type') ?? ''
@@ -1831,44 +1147,13 @@ function App() {
     } finally {
       setRequestStatus('idle')
       setActiveAssistantMessageId(null)
-      // Persist final assistant message to Firestore
-      if (athleteId && activeSessionId && finalAssistantContentRef.current) {
-        const { content, tag, structured, agentTrace } = finalAssistantContentRef.current
-        void addMessage({
-          athleteId,
-          sessionId: activeSessionId,
-          messageId: String(assistantMessageId),
-          role: 'assistant',
-          content,
-          tag,
-          structured,
-          agentTrace,
-        })
-        finalAssistantContentRef.current = null
-      }
-      if (athleteId) {
-        void fetchUsage(athleteId)
-      }
+      finalAssistantContentRef.current = null
     }
   }
 
   const hasUsageRemaining = usage ? usage.usageMessagesRemaining > 0 : true
   const currentPlanId = (usage?.plan?.id ?? usage?.planId ?? '').trim().toLowerCase()
   const isFreePlan = !usage || currentPlanId === 'free' || currentPlanId === ''
-
-  if (!authSession) {
-    return (
-      <MotionConfig reducedMotion="user">
-        <AuthSwitch
-          onStravaLogin={handleStartStravaLogin}
-          onGoogleLogin={handleGoogleLogin}
-          onEmailLogin={handleEmailLogin}
-          isPending={authPending}
-          error={authError}
-        />
-      </MotionConfig>
-    )
-  }
 
   return (
     <MotionConfig reducedMotion="user">
@@ -1897,17 +1182,16 @@ function App() {
 
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {authSession ? (
-                <>
+              <>
                   <div className="flex items-center gap-2">
                   <WikiKnowledgeModal
-                    athleteId={authSession.athlete?.id ?? null}
+                    athleteId={null}
                     apiBaseUrl={apiBaseUrl}
                     open={wikiOpen}
                     onOpenChange={setWikiOpen}
                   />
                   <DailyReportModal
-                    athleteId={authSession.athlete?.id ?? null}
+                    athleteId={null}
                     apiBaseUrl={apiBaseUrl}
                     internalToken={internalPipelineToken}
                     open={dailyReportOpen}
@@ -1968,7 +1252,7 @@ function App() {
                             </>
                           ) : (
                             <ActivitiesRunsPanel
-                              athleteId={authSession.athlete?.id ?? null}
+                              athleteId={null}
                               refreshKey={activitiesRefreshKey}
                               inlineMode
                               active={hubView === 'activities'}
@@ -2004,7 +1288,7 @@ function App() {
                           </div>
                           <div className="h-px bg-border" />
                           <div className="flex items-center gap-1 px-2 py-1.5">
-                            {authSession && (() => {
+                            {(() => {
                               const _syncing = pipelineStatus === 'running' || lastSyncStatus === 'queued'
                               const _color = _syncing ? 'text-warning' : lastSyncStatus === 'failed' ? 'text-destructive' : lastSyncStatus === 'success' ? 'text-success' : 'text-muted-foreground'
                               return (
@@ -2019,39 +1303,6 @@ function App() {
                                 </button>
                               )
                             })()}
-                            <button
-                              type="button"
-                              onClick={() => { setConnectorsOpen(false); void handleStartStravaLogin() }}
-                              disabled={authPending}
-                              className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 transition-colors hover:bg-muted disabled:opacity-50"
-                            >
-                              <div className="relative shrink-0">
-                                <LogIn className="h-4 w-4 text-[#FC4C02]" aria-hidden="true" />
-                                {authSession && (
-                                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-green-500 ring-1 ring-popover" />
-                                )}
-                              </div>
-                              <div className="flex min-w-0 flex-col items-start">
-                                <span className="text-[11px] font-semibold leading-tight text-[#FC4C02]">Strava</span>
-                                <span className="truncate text-[12px] leading-tight text-foreground">
-                                  {authSession
-                                    ? (authSession.athlete?.firstname
-                                        ? `${authSession.athlete.firstname}${authSession.athlete.lastname ? ' ' + authSession.athlete.lastname : ''}`
-                                        : 'Conectado')
-                                    : 'No conectado'}
-                                </span>
-                              </div>
-                            </button>
-                            {authSession && (
-                              <button
-                                type="button"
-                                onClick={() => { setConnectorsOpen(false); handleLogout() }}
-                                title="Desconectar Strava"
-                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                              >
-                                <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
-                              </button>
-                            )}
                           </div>
                           <div className="h-px bg-border" />
                           <button
@@ -2071,7 +1322,7 @@ function App() {
                   </div>
                   <CustomizableAgentsPanel
                     isDark={isDark}
-                    athleteId={authSession.athlete?.id ?? null}
+                    athleteId={null}
                     selectedAgentId={selectedAgentId}
                     onAgentChange={setSelectedAgentId}
                     isFreePlan={isFreePlan}
@@ -2079,169 +1330,22 @@ function App() {
                     upgradePending={upgradePending}
                   />
                   </div>
-                  <div className="relative" ref={userMenuRef}>
-                    {(() => {
-                      const syncing = pipelineStatus === 'running' || lastSyncStatus === 'queued'
-                      const syncIconColor = syncing
-                        ? 'text-warning'
-                        : lastSyncStatus === 'failed'
-                        ? 'text-destructive'
-                        : lastSyncStatus === 'success'
-                        ? 'text-success'
-                        : 'text-muted-foreground'
-                      return (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => setUserMenuOpen((o) => !o)}
-                            aria-label={t.header.userMenu}
-                            aria-expanded={userMenuOpen}
-                            className="inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-white/10 bg-white/[0.03] px-3 text-[13px] font-medium text-foreground transition-colors duration-100 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          >
-                            <RefreshCw
-                              className={`h-3.5 w-3.5 shrink-0 ${syncIconColor} ${syncing ? 'animate-spin' : ''}`}
-                              aria-hidden="true"
-                            />
-                            <span
-                              className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                              style={{ background: 'linear-gradient(135deg, #3B82F6 0%, #6366f1 100%)' }}
-                            >
-                              {(authSession.athlete?.firstname?.[0] ?? '').toUpperCase()}{(authSession.athlete?.lastname?.[0] ?? '').toUpperCase()}
-                            </span>
-                            <span className="hidden max-w-[120px] truncate sm:inline">
-                              {authSession.athlete?.firstname} {authSession.athlete?.lastname}
-                            </span>
-                            <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden="true" />
-                          </button>
-                          {userMenuOpen && (
-                            <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-xl border border-white/[0.08] bg-popover shadow-xl" style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.36), 0 0 0 1px rgba(255,255,255,0.06)' }}>
-                              <div className="px-3 py-2">
-                                <div className="flex items-center justify-between gap-2 text-[12px]">
-                                  <span className="text-muted-foreground">{t.header.currentPlan}</span>
-                                  {usageLoading ? (
-                                    <span
-                                      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/70 bg-background"
-                                        aria-label={t.plan.loadingPlan}
-                                    >
-                                      <Spinner size={9} color="hsl(var(--muted-foreground) / 0.85)" />
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex max-w-[120px] truncate rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-foreground">
-                                      {usage?.plan?.name ?? usage?.planId ?? '—'}
-                                    </span>
-                                  )}
-                                </div>
-                                {isFreePlan ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleUpgradePlan()}
-                                    disabled={upgradePending || usageLoading}
-                                    className="mt-2 inline-flex h-7 w-full items-center justify-center rounded-md border border-primary/40 bg-primary/10 text-[12px] font-medium text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    {upgradePending ? t.header.upgrading : t.header.upgrade}
-                                  </button>
-                                ) : (
-                                  cancelConfirm ? (
-                                    <div className="mt-2 flex gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => void handleCancelSubscription()}
-                                        disabled={cancelPending}
-                                        className="inline-flex h-7 flex-1 items-center justify-center rounded-md border border-destructive/40 bg-destructive/10 text-[12px] font-medium text-destructive transition-colors hover:bg-destructive/20 disabled:cursor-not-allowed disabled:opacity-60"
-                                      >
-                                        {cancelPending ? t.header.canceling : t.header.confirmCancel}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => setCancelConfirm(false)}
-                                        disabled={cancelPending}
-                                        className="inline-flex h-7 flex-1 items-center justify-center rounded-md border border-border bg-muted/50 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed"
-                                      >
-                                        {t.header.no}
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => setCancelConfirm(true)}
-                                      className="mt-2 inline-flex h-7 w-full items-center justify-center rounded-md border border-border/40 bg-muted/10 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted/20 disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                      {t.header.switchToFree}
-                                    </button>
-                                  )
-                                )}
-                              </div>
-                              <div className="h-px bg-border" />
-                              <button
-                                type="button"
-                                onClick={() => setIsDark((d) => !d)}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                              >
-                                {isDark ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}
-                                {isDark ? t.header.lightTheme : t.header.darkTheme}
-                              </button>
-                              <div className="h-px bg-border" />
-                              <button
-                                type="button"
-                                onClick={() => { setUserMenuOpen(false); handleLogout(); }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                              >
-                                <LogOut className="h-4 w-4" aria-hidden="true" />
-                                {t.header.logout}
-                              </button>
-                            </div>
-                          )}
-                        </>
-                      )
-                    })()}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsDark((d) => !d)}
+                    aria-label={isDark ? t.header.activateLightTheme : t.header.activateDarkTheme}
+                    aria-pressed={isDark}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.03] text-muted-foreground transition-colors duration-100 hover:bg-white/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {isDark ? (
+                      <Sun className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <Moon className="h-4 w-4" aria-hidden="true" />
+                    )}
+                  </button>
                 </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleStartStravaLogin}
-                  disabled={authPending}
-                  aria-label={authPending ? t.header.connectingSTRAVA : t.header.connectSTRAVA}
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-white/10 bg-white/[0.03] px-3 text-[13px] font-medium text-foreground transition-colors duration-100 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <LogIn className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">
-                    {authPending ? t.header.connecting : 'Strava'}
-                  </span>
-                </button>
-              )}
-              {!authSession && (
-                <button
-                  type="button"
-                  onClick={() => setIsDark((d) => !d)}
-                  aria-label={isDark ? t.header.activateLightTheme : t.header.activateDarkTheme}
-                  aria-pressed={isDark}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.03] text-muted-foreground transition-colors duration-100 hover:bg-white/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {isDark ? (
-                    <Sun className="h-4 w-4" aria-hidden="true" />
-                  ) : (
-                    <Moon className="h-4 w-4" aria-hidden="true" />
-                  )}
-                </button>
-              )}
             </div>
           </header>
-
-          <AnimatePresence>
-            {authError ? (
-              <motion.div
-                key="auth-error"
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: BANNER_DURATION_S, ease: 'easeOut' }}
-                className="border-b border-destructive/30 bg-destructive/10 px-5 py-2 text-xs text-destructive lg:px-7"
-              >
-                {authError}
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
 
           <div className="chat-canvas flex min-h-0 flex-1 flex-col overflow-hidden">
           <div ref={messageStreamRef} className="message-stream flex-1 space-y-2 overflow-y-auto px-3 py-4 sm:px-[7%] sm:py-10">
@@ -2256,9 +1360,7 @@ function App() {
                   className="flex h-full items-center justify-center"
                 >
                   <p className="text-sm text-muted-foreground">
-                    {authSession
-                      ? t.chat.greeting(authSession.athlete?.firstname)
-                      : t.chat.connectToStart}
+                    {t.chat.connectToStart}
                   </p>
                 </motion.div>
               ) : (
@@ -2330,21 +1432,14 @@ function App() {
           <footer className="border-t border-white/[0.06] px-2.5 py-2 sm:px-[5%] sm:py-4">
             <RuixenPromptBox
               onSend={handleSend}
-              placeholder={
-                authSession
-                  ? hasUsageRemaining
-                    ? t.chat.placeholder
-                    : t.chat.limitReached
-                  : t.chat.loginToChat
-              }
-              disabled={requestStatus !== 'idle' || !authSession || authPending || !hasUsageRemaining}
+              placeholder={hasUsageRemaining ? t.chat.placeholder : t.chat.limitReached}
+              disabled={requestStatus !== 'idle' || !hasUsageRemaining}
               loading={requestStatus !== 'idle'}
               modelOptions={MODEL_OPTIONS}
               selectedModel={selectedModel}
               onModelChange={setSelectedModel}
               modelLeftSlot={
-                authSession ? (
-                  usageLoading ? (
+                usageLoading ? (
                     <span
                       className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border/70 bg-background"
                       aria-label={t.plan.loadingPlan}
@@ -2467,7 +1562,6 @@ function App() {
                       </AnimatePresence>
                     </div>
                   ) : null
-                ) : null
               }
             />
           </footer>
