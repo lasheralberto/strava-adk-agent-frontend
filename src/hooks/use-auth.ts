@@ -1,16 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-  type User,
-} from 'firebase/auth'
-import { auth } from '@/lib/firebase'
 
 const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
+const SESSION_KEY = 'athly_auth_user'
 
 export type AuthUser = {
   uid: string
@@ -21,76 +12,119 @@ export type AuthUser = {
   lastname: string
 }
 
-type AuthState = {
-  user: AuthUser | null
-  loading: boolean
-  error: string | null
+function loadStoredUser(): AuthUser | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY)
+    return raw ? (JSON.parse(raw) as AuthUser) : null
+  } catch {
+    return null
+  }
 }
 
-async function verifyWithBackend(firebaseUser: User): Promise<AuthUser> {
-  const idToken = await firebaseUser.getIdToken()
-  const response = await fetch(`${apiBaseUrl}/auth/firebase/verify`, {
+function storeUser(user: AuthUser | null) {
+  if (user) {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(user))
+  } else {
+    sessionStorage.removeItem(SESSION_KEY)
+  }
+}
+
+function decodeBase64Url(str: string): string {
+  const padded = str + '='.repeat((4 - (str.length % 4)) % 4)
+  return atob(padded.replace(/-/g, '+').replace(/_/g, '/'))
+}
+
+async function postToBackend(path: string, body: Record<string, unknown>): Promise<AuthUser> {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id_token: idToken }),
+    body: JSON.stringify(body),
   })
   if (!response.ok) {
-    const data = (await response.json().catch(() => ({}))) as { error?: string }
-    throw new Error(data.error ?? `Auth error ${response.status}`)
+    const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string }
+    throw new Error(data.error ?? data.message ?? `Error ${response.status}`)
   }
   return response.json() as Promise<AuthUser>
 }
 
 export function useAuth() {
-  const [state, setState] = useState<AuthState>({ user: null, loading: true, error: null })
+  const [user, setUser] = useState<AuthUser | null>(loadStoredUser)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!firebaseUser) {
-        setState({ user: null, loading: false, error: null })
-        return
-      }
+    storeUser(user)
+  }, [user])
+
+  // Handle Google OAuth callback params on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const googleAuth = params.get('google_auth')
+    const googleAuthError = params.get('google_auth_error')
+
+    if (googleAuth) {
       try {
-        const user = await verifyWithBackend(firebaseUser)
-        setState({ user, loading: false, error: null })
+        const userData = JSON.parse(decodeBase64Url(googleAuth)) as AuthUser
+        setUser(userData)
       } catch {
-        setState({ user: null, loading: false, error: null })
+        setError('Error procesando la respuesta de Google.')
       }
-    })
-    return unsubscribe
+      const clean = new URL(window.location.href)
+      clean.searchParams.delete('google_auth')
+      window.history.replaceState({}, '', clean.toString())
+    } else if (googleAuthError) {
+      setError(`Error al iniciar sesión con Google: ${googleAuthError}`)
+      const clean = new URL(window.location.href)
+      clean.searchParams.delete('google_auth_error')
+      window.history.replaceState({}, '', clean.toString())
+    }
   }, [])
 
   const signInWithGoogle = useCallback(async () => {
-    setState((s) => ({ ...s, loading: true, error: null }))
+    setLoading(true)
+    setError(null)
     try {
-      const provider = new GoogleAuthProvider()
-      const result = await signInWithPopup(auth, provider)
-      const user = await verifyWithBackend(result.user)
-      setState({ user, loading: false, error: null })
+      const redirectUri = window.location.origin + '/'
+      const response = await fetch(
+        `${apiBaseUrl}/auth/google/start?redirect_uri=${encodeURIComponent(redirectUri)}`,
+      )
+      if (!response.ok) throw new Error('No se pudo iniciar el login con Google.')
+      const { auth_url } = (await response.json()) as { auth_url: string }
+      window.location.href = auth_url
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al iniciar sesión con Google.'
-      setState({ user: null, loading: false, error: message })
+      setError(message)
+      setLoading(false)
     }
   }, [])
 
-  const signInWithEmail = useCallback(async (email: string, _name: string, password: string, isRegister: boolean) => {
-    setState((s) => ({ ...s, loading: true, error: null }))
-    try {
-      const credential = isRegister
-        ? await createUserWithEmailAndPassword(auth, email, password)
-        : await signInWithEmailAndPassword(auth, email, password)
-      const user = await verifyWithBackend(credential.user)
-      setState({ user, loading: false, error: null })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al iniciar sesión.'
-      setState({ user: null, loading: false, error: message })
-    }
+  const signInWithEmail = useCallback(
+    async (email: string, name: string, password: string, isRegister: boolean) => {
+      setLoading(true)
+      setError(null)
+      try {
+        const authUser = await postToBackend('/auth/email', {
+          email,
+          name,
+          password,
+          is_register: isRegister,
+        })
+        setUser(authUser)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Error al iniciar sesión.'
+        setError(message)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [],
+  )
+
+  const signOut = useCallback(() => {
+    storeUser(null)
+    setUser(null)
+    setError(null)
   }, [])
 
-  const signOut = useCallback(async () => {
-    await firebaseSignOut(auth)
-    setState({ user: null, loading: false, error: null })
-  }, [])
-
-  return { ...state, signInWithGoogle, signInWithEmail, signOut }
+  return { user, loading, error, signInWithGoogle, signInWithEmail, signOut }
 }
