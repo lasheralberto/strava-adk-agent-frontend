@@ -764,7 +764,7 @@ function AuthenticatedApp({ user, signOut, t }: { user: import('@/hooks/use-auth
         method: 'POST',
         headers,
         body: JSON.stringify({
-          athlete_id: user.uid,
+          athlete_id: user.athleteId,
           latest_limit: 10,
         }),
       })
@@ -867,7 +867,7 @@ function AuthenticatedApp({ user, signOut, t }: { user: import('@/hooks/use-auth
   }, [])
 
   const handleSelectSession = useCallback(async (sessionId: string) => {
-    const loaded: ChatSessionMessage[] = await loadSessionMessages(null, sessionId)
+    const loaded: ChatSessionMessage[] = await loadSessionMessages(user?.athleteId ?? '', sessionId)
     const restored: ChatMessage[] = loaded.map((m) => ({
       id: Number(m.messageId),
       role: m.role,
@@ -881,15 +881,15 @@ function AuthenticatedApp({ user, signOut, t }: { user: import('@/hooks/use-auth
     setMessages(restored)
     setCurrentSessionId(sessionId)
     setSidebarOpen(false)
-  }, [loadSessionMessages])
+  }, [loadSessionMessages, user])
 
   const handleDeleteSession = useCallback(async (sessionId: string) => {
-    await deleteSession(null, sessionId)
+    await deleteSession(user?.athleteId ?? '', sessionId)
     if (currentSessionId === sessionId) {
       setMessages([])
       setCurrentSessionId(null)
     }
-  }, [deleteSession, currentSessionId])
+  }, [deleteSession, currentSessionId, user])
 
   const handleSend = async ({ message, transform, model }: { message: string; transform: string | null; model: string }) => {
     const isSending = requestStatus !== 'idle'
@@ -957,7 +957,7 @@ function AuthenticatedApp({ user, signOut, t }: { user: import('@/hooks/use-auth
         body: JSON.stringify({
           message: requestMessage,
           stream: true,
-          athlete_id: user.uid,
+          athlete_id: user.athleteId,
           agent_id: selectedAgentId,
           model: model || DEFAULT_MODEL,
           session_id: currentSessionId,
@@ -1214,13 +1214,13 @@ function AuthenticatedApp({ user, signOut, t }: { user: import('@/hooks/use-auth
               <>
                   <div className="flex items-center gap-2">
                   <WikiKnowledgeModal
-                    athleteId={user.uid}
+                    athleteId={user.athleteId}
                     apiBaseUrl={apiBaseUrl}
                     open={wikiOpen}
                     onOpenChange={setWikiOpen}
                   />
                   <DailyReportModal
-                    athleteId={user.uid}
+                    athleteId={user.athleteId}
                     apiBaseUrl={apiBaseUrl}
                     internalToken={internalPipelineToken}
                     open={dailyReportOpen}
@@ -1281,7 +1281,7 @@ function AuthenticatedApp({ user, signOut, t }: { user: import('@/hooks/use-auth
                             </>
                           ) : (
                             <ActivitiesRunsPanel
-                              athleteId={user.uid}
+                              athleteId={user.athleteId}
                               refreshKey={activitiesRefreshKey}
                               inlineMode
                               active={hubView === 'activities'}
@@ -1351,7 +1351,7 @@ function AuthenticatedApp({ user, signOut, t }: { user: import('@/hooks/use-auth
                   </div>
                   <CustomizableAgentsPanel
                     isDark={isDark}
-                    athleteId={user.uid}
+                    athleteId={user.athleteId}
                     selectedAgentId={selectedAgentId}
                     onAgentChange={setSelectedAgentId}
                     isFreePlan={isFreePlan}

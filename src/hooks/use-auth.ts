@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 
 const apiBaseUrl = (import.meta.env.VITE_GCLOUD_ENDPOINT ?? '').trim().replace(/\/$/, '')
+const internalToken = (import.meta.env.VITE_INTERNAL_PIPELINE_TOKEN ?? '').trim()
 const SESSION_KEY = 'athly_auth_user'
 
 export type AuthUser = {
   uid: string
+  athleteId: string
   email: string
   displayName: string
   photoURL: string
@@ -32,6 +34,25 @@ function storeUser(user: AuthUser | null) {
 function decodeBase64Url(str: string): string {
   const padded = str + '='.repeat((4 - (str.length % 4)) % 4)
   return atob(padded.replace(/-/g, '+').replace(/_/g, '/'))
+}
+
+async function resolveAthleteId(email: string, fallback: string): Promise<string> {
+  if (!email) return fallback
+  try {
+    const headers: Record<string, string> = {}
+    if (internalToken) headers['X-Internal-Token'] = internalToken
+    const res = await fetch(
+      `${apiBaseUrl}/internal/get-athlete-id?email=${encodeURIComponent(email)}`,
+      { headers },
+    )
+    if (res.ok) {
+      const data = (await res.json()) as { athlete_id?: string }
+      return data.athlete_id ? String(data.athlete_id) : fallback
+    }
+  } catch {
+    // silently fall back
+  }
+  return fallback
 }
 
 async function postToBackend(path: string, body: Record<string, unknown>): Promise<AuthUser> {
@@ -63,15 +84,18 @@ export function useAuth() {
     const googleAuthError = params.get('google_auth_error')
 
     if (googleAuth) {
-      try {
-        const userData = JSON.parse(decodeBase64Url(googleAuth)) as AuthUser
-        setUser(userData)
-      } catch {
-        setError('Error procesando la respuesta de Google.')
-      }
       const clean = new URL(window.location.href)
       clean.searchParams.delete('google_auth')
       window.history.replaceState({}, '', clean.toString())
+      ;(async () => {
+        try {
+          const userData = JSON.parse(decodeBase64Url(googleAuth)) as AuthUser
+          const athleteId = await resolveAthleteId(userData.email, userData.uid)
+          setUser({ ...userData, athleteId })
+        } catch {
+          setError('Error procesando la respuesta de Google.')
+        }
+      })()
     } else if (googleAuthError) {
       setError(`Error al iniciar sesión con Google: ${googleAuthError}`)
       const clean = new URL(window.location.href)
@@ -109,7 +133,8 @@ export function useAuth() {
           password,
           is_register: isRegister,
         })
-        setUser(authUser)
+        const athleteId = await resolveAthleteId(authUser.email, authUser.uid)
+        setUser({ ...authUser, athleteId })
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al iniciar sesión.'
         setError(message)
